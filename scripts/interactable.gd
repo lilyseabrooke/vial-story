@@ -7,7 +7,7 @@ extends Area2D
 ## live in the systems already built (Brewing, Shop, Herbalism, Economy,
 ## Clock, Academy) — this is just the spatial trigger for them.
 
-enum Type { BREW_STATION, STOCK_BOX, GROW_PLOT, SUPPLY_SHELF, BED, CLASS_DOOR }
+enum Type { BREW_STATION, STOCK_BOX, GROW_PLOT, SUPPLY_SHELF, BED, CLASS_DOOR, STAIRS }
 
 signal player_entered(interactable: Interactable)
 signal player_exited(interactable: Interactable)
@@ -17,6 +17,10 @@ signal player_exited(interactable: Interactable)
 @export var prompt_text: String = "interact"
 @export var display_name: String = ""
 @export var visual_color: Color = Color(0.6, 0.6, 0.6)
+
+## STAIRS only: which room to switch to and where to place the player there.
+@export var target_room: String = ""
+@export var spawn_position: Vector2 = Vector2.ZERO
 
 @onready var _visual: ColorRect = $Visual
 @onready var _label: Label = $Label

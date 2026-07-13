@@ -31,6 +31,11 @@ const STARTING_INGREDIENTS := {
 const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const INTERACTABLE_SCENE := preload("res://scenes/Interactable.tscn")
 
+const SHOP_ROOM_ID := "shop"
+const BEDROOM_ROOM_ID := "bedroom"
+const SHOP_SPAWN := Vector2(400, 400)
+const BEDROOM_SPAWN := Vector2(400, 350)
+
 var _calendar_label: Label
 var _time_label: Label
 var _materials_label: Label
@@ -59,6 +64,12 @@ var _plot_nodes: Dictionary = {}        # plot_id -> Interactable
 
 var _current_interactable: Interactable = null
 
+var _camera: Camera2D
+var _player: CharacterBody2D
+var _rooms: Dictionary = {}             # room_id -> Node2D (room container)
+var _room_camera_centers: Dictionary = {}  # room_id -> Vector2
+var _current_room_id: String = ""
+
 
 func _ready() -> void:
 	print("Vial Story: main scene ready")
@@ -67,7 +78,7 @@ func _ready() -> void:
 	_load_upgrades()
 	_load_seeds()
 	_grant_starting_ingredients()
-	_build_room()
+	_build_rooms()
 	_build_hud()
 
 	Clock.minute_tick.connect(_on_minute_tick)
@@ -130,45 +141,49 @@ func _grant_starting_ingredients() -> void:
 		Inventory.add_ingredient(id, STARTING_INGREDIENTS[id])
 
 
-## Builds the top-down room: floor, camera, player, and every interactable.
-## See docs/design/systems.md, system 12 — scope is deliberately a single
-## small interior, not open-world; classes/love-interests stay VN-scene-only.
-func _build_room() -> void:
-	var floor_rect := ColorRect.new()
-	floor_rect.color = Color(0.15, 0.15, 0.18)
-	floor_rect.position = Vector2(50, 50)
-	floor_rect.size = Vector2(700, 500)
-	add_child(floor_rect)
+## Builds every room (floor + interactables) up front, plus the shared camera
+## and player, then activates the starting room. See docs/design/systems.md,
+## system 12 — scope is deliberately a couple of small interiors connected by
+## stairs, not open-world; classes/love-interests stay VN-scene-only.
+func _build_rooms() -> void:
+	_build_shop_room()
+	_build_bedroom_room()
 
-	var camera := Camera2D.new()
-	camera.position = Vector2(400, 300)
-	add_child(camera)
-	camera.make_current()
+	# Added after the rooms so they draw on top of each room's floor — 2D draw
+	# order follows tree order, and rooms are siblings of the player/camera.
+	_camera = Camera2D.new()
+	add_child(_camera)
+	_camera.make_current()
 
-	var player := PLAYER_SCENE.instantiate()
-	player.add_to_group("player")
-	player.position = Vector2(400, 400)
-	add_child(player)
+	_player = PLAYER_SCENE.instantiate()
+	_player.add_to_group("player")
+	add_child(_player)
+
+	_switch_room(SHOP_ROOM_ID, SHOP_SPAWN)
+
+
+func _build_shop_room() -> void:
+	var room := _add_room(SHOP_ROOM_ID, Vector2(50, 50), Vector2(700, 500))
 
 	_add_interactable(
-		Interactable.Type.BREW_STATION, STATION_ID, "open brewing options",
+		room, Interactable.Type.BREW_STATION, STATION_ID, "open brewing options",
 		"Alembic", Color(0.8, 0.4, 0.2), Vector2(200, 150)
 	)
 	_add_interactable(
-		Interactable.Type.STOCK_BOX, "", "stock the shop",
+		room, Interactable.Type.STOCK_BOX, "", "stock the shop",
 		"Stock Box", Color(0.4, 0.7, 0.4), Vector2(600, 150)
 	)
 	_add_interactable(
-		Interactable.Type.SUPPLY_SHELF, "", "buy supplies",
+		room, Interactable.Type.SUPPLY_SHELF, "", "buy supplies",
 		"Supply Shelf", Color(0.6, 0.5, 0.3), Vector2(600, 300)
 	)
 	_add_interactable(
-		Interactable.Type.BED, "", "sleep",
-		"Bed", Color(0.3, 0.3, 0.7), Vector2(200, 450)
-	)
-	_add_interactable(
-		Interactable.Type.CLASS_DOOR, "", "attend class (if in session)",
+		room, Interactable.Type.CLASS_DOOR, "", "attend class (if in session)",
 		"Classroom Door", Color(0.7, 0.7, 0.2), Vector2(650, 450)
+	)
+	_add_stairs(
+		room, BEDROOM_ROOM_ID, BEDROOM_SPAWN, "go upstairs to the Bedroom",
+		"Stairs Up", Vector2(200, 450)
 	)
 
 	for i in Herbalism.plots.size():
@@ -176,8 +191,41 @@ func _build_room() -> void:
 		_add_grow_plot_interactable(plot.id, Vector2(400, 150 + i * 120))
 
 
+func _build_bedroom_room() -> void:
+	var room := _add_room(BEDROOM_ROOM_ID, Vector2(50, 50), Vector2(700, 500))
+
+	_add_interactable(
+		room, Interactable.Type.BED, "", "sleep",
+		"Bed", Color(0.3, 0.3, 0.7), Vector2(400, 200)
+	)
+	_add_stairs(
+		room, SHOP_ROOM_ID, SHOP_SPAWN, "go downstairs to the Shop",
+		"Stairs Down", Vector2(400, 450)
+	)
+
+
+## Creates a room container (floor + interactable holder), registers its
+## camera center, and adds it to the scene tree, initially inactive.
+func _add_room(room_id: String, floor_pos: Vector2, floor_size: Vector2) -> Node2D:
+	var room := Node2D.new()
+	room.name = room_id
+	add_child(room)
+
+	var floor_rect := ColorRect.new()
+	floor_rect.color = Color(0.15, 0.15, 0.18)
+	floor_rect.position = floor_pos
+	floor_rect.size = floor_size
+	room.add_child(floor_rect)
+
+	_rooms[room_id] = room
+	_room_camera_centers[room_id] = floor_pos + floor_size * 0.5
+	room.visible = false
+	room.process_mode = Node.PROCESS_MODE_DISABLED
+	return room
+
+
 func _add_interactable(
-	type: Interactable.Type, target_id: String, prompt: String,
+	parent: Node, type: Interactable.Type, target_id: String, prompt: String,
 	display_name: String, color: Color, pos: Vector2
 ) -> Interactable:
 	var interactable: Interactable = INTERACTABLE_SCENE.instantiate()
@@ -187,19 +235,56 @@ func _add_interactable(
 	interactable.display_name = display_name
 	interactable.visual_color = color
 	interactable.position = pos
-	add_child(interactable)
+	parent.add_child(interactable)
 	interactable.player_entered.connect(_on_player_entered_interactable)
 	interactable.player_exited.connect(_on_player_exited_interactable)
 	return interactable
 
 
+func _add_stairs(
+	parent: Node, target_room: String, spawn_position: Vector2, prompt: String,
+	display_name: String, pos: Vector2
+) -> Interactable:
+	var interactable := _add_interactable(
+		parent, Interactable.Type.STAIRS, "", prompt,
+		display_name, Color(0.5, 0.5, 0.55), pos
+	)
+	interactable.target_room = target_room
+	interactable.spawn_position = spawn_position
+	return interactable
+
+
 func _add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
 	var interactable := _add_interactable(
-		Interactable.Type.GROW_PLOT, plot_id, "plant/harvest",
+		_rooms[SHOP_ROOM_ID], Interactable.Type.GROW_PLOT, plot_id, "plant/harvest",
 		plot_id, Color(0.3, 0.6, 0.3), pos
 	)
 	_plot_nodes[plot_id] = interactable
 	_update_plot_label(plot_id)
+
+
+## The one place rooms get (de)activated: toggles visibility + processing on
+## the room containers, moves the shared player/camera, and clears any
+## interaction state left over from the room we just left.
+func _switch_room(room_id: String, spawn_position: Vector2) -> void:
+	if _current_room_id != "":
+		var previous_room: Node2D = _rooms[_current_room_id]
+		previous_room.visible = false
+		previous_room.process_mode = Node.PROCESS_MODE_DISABLED
+
+	_current_interactable = null
+	if _prompt_label:
+		_prompt_label.text = ""
+	if _menu_scene:
+		_menu_scene.close()
+
+	_current_room_id = room_id
+	var room: Node2D = _rooms[room_id]
+	room.visible = true
+	room.process_mode = Node.PROCESS_MODE_INHERIT
+
+	_player.position = spawn_position
+	_camera.position = _room_camera_centers[room_id]
 
 
 func _build_hud() -> void:
@@ -370,6 +455,8 @@ func _on_interact_pressed() -> void:
 			_attend_class()
 		Interactable.Type.GROW_PLOT:
 			_interact_grow_plot(_current_interactable.target_id)
+		Interactable.Type.STAIRS:
+			_switch_room(_current_interactable.target_room, _current_interactable.spawn_position)
 
 
 func _toggle_menu(content: Control, title: String) -> void:

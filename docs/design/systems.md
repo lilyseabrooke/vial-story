@@ -325,6 +325,20 @@ CurseState
   as a VN scene rather than being walked to — see system #13.
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
+- **Rooms**: the interior is split into separate room containers (currently
+  `Shop` and `Bedroom`) built up front in `main.gd`'s `_build_rooms()`, each
+  holding its own floor + interactables. Only one room is active at a time —
+  `_switch_room()` toggles `visible`/`process_mode` on the room containers
+  (inactive rooms are `PROCESS_MODE_DISABLED`, which also stops their
+  `Interactable` areas from firing enter/exit signals while hidden) and
+  repositions the single shared player + camera. The player and camera are
+  scene-level nodes, not per-room, so they persist across a switch.
+- **Room transitions** are just another `Interactable.Type` (`STAIRS`), configured
+  with a `target_room` id and a `spawn_position` in the destination room, the
+  same per-instance-config pattern as every other interactable type. The Bed
+  lives in the Bedroom; the Shop's brew station/stock box/supply shelf/class
+  door/grow plots stay in the Shop, connected by a stairs interactable in each
+  room pointing at the other.
 
 ---
 
