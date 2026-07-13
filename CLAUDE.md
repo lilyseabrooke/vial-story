@@ -71,3 +71,14 @@ event bus or game-state object.
   `_on_interact_pressed()`, not on the Interactable itself. Player movement uses raw
   `Input.is_key_pressed(KEY_*)` checks (`scripts/player.gd`) rather than an InputMap, consistent with
   how the debug hotkeys (`Space`, `R`, `Up`/`Down`) are handled in `main.gd`'s `_unhandled_input`.
+- **`MenuScene`** (`scripts/menu_scene.gd`) is the generalized modal menu shell used for any
+  interactable that opens a menu rather than firing instantly (brew station → recipe list, supply
+  shelf → buy ingredients/seeds/upgrades). It owns only the shared chrome — title, close button, and
+  pausing — and is handed a bespoke content `Control` per menu type, built the same ad hoc,
+  code-only way the HUD panels already are (no shared content base class). `open()` reparents that
+  content into its body and sets `Clock.is_paused = true`; `close()` reverses both. `player.gd`
+  freezes movement off that same `Clock.is_paused` flag rather than tracking menu state itself, so
+  `MenuScene` doesn't need to know the player exists. Menus are single-purpose per interactable (no
+  tabs) and close on `Esc`, on re-pressing `E` at the same interactable, or on entering/exiting a
+  different interactable; `STOCK_BOX`, `BED`, and `CLASS_DOOR` stay instant one-shot actions and never
+  go through `MenuScene`.

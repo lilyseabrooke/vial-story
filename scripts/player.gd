@@ -5,6 +5,10 @@ const SPEED := 220.0
 
 
 func _physics_process(_delta: float) -> void:
+	if Clock.is_paused:
+		velocity = Vector2.ZERO
+		return
+
 	var input_vector := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A):
 		input_vector.x -= 1

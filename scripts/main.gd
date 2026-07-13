@@ -31,19 +31,24 @@ const STARTING_INGREDIENTS := {
 const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const INTERACTABLE_SCENE := preload("res://scenes/Interactable.tscn")
 
-var _clock_label: Label
+var _calendar_label: Label
+var _time_label: Label
+var _materials_label: Label
+var _resolve_bar: ProgressBar
+var _resolve_label: Label
 var _log_label: Label
-var _inventory_label: Label
+var _ingredients_label: Label
 var _station_label: Label
 var _potions_label: Label
 var _shop_label: Label
 var _skills_label: Label
-var _resolve_label: Label
 var _report_card_label: Label
 var _game_over_label: Label
 var _prompt_label: Label
 var _brew_panel: VBoxContainer
 var _supply_panel: VBoxContainer
+var _game_menu_content: VBoxContainer
+var _menu_scene: MenuScene
 
 var _recipes: Array[RecipeDef] = []
 var _ingredients: Array[IngredientDef] = []
@@ -90,12 +95,13 @@ func _ready() -> void:
 	Academy.game_over.connect(_on_game_over)
 
 	_update_clock_label()
-	_update_inventory_label()
+	_update_ingredients_label()
+	_update_materials_label()
 	_update_station_label()
 	_update_potions_label()
 	_update_shop_label()
 	_update_skills_label()
-	_update_resolve_label()
+	_update_resolve_meter()
 	_update_report_card_label()
 
 
@@ -200,64 +206,100 @@ func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	add_child(hud)
 
-	var panel := PanelContainer.new()
-	panel.position = Vector2(16, 16)
-	hud.add_child(panel)
+	# Resolve meter — top-left.
+	var resolve_panel := PanelContainer.new()
+	resolve_panel.position = Vector2(16, 16)
+	hud.add_child(resolve_panel)
 
-	var vbox := VBoxContainer.new()
-	panel.add_child(vbox)
+	var resolve_vbox := VBoxContainer.new()
+	resolve_panel.add_child(resolve_vbox)
 
-	_clock_label = Label.new()
-	_clock_label.add_theme_font_size_override("font_size", 24)
-	vbox.add_child(_clock_label)
-
-	_log_label = Label.new()
-	_log_label.modulate = Color(0.8, 0.8, 0.8)
-	vbox.add_child(_log_label)
-
-	vbox.add_child(HSeparator.new())
-
-	_inventory_label = Label.new()
-	vbox.add_child(_inventory_label)
-
-	_station_label = Label.new()
-	vbox.add_child(_station_label)
-
-	_potions_label = Label.new()
-	vbox.add_child(_potions_label)
-
-	_shop_label = Label.new()
-	vbox.add_child(_shop_label)
-
-	_skills_label = Label.new()
-	vbox.add_child(_skills_label)
+	_resolve_bar = ProgressBar.new()
+	_resolve_bar.custom_minimum_size = Vector2(180, 20)
+	_resolve_bar.min_value = 0
+	resolve_vbox.add_child(_resolve_bar)
 
 	_resolve_label = Label.new()
-	vbox.add_child(_resolve_label)
+	resolve_vbox.add_child(_resolve_label)
 
-	_report_card_label = Label.new()
-	vbox.add_child(_report_card_label)
+	# Calendar + Materials — top-right.
+	var calendar_panel := PanelContainer.new()
+	calendar_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	calendar_panel.position = Vector2(-200, 16)
+	hud.add_child(calendar_panel)
 
+	var calendar_vbox := VBoxContainer.new()
+	calendar_panel.add_child(calendar_vbox)
+
+	_calendar_label = Label.new()
+	_calendar_label.add_theme_font_size_override("font_size", 24)
+	calendar_vbox.add_child(_calendar_label)
+
+	_time_label = Label.new()
+	calendar_vbox.add_child(_time_label)
+
+	calendar_vbox.add_child(HSeparator.new())
+
+	_materials_label = Label.new()
+	calendar_vbox.add_child(_materials_label)
+
+	# Game Over — stays directly on screen (terminal state), not in the menu.
 	_game_over_label = Label.new()
 	_game_over_label.add_theme_font_size_override("font_size", 24)
 	_game_over_label.modulate = Color(1.0, 0.3, 0.3)
 	_game_over_label.visible = false
-	vbox.add_child(_game_over_label)
-
-	var hint := Label.new()
-	hint.text = "WASD: move  |  E: interact  |  Space: pause  |  R: drain Resolve (debug)  |  Up/Down: tick rate"
-	hint.modulate = Color(0.6, 0.6, 0.6)
-	vbox.add_child(hint)
+	_game_over_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_game_over_label.position = Vector2(-250, 16)
+	_game_over_label.custom_minimum_size = Vector2(500, 0)
+	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud.add_child(_game_over_label)
 
 	_prompt_label = Label.new()
 	_prompt_label.add_theme_font_size_override("font_size", 20)
-	panel.add_sibling(_prompt_label)
 	_prompt_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_prompt_label.position = Vector2(-150, -60)
 	_prompt_label.custom_minimum_size = Vector2(300, 0)
 	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud.add_child(_prompt_label)
 
-	_brew_panel = _build_context_panel(hud)
+	# Everything else lives in the Escape menu instead of the HUD.
+	_game_menu_content = VBoxContainer.new()
+
+	_log_label = Label.new()
+	_log_label.modulate = Color(0.8, 0.8, 0.8)
+	_game_menu_content.add_child(_log_label)
+
+	_game_menu_content.add_child(HSeparator.new())
+
+	_ingredients_label = Label.new()
+	_game_menu_content.add_child(_ingredients_label)
+
+	_station_label = Label.new()
+	_game_menu_content.add_child(_station_label)
+
+	_potions_label = Label.new()
+	_game_menu_content.add_child(_potions_label)
+
+	_shop_label = Label.new()
+	_game_menu_content.add_child(_shop_label)
+
+	_skills_label = Label.new()
+	_game_menu_content.add_child(_skills_label)
+
+	_report_card_label = Label.new()
+	_game_menu_content.add_child(_report_card_label)
+
+	var hint := Label.new()
+	hint.text = "WASD: move  |  E: interact  |  Esc: open/close menu  |  Space: pause  |  R: drain Resolve (debug)  |  Up/Down: tick rate"
+	hint.modulate = Color(0.6, 0.6, 0.6)
+	_game_menu_content.add_child(hint)
+
+	var quit_button := Button.new()
+	quit_button.text = "Quit"
+	quit_button.pressed.connect(func() -> void: get_tree().quit())
+	_game_menu_content.add_child(quit_button)
+
+	_brew_panel = VBoxContainer.new()
 	for recipe in _recipes:
 		var button := Button.new()
 		button.text = "Brew: %s" % recipe.display_name
@@ -268,7 +310,7 @@ func _build_hud() -> void:
 	collect_button.pressed.connect(_on_collect_button_pressed)
 	_brew_panel.add_child(collect_button)
 
-	_supply_panel = _build_context_panel(hud)
+	_supply_panel = VBoxContainer.new()
 	for ingredient in _ingredients:
 		var ingredient_button := Button.new()
 		ingredient_button.text = "Buy %s (%d)" % [ingredient.display_name, ingredient.buy_price]
@@ -286,17 +328,8 @@ func _build_hud() -> void:
 		_upgrade_buttons[upgrade.id] = upgrade_button
 		_supply_panel.add_child(upgrade_button)
 
-
-func _build_context_panel(hud: CanvasLayer) -> VBoxContainer:
-	var context_panel := PanelContainer.new()
-	context_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	context_panel.position = Vector2(-320, -150)
-	context_panel.visible = false
-	hud.add_child(context_panel)
-
-	var vbox := VBoxContainer.new()
-	context_panel.add_child(vbox)
-	return vbox
+	_menu_scene = MenuScene.new()
+	add_child(_menu_scene)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -304,7 +337,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match event.keycode:
 		KEY_SPACE:
-			Clock.is_paused = not Clock.is_paused
+			if not _menu_scene.is_open():
+				Clock.is_paused = not Clock.is_paused
+		KEY_ESCAPE:
+			if _menu_scene.is_open():
+				_menu_scene.close()
+			else:
+				_menu_scene.open(_game_menu_content, "Menu")
 		KEY_E:
 			_on_interact_pressed()
 		KEY_R:
@@ -320,11 +359,9 @@ func _on_interact_pressed() -> void:
 		return
 	match _current_interactable.interactable_type:
 		Interactable.Type.BREW_STATION:
-			_brew_panel.get_parent().visible = not _brew_panel.get_parent().visible
-			_supply_panel.get_parent().visible = false
+			_toggle_menu(_brew_panel, "Brewing")
 		Interactable.Type.SUPPLY_SHELF:
-			_supply_panel.get_parent().visible = not _supply_panel.get_parent().visible
-			_brew_panel.get_parent().visible = false
+			_toggle_menu(_supply_panel, "Supplies")
 		Interactable.Type.STOCK_BOX:
 			_on_stock_button_pressed()
 		Interactable.Type.BED:
@@ -333,6 +370,13 @@ func _on_interact_pressed() -> void:
 			_attend_class()
 		Interactable.Type.GROW_PLOT:
 			_interact_grow_plot(_current_interactable.target_id)
+
+
+func _toggle_menu(content: Control, title: String) -> void:
+	if _menu_scene.has_content(content) and _menu_scene.is_open():
+		_menu_scene.close()
+	else:
+		_menu_scene.open(content, title)
 
 
 func _interact_grow_plot(plot_id: String) -> void:
@@ -348,11 +392,10 @@ func _interact_grow_plot(plot_id: String) -> void:
 
 func _on_player_entered_interactable(interactable: Interactable) -> void:
 	if _current_interactable != interactable:
-		# Entering a different interactable always resets any panel left open
+		# Entering a different interactable always resets any menu left open
 		# by the previous one — exit/enter signal order isn't guaranteed when
 		# both fire on the same physics step (e.g. a large instantaneous move).
-		_brew_panel.get_parent().visible = false
-		_supply_panel.get_parent().visible = false
+		_menu_scene.close()
 	_current_interactable = interactable
 	_prompt_label.text = "Press E: %s" % interactable.prompt_text
 
@@ -362,8 +405,7 @@ func _on_player_exited_interactable(interactable: Interactable) -> void:
 		return
 	_current_interactable = null
 	_prompt_label.text = ""
-	_brew_panel.get_parent().visible = false
-	_supply_panel.get_parent().visible = false
+	_menu_scene.close()
 
 
 func _on_brew_button_pressed(recipe: RecipeDef) -> void:
@@ -473,14 +515,14 @@ func _on_brew_botched(station_id: String, recipe_id: String) -> void:
 
 
 func _on_resolve_changed(_current: int, _max_resolve: int) -> void:
-	_update_resolve_label()
+	_update_resolve_meter()
 
 
 func _on_strained_changed(is_strained: bool) -> void:
 	if is_strained:
 		_log_label.text = "Resolve is strained — all skill bonuses are halved."
 	print("Strained: %s" % is_strained)
-	_update_resolve_label()
+	_update_resolve_meter()
 
 
 func _on_plot_added(plot_id: String) -> void:
@@ -501,7 +543,7 @@ func _on_ready_to_harvest(plot_id: String, _seed_id: String) -> void:
 func _on_harvested(plot_id: String, ingredient_id: String, quantity: int) -> void:
 	_log_label.text = "Harvested %d %s from %s!" % [quantity, ingredient_id, plot_id]
 	print("Harvested %d %s from %s." % [quantity, ingredient_id, plot_id])
-	_update_inventory_label()
+	_update_ingredients_label()
 	_update_skills_label()
 	_update_plot_label(plot_id)
 
@@ -530,11 +572,11 @@ func _on_game_over() -> void:
 
 
 func _on_inventory_changed(_ingredient_id: String, _quantity: int) -> void:
-	_update_inventory_label()
+	_update_ingredients_label()
 
 
 func _on_materials_changed(_amount: int) -> void:
-	_update_inventory_label()
+	_update_materials_label()
 
 
 func _on_upgrade_purchased(upgrade_id: String) -> void:
@@ -552,25 +594,28 @@ func _on_potion_stocked(_potion_id: String, _price: int) -> void:
 func _on_potion_sold(potion_id: String, price: int) -> void:
 	_log_label.text = "Sold %s for %d Materials!" % [potion_id, price]
 	print("Sold %s for %d Materials." % [potion_id, price])
-	_update_inventory_label()
+	_update_materials_label()
 	_update_shop_label()
 
 
 func _update_clock_label() -> void:
 	var day_type_name: String = DAY_TYPE_NAMES[Clock.day_type()]
-	_clock_label.text = "Day %d (%s) — %s%s" % [
-		Clock.day_number,
-		day_type_name,
+	_calendar_label.text = "Day %d (%s)" % [Clock.day_number, day_type_name]
+	_time_label.text = "%s%s" % [
 		Clock.get_clock_string(),
 		" [PAUSED]" if Clock.is_paused else "",
 	]
 
 
-func _update_inventory_label() -> void:
+func _update_ingredients_label() -> void:
 	var parts: Array[String] = []
 	for id in STARTING_INGREDIENTS:
 		parts.append("%s x%d" % [id, Inventory.ingredient_count(id)])
-	_inventory_label.text = "Inventory: %s | Materials: %d" % [", ".join(parts), Inventory.materials]
+	_ingredients_label.text = "Inventory: %s" % ", ".join(parts)
+
+
+func _update_materials_label() -> void:
+	_materials_label.text = "Materials: %d" % Inventory.materials
 
 
 func _update_station_label() -> void:
@@ -610,7 +655,9 @@ func _update_skills_label() -> void:
 	]
 
 
-func _update_resolve_label() -> void:
+func _update_resolve_meter() -> void:
+	_resolve_bar.max_value = Resolve.max_resolve
+	_resolve_bar.value = Resolve.current
 	var strained_suffix := " [STRAINED]" if Resolve.is_strained() else ""
 	_resolve_label.text = "Resolve: %d/%d%s" % [Resolve.current, Resolve.max_resolve, strained_suffix]
 
