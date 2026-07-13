@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="IngredientDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ingredient_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "moonpetal"
+display_name = "Moonpetal"
+category = 0
+tier = 1
+source_methods = Array[int]([0, 1])
+buy_price = 5

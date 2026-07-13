@@ -11,10 +11,21 @@ config_version=5
 [application]
 
 config/name="Vial Story"
+run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
-run/main_scene="res://scenes/Main.tscn"
+[autoload]
+
+Clock="*res://scripts/autoload/clock.gd"
+Inventory="*res://scripts/autoload/inventory.gd"
+Resolve="*res://scripts/autoload/resolve.gd"
+Skills="*res://scripts/autoload/skills.gd"
+Brewing="*res://scripts/autoload/brewing.gd"
+Shop="*res://scripts/autoload/shop.gd"
+Herbalism="*res://scripts/autoload/herbalism.gd"
+Economy="*res://scripts/autoload/economy.gd"
+Academy="*res://scripts/autoload/academy.gd"
 
 [display]
 

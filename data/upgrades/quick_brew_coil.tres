@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "quick_brew_coil"
+display_name = "Quick-Brew Coil"
+cost = 120
+effect_target = "station_speed"
+effect_amount = 0.5

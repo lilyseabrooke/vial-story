@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/recipe_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "minor_healing_draught"
+display_name = "Minor Healing Draught"
+known = true
+station_type = "alembic"
+brew_time_minutes = 60
+ingredient_ids = Array[String](["moonpetal", "iron_filings"])
+ingredient_quantities = Array[int]([2, 1])
+potency_range = Vector2(30, 50)
+ease_range = Vector2(60, 80)
+output_potion_id = "minor_healing_draught"
+unlock_minigame_id = ""
