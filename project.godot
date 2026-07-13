@@ -26,6 +26,8 @@ Shop="*res://scripts/autoload/shop.gd"
 Herbalism="*res://scripts/autoload/herbalism.gd"
 Economy="*res://scripts/autoload/economy.gd"
 Academy="*res://scripts/autoload/academy.gd"
+Story="*res://scripts/autoload/story.gd"
+LoveInterests="*res://scripts/autoload/love_interests.gd"
 
 [display]
 

@@ -342,26 +342,145 @@ CurseState
 
 ---
 
-## 13. VN / Relationship System **[STUB]**
+## 13. VN / Relationship System **[BUILD — in progress]**
+
+A custom-built dialogue engine, not a third-party addon — the explicit intent is to
+frontload real engine investment now so that later work is writing/art, not more
+engineering. Scope for the first pass: one love interest, a handful of scenes,
+proving trigger → full-screen scene → consequence end-to-end.
+
+### Expression language **[BUILT]**
+
+A single small boolean-expression grammar backs both dialogue `if` statements and
+scene-trigger conditions — one evaluator, two use sites, rather than parallel
+condition systems.
 
 ```
-LoveInterest
-  - id
-  - affection: int
-  - unlocked_scenes: [scene_id]
-
-Scene
-  - id
-  - trigger: ScheduledWindow | AffectionThreshold | StoryFlag  (combinable)
+primary    := NUMBER | STRING | "true" | "false" | IDENT "(" args ")" | "(" expr ")"
+comparison := primary ( ("==" | "!=" | ">=" | "<=" | ">" | "<") primary )?
+not_expr   := "not" not_expr | comparison
+and_expr   := not_expr ( "and" not_expr )*
+or_expr    := and_expr ( "or" and_expr )*
 ```
 
-- Scenes are gated by some combination of scheduled window (system 1), location,
-  affection threshold, and story flags.
-- Gifting: a scene action can consume Materials or specific potions/ingredients to
-  raise affection.
-- Build order note: this system should be stubbed with placeholder scenes only
-  after the core sim loop (systems 1–10) feels good on its own — see prototype
-  build order below.
+- `scripts/vn/vn_expression_parser.gd` (`VNExpressionParser`) — hand-rolled
+  tokenizer + recursive-descent parser. AST nodes are plain `Dictionary`s
+  (`{"type": "call", "name": ..., "args": [...]}` etc.) rather than a class per
+  node kind, since they're transient and structurally varied enough that a class
+  hierarchy would be overhead. A malformed expression `push_error`s and `parse()`
+  returns `null` rather than crashing.
+- `scripts/vn/vn_expression_evaluator.gd` (`VNExpressionEvaluator`) — walks the
+  AST. One dispatch table (`match` on function name, same pattern as
+  `Economy._apply_effect()`) serves both value-returning condition functions
+  (`has_flag`, `affection`, `has_item`, `materials`, `skill_level`) and
+  side-effecting action functions (`set_flag`, `clear_flag`, `add_affection`,
+  `give_item`) — the parser doesn't structurally distinguish a condition from an
+  action (both are just `call` nodes), so neither does the evaluator.
+- `Story` autoload — flat flag store (`has_flag`/`set_flag`/`flag_changed` signal).
+- `LoveInterests` autoload — affection per love-interest id
+  (`get_affection`/`add_affection`/`affection_changed` signal). Static love-interest
+  data (display name, house, etc.) will live in a `LoveInterestDef` resource once
+  scenes need it; affection itself only needs a string id.
+
+### Dialogue script format **[NOT BUILT YET]**
+
+A line-oriented script format (Ink/Yarn-style), parsed and then *compiled* to a
+flat, linear instruction list with resolved label/jump targets — not a tree the
+runtime walks recursively — so the runtime itself stays a simple instruction
+pointer rather than needing to recurse into `if`/`else` bodies. `if`/`else` blocks
+use explicit `endif` terminators rather than indentation sensitivity, trading a
+little visual elegance for a much more robust hand-rolled parser.
+
+Planned v1 grammar: speaker lines (`Kaelith: "text"`), `choice` blocks with
+`"text" -> label` options, `label`/`goto`, one level of `if <expr> / else / endif`,
+action-call statements (reusing the expression language's `call` syntax), and
+stage directions for full VN-style staging — this is **full-screen VN
+presentation** (background + character sprites positioned in the scene itself,
+not a small portrait-in-a-box), so stage directions need arbitrary 2D positions,
+not fixed left/center/right slots:
+
+```
+scene kaelith_greeting
+enter Kaelith at 200,400
+Kaelith: "You're still up? Typical."
+choice
+  "Ask about her day" -> ask_day
+  "Offer her a potion" -> offer_potion
+
+label ask_day
+Kaelith: "It's been long. Exams, you know."
+goto end
+
+label offer_potion
+if has_item("clarity_tonic")
+  Kaelith: "For me? How thoughtful."
+  add_affection("kaelith", 5)
+  give_item("clarity_tonic", -1)
+else
+  Kaelith: "You don't actually have one, do you?"
+endif
+goto end
+
+label end
+end_scene
+```
+
+Stage directions also need `exit <char>`, `move <char> to <x>,<y>`, and an
+expression/sprite-variant switch (e.g. `expression Kaelith smug`) for changing a
+present character's art without moving or removing them. Multi-character and
+NPC-to-NPC scenes fall out of this for free — the runtime doesn't care whether
+the speaker changes every line or stays the same, and a scene the player only
+observes is just lines where neither active speaker is the player.
+
+Placeholder art: plain colored rectangles + labels, same as the room's
+placeholder art — since VN sprites fill most of the screen rather than being a
+small player-sized block, this is expected to read clearly as "VN scene" without
+needing portrait-shaped placeholders.
+
+### Runtime and presentation **[NOT BUILT YET]**
+
+- `DialogueRunner` — steps through a compiled scene's instructions, emitting
+  signals (`line_shown(speaker, text)`, `choice_requested(options)`,
+  `stage_changed(...)`) and waiting for the UI to call back in (`advance()`,
+  `choose(index)`).
+- `DialogueBox` — full-screen scene: background, positioned character sprites
+  (added/removed/moved per stage direction, active speaker highlighted / others
+  dimmed), name plate + text at the bottom, choice buttons.
+
+### Scene triggering **[NOT BUILT YET]**
+
+No fixed taxonomy of trigger *types* — a scene can be triggered by anything at
+any time, so a `SceneTriggerDef` just carries a condition expression (the same
+expression language as `if` statements) rather than an enum of trigger kinds.
+
+```
+SceneTriggerDef
+  - id
+  - script_path
+  - condition: String        # expression source, parsed once at registration
+  - priority: Priority        # LOW | NORMAL | HIGH | MAX — buckets, not raw numbers
+  - repeatable: bool
+  - show_from_menu: bool      # can this cut in through an open menu?
+```
+
+- `SceneDirector` autoload registers all `SceneTriggerDef`s and re-evaluates them
+  via `recheck()` — on every `Clock.minute_tick` as a cheap baseline (so
+  time/flag-only conditions never lag more than a minute), and immediately from
+  specific call sites (a menu closing, a sale landing, a room change, etc.) for
+  anything that should feel instant. A satisfied trigger fires the highest
+  `priority` bucket first, then earliest-registered within that bucket.
+- **No explicit queue.** A trigger that's satisfied but blocked (player mid-menu,
+  and `show_from_menu` is false) simply doesn't fire yet; the very next
+  `recheck()` — which happens constantly regardless — re-runs the same
+  priority/registration-order selection fresh. This also means a trigger whose
+  condition stops holding true while "queued" is naturally dropped rather than
+  firing stale.
+- An already-*playing* scene always blocks new scenes outright, regardless of
+  `show_from_menu` — that flag only lets a scene cut through a menu (e.g. calling
+  a love interest from a phone menu item), not through another scene in progress.
+  No nested scenes.
+- Non-repeatable scenes mark themselves played via the same `Story` flag store
+  (`has_flag("scene_played_" + scene_id)`) rather than separate "seen" bookkeeping.
 
 ---
 
