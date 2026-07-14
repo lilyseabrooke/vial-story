@@ -382,7 +382,7 @@ or_expr    := and_expr ( "or" and_expr )*
   data (display name, house, etc.) will live in a `LoveInterestDef` resource once
   scenes need it; affection itself only needs a string id.
 
-### Dialogue script format **[NOT BUILT YET]**
+### Dialogue script format **[BUILT]**
 
 A line-oriented script format (Ink/Yarn-style), parsed and then *compiled* to a
 flat, linear instruction list with resolved label/jump targets — not a tree the
@@ -390,6 +390,36 @@ runtime walks recursively — so the runtime itself stays a simple instruction
 pointer rather than needing to recurse into `if`/`else` bodies. `if`/`else` blocks
 use explicit `endif` terminators rather than indentation sensitivity, trading a
 little visual elegance for a much more robust hand-rolled parser.
+
+`scripts/vn/vn_script_compiler.gd` (`VNScriptCompiler`) implements this as a
+single static `compile(source: String) -> Dictionary`, returning
+`{"scene_id": ..., "instructions": [...]}` on success or `{}` on failure (errors
+`push_error`d, same no-exceptions contract as `VNExpressionParser`). Instructions
+are plain `Dictionary`s tagged with an `"op"` string (`SHOW_LINE`, `SHOW_CHOICE`,
+`JUMP`, `JUMP_IF_FALSE`, `STAGE_ENTER`, `STAGE_EXIT`, `STAGE_MOVE`,
+`STAGE_EXPRESSION`, `CALL`, `END`) — same node-as-Dictionary convention as the
+expression AST. `JUMP`/`JUMP_IF_FALSE`/choice-option targets are resolved
+integer instruction indices (never label-name strings), and `JUMP_IF_FALSE.condition`
+/ `CALL.call` embed the exact AST `VNExpressionParser` produces — no re-encoding,
+so the eventual `DialogueRunner` can call `VNExpressionEvaluator.evaluate()`
+directly on those fields.
+
+Compilation is a single pass over the script's lines that emits instructions
+while building a `label -> index` table and a list of not-yet-resolved jump
+targets (`goto`/choice options), followed by one small backpatch pass over just
+that list. `if`/`else`/`endif` resolve their own jump targets inline as they're
+encountered (no backpatch needed there, since by the time `else`/`endif` is
+reached the relevant instruction index is already known) via a stack of
+in-progress `if` frames — implemented as a real stack so nested `if` will fall
+out for free later even though v1 only exercises one level. `choice` blocks are
+detected structurally: after a `choice` line, subsequent lines are consumed as
+`"text" -> label` options for as long as they match that shape, ending at the
+first line that doesn't (no explicit `endchoice`, no indentation tracking).
+
+Verified against the sample script below via a throwaway test scene (compiled
+instruction list checked structurally — jump/choice targets land on the right
+*content*, not hardcoded indices — including the negative case of an
+unresolvable `goto` correctly failing compilation).
 
 Planned v1 grammar: speaker lines (`Kaelith: "text"`), `choice` blocks with
 `"text" -> label` options, `label`/`goto`, one level of `if <expr> / else / endif`,
