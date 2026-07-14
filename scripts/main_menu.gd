@@ -188,26 +188,7 @@ func _build_settings_menu() -> void:
 
 	vbox.add_child(HSeparator.new())
 
-	_add_slider_setting(vbox, "Master Volume")
-	_add_slider_setting(vbox, "Music Volume")
-	_add_slider_setting(vbox, "SFX Volume")
-
-	var fullscreen_check := CheckBox.new()
-	fullscreen_check.text = "Fullscreen"
-	vbox.add_child(fullscreen_check)
-
-	var vsync_check := CheckBox.new()
-	vsync_check.text = "V-Sync"
-	vsync_check.button_pressed = true
-	vbox.add_child(vsync_check)
-
-	_add_option_setting(vbox, "Text Speed", ["Slow", "Normal", "Fast", "Instant"], 1)
-	_add_option_setting(vbox, "Difficulty", ["Cozy", "Standard", "Challenging"], 1)
-
-	var note := Label.new()
-	note.text = "(Not wired up yet — prototype placeholder.)"
-	note.modulate = Color(0.6, 0.6, 0.6)
-	vbox.add_child(note)
+	SettingsControls.build(vbox)
 
 	vbox.add_child(HSeparator.new())
 
@@ -215,34 +196,6 @@ func _build_settings_menu() -> void:
 	back_button.text = "Back"
 	back_button.pressed.connect(_on_settings_back_pressed)
 	vbox.add_child(back_button)
-
-
-func _add_slider_setting(parent: VBoxContainer, label_text: String) -> void:
-	var caption := Label.new()
-	caption.text = label_text
-	parent.add_child(caption)
-
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	slider.value = 0.8
-	slider.custom_minimum_size = Vector2(220, 0)
-	parent.add_child(slider)
-
-
-func _add_option_setting(
-	parent: VBoxContainer, label_text: String, options: Array, default_index: int
-) -> void:
-	var caption := Label.new()
-	caption.text = label_text
-	parent.add_child(caption)
-
-	var option_button := OptionButton.new()
-	for option_label in options:
-		option_button.add_item(option_label)
-	option_button.selected = default_index
-	parent.add_child(option_button)
 
 
 func _on_settings_back_pressed() -> void:

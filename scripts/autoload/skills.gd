@@ -66,6 +66,14 @@ func get_bonus(effect_target: String) -> float:
 	return total
 
 
+func skill_ids() -> Array:
+	return _defs.keys()
+
+
+func get_def(skill_id: String) -> SkillDef:
+	return _defs.get(skill_id)
+
+
 func level(skill_id: String) -> int:
 	return _levels.get(skill_id, 0)
 

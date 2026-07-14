@@ -25,3 +25,7 @@ func _ready() -> void:
 
 func get_character(character_id: String) -> CharacterDef:
 	return _characters.get(character_id, null)
+
+
+func all_character_ids() -> Array:
+	return _characters.keys()
