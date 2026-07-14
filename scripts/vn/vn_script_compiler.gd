@@ -54,6 +54,10 @@ static func compile(source: String) -> Dictionary:
 			instructions.append({"op": "STAGE_EXIT", "character": line.substr(5).strip_edges()})
 			continue
 
+		if line.begins_with("background "):
+			instructions.append({"op": "STAGE_BACKGROUND", "name": line.substr(11).strip_edges()})
+			continue
+
 		if line.begins_with("move "):
 			var parsed_move := _parse_move(line, line_number)
 			if parsed_move.is_empty():

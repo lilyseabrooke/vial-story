@@ -80,7 +80,7 @@ func _run() -> void:
 			"CALL":
 				VNExpressionEvaluator.evaluate(instr.call)
 				_ip += 1
-			"STAGE_ENTER", "STAGE_EXIT", "STAGE_MOVE", "STAGE_EXPRESSION":
+			"STAGE_BACKGROUND", "STAGE_ENTER", "STAGE_EXIT", "STAGE_MOVE", "STAGE_EXPRESSION":
 				_ip += 1
 				stage_changed.emit(instr)
 			"END":

@@ -396,8 +396,8 @@ single static `compile(source: String) -> Dictionary`, returning
 `{"scene_id": ..., "instructions": [...]}` on success or `{}` on failure (errors
 `push_error`d, same no-exceptions contract as `VNExpressionParser`). Instructions
 are plain `Dictionary`s tagged with an `"op"` string (`SHOW_LINE`, `SHOW_CHOICE`,
-`JUMP`, `JUMP_IF_FALSE`, `STAGE_ENTER`, `STAGE_EXIT`, `STAGE_MOVE`,
-`STAGE_EXPRESSION`, `CALL`, `END`) — same node-as-Dictionary convention as the
+`JUMP`, `JUMP_IF_FALSE`, `STAGE_BACKGROUND`, `STAGE_ENTER`, `STAGE_EXIT`,
+`STAGE_MOVE`, `STAGE_EXPRESSION`, `CALL`, `END`) — same node-as-Dictionary convention as the
 expression AST. `JUMP`/`JUMP_IF_FALSE`/choice-option targets are resolved
 integer instruction indices (never label-name strings), and `JUMP_IF_FALSE.condition`
 / `CALL.call` embed the exact AST `VNExpressionParser` produces — no re-encoding,
@@ -427,10 +427,15 @@ action-call statements (reusing the expression language's `call` syntax), and
 stage directions for full VN-style staging — this is **full-screen VN
 presentation** (background + character sprites positioned in the scene itself,
 not a small portrait-in-a-box), so stage directions need arbitrary 2D positions,
-not fixed left/center/right slots:
+not fixed left/center/right slots. `background <name>` was added once
+`DialogueBox` needed something to render behind characters — it compiles to a
+`STAGE_BACKGROUND` instruction carrying just a name string; `DialogueBox` maps
+that name to a placeholder color (deterministic hash-to-hue), the same
+"no real assets yet" spirit as the character rectangles:
 
 ```
 scene kaelith_greeting
+background bedroom
 enter Kaelith at 200,400
 Kaelith: "You're still up? Typical."
 choice
@@ -467,7 +472,7 @@ placeholder art — since VN sprites fill most of the screen rather than being a
 small player-sized block, this is expected to read clearly as "VN scene" without
 needing portrait-shaped placeholders.
 
-### Runtime and presentation **[DialogueRunner BUILT / DialogueBox NOT BUILT YET]**
+### Runtime and presentation **[BUILT]**
 
 - `DialogueRunner` (`scripts/vn/dialogue_runner.gd`) — **built.** Loads a
   `VNScriptCompiler.compile()` result and steps through it as a plain
@@ -484,11 +489,29 @@ needing portrait-shaped placeholders.
   test scene: both choice branches, the `if has_item(...)` true/false paths,
   and the resulting `LoveInterests`/`Inventory` side effects (affection +5,
   `clarity_tonic` consumed) all confirmed correct.
-- `DialogueBox` — **not built yet.** Full-screen scene: background, positioned
-  character sprites (added/removed/moved per stage direction, active speaker
-  highlighted / others dimmed), name plate + text at the bottom, choice
-  buttons — driven entirely by listening to `DialogueRunner`'s signals and
-  calling `advance()`/`choose()` back in response to player input.
+- `DialogueBox` (`scripts/vn/dialogue_box.gd`) — **built.** A code-built
+  `CanvasLayer` (not `MenuScene`-based — VN scenes are full-screen, not a
+  chrome-and-content panel), owning its own `DialogueRunner` internally
+  (`open(compiled_scene)` constructs one, connects all four signals, calls
+  `start()`). Background and character sprites are placeholder colored
+  rectangles (deterministic hash-to-hue for backgrounds by name, a small
+  fixed palette cycled per character), with a name+expression label instead
+  of real art; the currently-speaking character is full-opacity, everyone
+  else present is dimmed. Dialogue text reveals with a typewriter effect
+  (`Timer`-driven, configurable seconds-per-character); clicking anywhere on
+  the background while a line is still revealing completes it instantly
+  instead of advancing, and only a second click calls `DialogueRunner.advance()`
+  — the click handler lives on the full-screen background `ColorRect`, with
+  the character layer and each character rectangle set to
+  `MOUSE_FILTER_IGNORE` so clicks fall through to it, while choice buttons
+  (default `STOP` filter) still take priority when clicked directly. Choice
+  options render as dynamically-built `Button`s; pressing one calls
+  `DialogueRunner.choose(index)`. `scene_ended()` closes the box and
+  un-pauses `Clock`, mirroring how `MenuScene` pauses/unpauses on open/close.
+  Verified via a throwaway test scene simulating real clicks and button
+  presses through the `kaelith_greeting` sample, including the `background`
+  stage direction, both choice branches, and the resulting affection/inventory
+  side effects.
 
 ### Scene triggering **[NOT BUILT YET]**
 
