@@ -4,6 +4,7 @@ extends Node
 
 signal potion_stocked(potion_id: String, price: int)
 signal potion_sold(potion_id: String, price: int)
+signal coffers_collected(amount: int)
 
 const OPEN_MINUTE_OF_DAY := 9 * 60    # 9:00 AM
 const CLOSE_MINUTE_OF_DAY := 20 * 60  # 8:00 PM
@@ -19,8 +20,17 @@ const BASE_SALE_CHANCE := 0.25
 const PRICE_SALE_CHANCE_FACTOR := 0.002
 const MIN_SALE_CHANCE := 0.05
 
-var capacity: int = 10
+var capacity: int = 8
 var slots: Array[Dictionary] = []   # {potion_id, potency, ease, price}
+
+## Not yet read by any sale-chance/pricing logic — see system 5 open question
+## in docs/design/systems.md. Initialized so save data and the Shop tab have
+## a stable value to display ahead of that logic existing.
+var reputation: int = 0
+
+## Sale proceeds land here instead of Inventory.materials directly — the
+## player has to visit the shopfront (STOCK_BOX interactable) to collect.
+var coffers: int = 0
 
 var _minutes_since_last_roll: int = 0
 
@@ -56,6 +66,17 @@ func _compute_price(potency: float, ease_value: float) -> int:
 	return int(round((potency * POTENCY_PRICE_WEIGHT + ease_value * EASE_PRICE_WEIGHT) * PRICE_PER_POINT))
 
 
+## Moves everything sale proceeds have accumulated into Inventory.materials.
+## Returns the amount collected.
+func collect_coffers() -> int:
+	var amount := coffers
+	if amount > 0:
+		coffers = 0
+		Inventory.add_materials(amount)
+		coffers_collected.emit(amount)
+	return amount
+
+
 func _on_minute_tick(_timestamp: int) -> void:
 	if not is_open():
 		_minutes_since_last_roll = 0
@@ -76,7 +97,7 @@ func _roll_sales() -> void:
 		)
 		if randf() < chance:
 			slots.remove_at(i)
-			Inventory.add_materials(slot.price)
+			coffers += slot.price
 			potion_sold.emit(slot.potion_id, slot.price)
 		i -= 1
 
@@ -85,6 +106,8 @@ func get_save_data() -> Dictionary:
 	return {
 		"capacity": capacity,
 		"slots": slots.duplicate(true),
+		"reputation": reputation,
+		"coffers": coffers,
 	}
 
 
@@ -95,4 +118,6 @@ func load_save_data(data: Dictionary) -> void:
 	slots.clear()
 	for slot in (data.get("slots", []) as Array):
 		slots.append(slot)
+	reputation = data.get("reputation", 0)
+	coffers = data.get("coffers", 0)
 	_minutes_since_last_roll = 0

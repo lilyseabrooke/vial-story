@@ -200,9 +200,12 @@ func _connect_autoload_signals() -> void:
 		update_materials_label()
 	)
 	Shop.potion_sold.connect(func(potion_id: String, price: int) -> void:
-		log_message("Sold %s for %d Materials!" % [potion_id, price])
+		log_message("Sold %s for %d Materials — waiting in the shop coffers." % [potion_id, price])
 		print("Sold %s for %d Materials." % [potion_id, price])
+	)
+	Shop.coffers_collected.connect(func(amount: int) -> void:
 		update_materials_label()
+		print("Collected %d Materials from the shop coffers." % amount)
 	)
 	Economy.upgrade_purchased.connect(_on_upgrade_purchased)
 	Academy.attended_class.connect(func() -> void:
@@ -274,8 +277,15 @@ func on_collect_button_pressed() -> void:
 
 func on_stock_button_pressed() -> void:
 	var stocked_count := Shop.stock_all_potions()
-	log_message("Stocked %d potion(s)." % stocked_count if stocked_count > 0 \
-		else "Nothing to stock (empty inventory or shop full).")
+	var collected := Shop.collect_coffers()
+
+	var messages: Array[String] = []
+	if stocked_count > 0:
+		messages.append("Stocked %d potion(s)." % stocked_count)
+	if collected > 0:
+		messages.append("Collected %d Materials from the coffers." % collected)
+	log_message(" ".join(messages) if not messages.is_empty() \
+		else "Nothing to stock or collect.")
 
 
 func on_buy_ingredient_button_pressed(ingredient: IngredientDef) -> void:

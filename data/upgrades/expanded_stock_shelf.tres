@@ -8,4 +8,4 @@ id = "expanded_stock_shelf"
 display_name = "Expanded Stock Shelf"
 cost = 150
 effect_target = "shop_capacity"
-effect_amount = 5.0
+effect_amount = 8.0

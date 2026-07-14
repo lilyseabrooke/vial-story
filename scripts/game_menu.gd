@@ -5,11 +5,11 @@ extends TabContainer
 ## scripts/menu_scene.gd. hud.gd owns one instance and hands it to MenuScene
 ## the same way it always handed over the old flat game-menu VBoxContainer.
 ##
-## Inventory/Skills/Relationships/Classes/Journal tabs connect directly to the
-## autoload signals whose only effect is refreshing their own display —
+## Inventory/Skills/Shop/Relationships/Classes/Journal tabs connect directly
+## to the autoload signals whose only effect is refreshing their own display —
 ## consistent with how hud.gd wires up signals whose effect is purely a
-## label update. Shop/Map are out of scope for the prototype and stay as
-## disabled tabs.
+## label update. Map is out of scope for the prototype and stays a disabled
+## tab.
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
@@ -20,6 +20,9 @@ const MAX_HEARTS := 5
 
 var _inventory_grid: GridContainer
 var _skills_list: VBoxContainer
+var _shop_grid: GridContainer
+var _shop_reputation_label: Label
+var _shop_coffers_label: Label
 var _relationships_list: VBoxContainer
 var _recipes_list: VBoxContainer
 var _report_card_label: Label
@@ -32,7 +35,7 @@ func build() -> void:
 
 	_build_inventory_tab()
 	_build_skills_tab()
-	_build_disabled_tab("Shop")
+	_build_shop_tab()
 	_build_relationships_tab()
 	_build_classes_tab()
 	_build_disabled_tab("Map")
@@ -40,13 +43,16 @@ func build() -> void:
 	_build_journal_tab()
 	_build_settings_tab()
 
-	set_tab_disabled(2, true)  # Shop
 	set_tab_disabled(5, true)  # Map
 
 	Inventory.ingredient_changed.connect(func(_id: String, _qty: int) -> void: update_inventory())
 	Inventory.potion_added.connect(func(_id: String, _potency: float, _ease: float) -> void: update_inventory())
 	Skills.xp_gained.connect(func(_id: String, _xp: int, _level: int) -> void: update_skills())
 	Skills.leveled_up.connect(func(_id: String, _level: int) -> void: update_skills())
+	Shop.potion_stocked.connect(func(_id: String, _price: int) -> void: update_shop())
+	Shop.potion_sold.connect(func(_id: String, _price: int) -> void: update_shop())
+	Shop.coffers_collected.connect(func(_amount: int) -> void: update_shop())
+	Economy.upgrade_purchased.connect(func(_id: String) -> void: update_shop())
 	LoveInterests.affection_changed.connect(func(_id: String, _amount: int) -> void: update_relationships())
 	Academy.attended_class.connect(update_report_card)
 	Academy.absence_recorded.connect(func(_absences: int) -> void: update_report_card())
@@ -57,6 +63,7 @@ func build() -> void:
 
 	update_inventory()
 	update_skills()
+	update_shop()
 	update_relationships()
 	update_recipes()
 	update_report_card()
@@ -176,6 +183,49 @@ func update_skills() -> void:
 		row.add_child(progress_label)
 
 		_skills_list.add_child(row)
+
+
+# ---------------------------------------------------------------------------
+# Shop
+# ---------------------------------------------------------------------------
+
+func _build_shop_tab() -> void:
+	var root := VBoxContainer.new()
+	root.name = "Shop"
+	add_child(root)
+
+	_shop_reputation_label = Label.new()
+	root.add_child(_shop_reputation_label)
+
+	_shop_coffers_label = Label.new()
+	root.add_child(_shop_coffers_label)
+
+	root.add_child(HSeparator.new())
+
+	_shop_grid = GridContainer.new()
+	_shop_grid.columns = GRID_COLUMNS
+	root.add_child(_shop_grid)
+
+
+## Rebuilds the grid at Shop.capacity slots rather than a fixed size, since
+## the expanded_stock_shelf upgrade grows capacity from 8 (1 row) to 16 (2
+## rows) rather than the Inventory tab's fixed 8x3.
+func update_shop() -> void:
+	_shop_reputation_label.text = "Reputation: %d" % Shop.reputation
+	_shop_coffers_label.text = "Coffers: %d Materials (collect at the shopfront)" % Shop.coffers
+
+	for child in _shop_grid.get_children():
+		child.queue_free()
+
+	for i in Shop.capacity:
+		var entry: Variant = null
+		if i < Shop.slots.size():
+			var slot: Dictionary = Shop.slots[i]
+			entry = {
+				"text": "%s\n%d" % [String(slot.potion_id).capitalize(), slot.price],
+				"color": _color_for_id(slot.potion_id),
+			}
+		_shop_grid.add_child(_build_slot(entry))
 
 
 # ---------------------------------------------------------------------------

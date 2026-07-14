@@ -159,8 +159,10 @@ gradually during open hours rather than instantly overnight.
 
 ```
 ShopStock
-  - capacity: int                 # upgradeable
+  - capacity: int                 # upgradeable, starts at 8 (one 8-wide row)
   - slots: [StockedPotion]        # (potion_id, potency, ease, price)
+  - reputation: int               # stub — initialized, not yet read by any logic
+  - coffers: int                  # accumulated sale proceeds, uncollected
 ```
 
 - Stocking interaction is low-friction: one action dumps all sellable potions from
@@ -169,9 +171,15 @@ ShopStock
   (system 1), stocked potions roll sell-chance on a fixed simulated interval (e.g.
   every N in-game minutes), weighted by price, potency/ease (per system 3/4), and
   shop reputation (reputation stat: stub for now, default flat weight).
-- On sale: remove one unit, add Materials, log the sale for a "while you were away"
-  summary shown to the player at the next check-in.
+- On sale: remove one unit, add the price to `coffers` (not directly to
+  Inventory.materials) and log the sale for a "while you were away" summary shown
+  to the player at the next check-in.
+- Materials sit in `coffers` until the player physically visits the shopfront
+  (the STOCK_BOX interactable) and collects them into Inventory.materials —
+  stocking and collecting are one combined action at that interactable.
 - Capacity is the primary upgrade lever (no manual shelf placement in prototype).
+  Starts at 8 (an 8x1 grid in the Shop tab); `expanded_stock_shelf` adds 8 more,
+  bringing it to 16 (8x2).
 
 ---
 
@@ -768,8 +776,9 @@ QuestDef
 
 ## Open Design Questions (not yet decided)
 
-- Shop reputation: does it exist as a stat in the prototype, or is sale-chance flat
-  until later?
+- Shop reputation: `Shop.reputation` exists as a stat now (starts at 0, saved/loaded)
+  but nothing reads it yet — sale-chance is still flat/price-only. What should move
+  it, and how should it weight into sale-chance/pricing?
 - Exact grade formula (attendance weight vs. exam performance vs. prep actions).
 - Resolve regen curve on sleep (full reset vs. partial) and whether any daytime rest
   action should exist in the prototype.
