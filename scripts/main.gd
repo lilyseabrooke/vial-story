@@ -286,6 +286,8 @@ func _switch_room(room_id: String, spawn_position: Vector2) -> void:
 	_player.position = spawn_position
 	_camera.position = _room_camera_centers[room_id]
 
+	SceneDirector.recheck()
+
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()

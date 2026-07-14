@@ -545,10 +545,14 @@ SceneTriggerDef
   `{trigger, condition_ast, compiled}` list. `SceneDirector` owns a single
   `DialogueBox` child (created once in `_ready()`) that every fired scene
   plays through.
-- `recheck()` runs on every `Clock.minute_tick` (connected in `_ready()`) plus
-  can be called directly by anything that wants instant-feeling triggers (not
-  yet wired into specific call sites like menu-close/sale/room-change — that's
-  a follow-up integration, not a `SceneDirector` limitation). A satisfied
+- `recheck()` runs on every `Clock.minute_tick` (connected in `_ready()`), plus
+  two explicit call sites for anything that should feel instant rather than
+  waiting up to a minute: `MenuScene.close()` (so a scene can cut in the moment
+  a menu closes) and `main.gd`'s `_switch_room()` (so room-entry conditions
+  fire immediately on walking through a door/stairs). Deliberately just these
+  two for now — a sale landing or other finer-grained events can get their own
+  call site later if content ends up needing it, but menu-close and room-change
+  cover what's needed today. A satisfied
   trigger fires the highest `priority` bucket first, then earliest-registered
   within that bucket (a strict-greater-than comparison while iterating in
   registration order naturally keeps the earliest of any tie).

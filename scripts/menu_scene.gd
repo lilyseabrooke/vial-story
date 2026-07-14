@@ -68,6 +68,7 @@ func close() -> void:
 	_panel.visible = false
 	Clock.is_paused = false
 	closed.emit()
+	SceneDirector.recheck()
 
 
 func is_open() -> bool:
