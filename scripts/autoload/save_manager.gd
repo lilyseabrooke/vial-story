@@ -43,20 +43,28 @@ func _node_for(autoload_name: String) -> Node:
 	return get_node("/root/" + autoload_name)
 
 
-## Creates a brand-new game (character name + shop origin), sets PlayerProfile,
-## and writes its meta.json with no slots yet. This is the hook a future
-## new-game/character-creation UI will call — no such UI exists yet.
-func create_new_game(character_name: String, shop_origin: String) -> String:
+## Creates a brand-new game (character name, pronouns, House, shop origin,
+## player color), sets PlayerProfile, and writes its meta.json with no slots
+## yet. Called by scripts/character_creator.gd once the player confirms.
+func create_new_game(
+	character_name: String, pronouns: String, house_id: String,
+	shop_origin: String, player_color: Color
+) -> String:
 	var created_at := int(Time.get_unix_time_from_system())
 	var game_id := "%s_%d" % [_slugify(character_name), created_at]
 
 	PlayerProfile.character_name = character_name
+	PlayerProfile.pronouns = pronouns
+	PlayerProfile.house_id = house_id
 	PlayerProfile.shop_origin = shop_origin
+	PlayerProfile.player_color_hex = player_color.to_html()
 
 	var meta := {
 		"version": 1,
 		"game_id": game_id,
 		"character_name": character_name,
+		"pronouns": pronouns,
+		"house_id": house_id,
 		"shop_origin": shop_origin,
 		"created_at_unix": created_at,
 		"next_slot": 1,

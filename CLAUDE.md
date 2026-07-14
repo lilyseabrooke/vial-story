@@ -60,11 +60,19 @@ event bus or game-state object.
   `UpgradeDef` and `SkillDef` both use a generic `effect_target: String` + `effect_amount: float` pair
   rather than a typed effect enum, resolved via a `match` in `Economy._apply_effect()` (upgrades) or
   applied additively per level threshold in `Skills` (skills).
-- **`scripts/main.gd`** is the only non-autoload gameplay script, and currently does two jobs at once:
-  loads all the `.tres` content and wires every autoload's signals to (1) a code-built debug HUD
-  (status labels for clock/inventory/skills/Resolve/report card) and (2) the top-down room, which is
-  built entirely in GDScript in `_build_room()` rather than hand-authored as a scene. Expect to keep
-  extending this file as new systems land, or split it once it gets unwieldy.
+- **`scripts/main.gd`** is now a thin orchestrator: it grants starting ingredients, builds a
+  `RoomBuilder` and a `GameHud` (both plain, non-autoload `Node`s it owns as children, not scenes), and
+  wires the handful of signals that need to touch both — e.g. `Herbalism.harvested` updates a HUD label
+  *and* a grow-plot `Interactable`'s status text. `_on_interact_pressed()`'s type match is the other
+  thing that stays here, since dispatching an interaction is inherently "which system do I call, which
+  panel do I open." `scripts/room_builder.gd` (`RoomBuilder`) owns exploration-layer geometry — rooms,
+  the shared player/camera, `Interactable` placement/switching — and connects directly to any autoload
+  signal whose effect is purely spatial (`Herbalism.plot_added`/`planted`). `scripts/hud.gd` (`GameHud`)
+  owns the debug HUD, the Escape menu shell, and the brew/supply panels, and connects directly to any
+  autoload signal whose effect is purely a label/log update (most of them). Split out once `main.gd`
+  grew past ~700 lines of two unrelated concerns (world geometry vs. presentation) glued together by
+  signal wiring; keep new systems' UI-only reactions in `hud.gd` and world-only reactions in
+  `room_builder.gd`, and only add to `main.gd` when a reaction genuinely needs both.
 - **Exploration layer**: `Interactable` (`scripts/interactable.gd`) is one reusable `Area2D` scene
   configured per-instance (`interactable_type` enum, `target_id`, prompt text, color) rather than a
   subclass per interaction kind — the actual behavior for each type lives in `main.gd`'s
@@ -82,3 +90,13 @@ event bus or game-state object.
   tabs) and close on `Esc`, on re-pressing `E` at the same interactable, or on entering/exiting a
   different interactable; `STOCK_BOX`, `BED`, and `CLASS_DOOR` stay instant one-shot actions and never
   go through `MenuScene`.
+- **Centering an ad hoc `Control` needs both calls.** `some_control.set_anchors_preset(Control.PRESET_CENTER)`
+  only sets the anchor ratios — it leaves offsets untouched, so a freshly created, unsized `Control`
+  ends up with its *top-left corner* pinned to the anchor point (screen center) rather than actually
+  centered, and since Godot's default `grow_horizontal`/`grow_vertical` is `GROW_DIRECTION_END`, it
+  then only grows right/down from there as content is added — the more content, the further it drifts
+  off-center and, for tall panels (e.g. a Settings screen), off the bottom of the screen. Every
+  code-built, centered panel must also set `grow_horizontal = Control.GROW_DIRECTION_BOTH` and
+  `grow_vertical = Control.GROW_DIRECTION_BOTH` right after the `set_anchors_preset` call, so the panel
+  grows symmetrically around the center point as its content/minimum size changes. `character_creator.gd`
+  and `menu_scene.gd` do this correctly; `main_menu.gd` originally omitted it and needed the same fix.

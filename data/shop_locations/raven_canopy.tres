@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ShopLocationDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/shop_location_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "raven_canopy"
+display_name = "Raven Canopy"
+flavor_text = "Shaded by a raven canopy."
+ingredient_category = 3

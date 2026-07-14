@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ShopLocationDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/shop_location_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "confluence_zone"
+display_name = "Confluence Zone"
+flavor_text = "Sits inside a confluence zone."
+ingredient_category = 5

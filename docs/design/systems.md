@@ -624,9 +624,21 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   / `get_house()`) — `ShopLocationDef` additionally stubs in a favored `IngredientDef.Category` per
   location, not yet consumed by any mechanic. `scripts/character_creator.gd` is the character-creation
   UI that collects these choices (plus an HSV color for the player's placeholder rectangle) and calls
-  `SaveManager.create_new_game(character_name, pronouns, house_id, shop_origin, player_color)`. It
-  currently fires unconditionally at boot from `main.gd`, since no title/"New Game" vs. "Load Game"
-  screen exists yet — that's the next piece to wire it behind.
+  `SaveManager.create_new_game(character_name, pronouns, house_id, shop_origin, player_color)`.
+- **Title screen.** `res://scenes/MainMenu.tscn` (`scripts/main_menu.gd`, `MainMenu`) is now
+  `run/main_scene` and is where CharacterCreator fires from — behind a "New Game" button rather than
+  unconditionally at boot. "Load Game" lists `SaveManager.list_games()` and calls
+  `quick_load_latest(game_id)` on the chosen one; "Settings" is a panel of generic, intentionally
+  unwired placeholder controls (volume sliders, fullscreen/V-Sync checkboxes, text speed/difficulty
+  dropdowns) with no persistence or gameplay effect yet. Both New Game and Load Game hand off to the
+  new transient `GameFlow` autoload (`game_id: String`, `is_new_game: bool` — not part of any save
+  payload) before `change_scene_to_file`-ing to `res://scenes/Main.tscn`; `main.gd._ready()` reads
+  `GameFlow.is_new_game` to decide whether to grant starting ingredients (new game) or trust the
+  state `SaveManager` already restored (loaded game), and reads `PlayerProfile.player_color_hex`
+  directly instead of taking a signal argument, since CharacterCreator no longer lives in this scene.
+  The Escape menu (`scripts/hud.gd`) now also has a "Save Game" button that calls
+  `SaveManager.save_game(GameFlow.game_id)` — the only place gameplay saves are triggered from today
+  (no autosave yet).
 - **Per-autoload save contract.** Every gameplay autoload (`Clock`, `Inventory`, `Resolve`, `Skills`,
   `Brewing`, `Shop`, `Herbalism`, `Economy`, `Academy`, `Story`, `LoveInterests`, `PlayerProfile`) owns
   a `get_save_data() -> Dictionary` / `load_save_data(data: Dictionary) -> void` pair, consistent with
