@@ -12,9 +12,12 @@ extends Node
 signal scene_started(scene_id: String)
 signal scene_finished(scene_id: String)
 
-const TRIGGER_PATHS := [
-	"res://data/scene_triggers/kaelith_greeting_trigger.tres",
-]
+## Empty for now — kaelith_greeting_trigger.tres was built purely to
+## smoke-test the trigger/compile/play pipeline end-to-end (condition
+## "true", so it fires immediately for anyone) and isn't meant to run in a
+## real playthrough. Add real trigger paths here once content has an actual
+## gating condition.
+const TRIGGER_PATHS: Array[String] = []
 
 var _entries: Array[Dictionary] = []   # {"trigger", "condition_ast", "compiled"}, registration order
 var _dialogue_box: DialogueBox

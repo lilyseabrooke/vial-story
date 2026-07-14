@@ -590,13 +590,18 @@ SceneTriggerDef
 - One-shot tracking reuses the `Story` flag store exactly as spec'd:
   `has_flag("scene_played_" + scene_id)`, keyed by the *compiled* scene id
   (not the trigger id), set right before firing a non-repeatable trigger.
-- Verified end-to-end via a throwaway test scene against the one real sample
+- Verified end-to-end via a throwaway test scene against a sample pair
   (`data/scene_triggers/kaelith_greeting_trigger.tres` →
   `data/vn_scenes/kaelith_greeting.vnscript`, condition `"true"`,
   non-repeatable): confirmed it auto-fires on the very first `Clock.minute_tick`
   with no code driving it, plays through to `scene_ended()`, sets the played
   flag, does *not* refire afterward, stays blocked while `Clock.is_paused` is
-  true (simulating an open menu), and fires immediately once unblocked.
+  true (simulating an open menu), and fires immediately once unblocked. That
+  sample's condition being unconditionally `"true"` was only ever meant to
+  prove the pipeline in isolation — it is **not** in `TRIGGER_PATHS` (which is
+  empty), since registering it live meant it actually fired in a real
+  playthrough, ahead of the character creator. Real triggers need an actual
+  gating condition before they belong in `TRIGGER_PATHS`.
   No nested scenes.
 - Non-repeatable scenes mark themselves played via the same `Story` flag store
   (`has_flag("scene_played_" + scene_id)`) rather than separate "seen" bookkeeping.
@@ -610,13 +615,18 @@ corruption detection, and automatic backups. Not an anti-cheat measure — save 
 human-readable JSON, since editing them isn't a concern the prototype worries about.
 
 - **Games vs. slots.** A *game* is one playthrough, identified by the game-start choices — character
-  name and shop origin (e.g. "garden" vs. "ley-line fissure") — via the new `PlayerProfile` autoload
-  (`character_name: String`, `shop_origin: String`). A game can hold any number of numbered *save
+  name, pronouns, House, and shop origin (e.g. "magic_garden" vs. "ley_line_fissure") — via the
+  `PlayerProfile` autoload (`character_name: String`, `pronouns: String`, `house_id: String`,
+  `shop_origin: String`, `player_color_hex: String`). A game can hold any number of numbered *save
   slots*, each a full snapshot at a point in time. This mirrors a Stardew-Valley-style per-farm save
-  list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` is
-  currently just an opaque string id — no `ShopOriginDef` content or mechanical effects exist yet;
-  character-creation UI to actually choose these values is not built either. `SaveManager.create_new_game
-  (character_name, shop_origin)` is the hook point a future new-game flow will call.
+  list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` and
+  `house_id` are now real `ShopLocationDef`/`HouseDef` ids (loaded via `ContentRegistry.get_shop_location()`
+  / `get_house()`) — `ShopLocationDef` additionally stubs in a favored `IngredientDef.Category` per
+  location, not yet consumed by any mechanic. `scripts/character_creator.gd` is the character-creation
+  UI that collects these choices (plus an HSV color for the player's placeholder rectangle) and calls
+  `SaveManager.create_new_game(character_name, pronouns, house_id, shop_origin, player_color)`. It
+  currently fires unconditionally at boot from `main.gd`, since no title/"New Game" vs. "Load Game"
+  screen exists yet — that's the next piece to wire it behind.
 - **Per-autoload save contract.** Every gameplay autoload (`Clock`, `Inventory`, `Resolve`, `Skills`,
   `Brewing`, `Shop`, `Herbalism`, `Economy`, `Academy`, `Story`, `LoveInterests`, `PlayerProfile`) owns
   a `get_save_data() -> Dictionary` / `load_save_data(data: Dictionary) -> void` pair, consistent with
