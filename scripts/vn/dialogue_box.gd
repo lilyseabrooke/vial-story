@@ -8,7 +8,9 @@ extends CanvasLayer
 ## Placeholder art only: characters are colored rectangles + a name/expression
 ## label, backgrounds are a solid color keyed by name. Real sprites/backgrounds
 ## can replace these node builders later without touching the signal-driven
-## control flow.
+## control flow. Character color/name comes from a registered CharacterDef
+## (via the Characters autoload) when one exists for that id, falling back to
+## a cycled placeholder palette for anyone not yet authored.
 
 signal closed
 
@@ -198,9 +200,15 @@ func _spawn_character(character_name: String, x: float, y: float) -> void:
 	var rect := ColorRect.new()
 	rect.size = Vector2(120, 300)
 	rect.position = Vector2(x, y)
-	rect.color = _CHARACTER_COLORS[_next_character_color_index % _CHARACTER_COLORS.size()]
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_next_character_color_index += 1
+
+	var character_def := Characters.get_character(character_name)
+	if character_def:
+		rect.color = character_def.placeholder_color
+	else:
+		rect.color = _CHARACTER_COLORS[_next_character_color_index % _CHARACTER_COLORS.size()]
+		_next_character_color_index += 1
+
 	_stage.add_child(rect)
 
 	var label := Label.new()

@@ -28,6 +28,7 @@ Economy="*res://scripts/autoload/economy.gd"
 Academy="*res://scripts/autoload/academy.gd"
 Story="*res://scripts/autoload/story.gd"
 LoveInterests="*res://scripts/autoload/love_interests.gd"
+Characters="*res://scripts/autoload/characters.gd"
 SceneDirector="*res://scripts/autoload/scene_director.gd"
 
 [display]

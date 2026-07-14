@@ -350,9 +350,9 @@ engineering. The full pipeline (expression language → script compiler →
 runtime → full-screen presentation → condition-based triggering) is built and
 verified end-to-end against one placeholder scene/trigger pair
 (`kaelith_greeting`). What's left for the first pass — one love interest, a
-handful of scenes — is content: a real `LoveInterestDef`, actual writing, and
-whatever new stage-direction/grammar needs fall out of authoring real scenes
-rather than the engine itself.
+handful of scenes — is content: actual writing, and whatever new
+stage-direction/grammar needs fall out of authoring real scenes rather than
+the engine itself.
 
 ### Expression language **[BUILT]**
 
@@ -383,9 +383,26 @@ or_expr    := and_expr ( "or" and_expr )*
   action (both are just `call` nodes), so neither does the evaluator.
 - `Story` autoload — flat flag store (`has_flag`/`set_flag`/`flag_changed` signal).
 - `LoveInterests` autoload — affection per love-interest id
-  (`get_affection`/`add_affection`/`affection_changed` signal). Static love-interest
-  data (display name, house, etc.) will live in a `LoveInterestDef` resource once
-  scenes need it; affection itself only needs a string id.
+  (`get_affection`/`add_affection`/`affection_changed` signal). Deliberately has
+  no static character data of its own and no concept of *which* ids are
+  "love interests" — it's a bare affection ledger keyed by whatever string id a
+  script passes to `add_affection`, fully decoupled from `CharacterDef` below.
+- `CharacterDef` (`scripts/data/character_def.gd`, a `Resource`) — static
+  *display* data (`id`, `display_name`, `placeholder_color`) for anyone who can
+  appear in a VN scene, romanceable or not (a shopkeeper and a love interest are
+  the same kind of thing to the dialogue engine). No romance-specific fields —
+  whether a character accumulates affection is entirely up to whether a script
+  happens to call `add_affection()` for their id, not something declared here.
+  Registered by id via the `Characters` autoload (`scripts/autoload/characters.gd`,
+  same explicit-path-list-at-`_ready()` pattern as `SceneDirector`'s triggers);
+  `DialogueBox` looks up `Characters.get_character(name)` when spawning a
+  character sprite and uses its `placeholder_color` if registered, falling back
+  to a cycled placeholder palette for anyone not yet authored — so an unnamed
+  one-off extra doesn't need a `CharacterDef` to appear in a scene, but a
+  recurring character (love interest or otherwise) gets a *consistent* color
+  across every scene rather than one dependent on entry order within a single
+  scene. One sample registered (`data/characters/kaelith.tres`), matching the
+  existing `kaelith_greeting` sample scene.
 
 ### Dialogue script format **[BUILT]**
 
