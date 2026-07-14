@@ -4,6 +4,6 @@
 
 [resource]
 script = ExtResource("1")
-id = "Kaelith"
-display_name = "Kaelith"
-placeholder_color = Color(0.85, 0.4, 0.4, 1)
+id = "daniela"
+display_name = "Daniela"
+placeholder_color = Color(0.86, 0.08, 0.24, 1)

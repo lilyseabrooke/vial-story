@@ -401,8 +401,12 @@ or_expr    := and_expr ( "or" and_expr )*
   one-off extra doesn't need a `CharacterDef` to appear in a scene, but a
   recurring character (love interest or otherwise) gets a *consistent* color
   across every scene rather than one dependent on entry order within a single
-  scene. One sample registered (`data/characters/kaelith.tres`), matching the
-  existing `kaelith_greeting` sample scene.
+  scene. The five love interests are registered (`data/characters/callie.tres`,
+  `larissa.tres`, `haerin.tres`, `daniela.tres`, `lyra.tres`; ids match those
+  used by `add_affection()`) — see `docs/design/characters.md` for who they are.
+  The old `kaelith_greeting` sample scene (`data/vn_scenes/kaelith_greeting.vnscript`)
+  still uses an unregistered "Kaelith" placeholder speaker and is unaffected,
+  since unregistered speakers just fall back to the cycled placeholder palette.
 
 ### Dialogue script format **[BUILT]**
 

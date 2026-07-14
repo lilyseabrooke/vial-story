@@ -7,7 +7,11 @@ extends Node
 ## tracks any string id regardless of whether it's registered here.
 
 const CHARACTER_PATHS := [
-	"res://data/characters/kaelith.tres",
+	"res://data/characters/callie.tres",
+	"res://data/characters/larissa.tres",
+	"res://data/characters/haerin.tres",
+	"res://data/characters/daniela.tres",
+	"res://data/characters/lyra.tres",
 ]
 
 var _characters: Dictionary = {}   # id -> CharacterDef
