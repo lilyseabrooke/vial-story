@@ -32,6 +32,7 @@ Story="*res://scripts/autoload/story.gd"
 LoveInterests="*res://scripts/autoload/love_interests.gd"
 Characters="*res://scripts/autoload/characters.gd"
 SceneDirector="*res://scripts/autoload/scene_director.gd"
+QuestManager="*res://scripts/autoload/quest_manager.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 GameFlow="*res://scripts/autoload/game_flow.gd"
 

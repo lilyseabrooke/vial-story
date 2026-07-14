@@ -17,6 +17,7 @@ const STARTING_INGREDIENTS := {
 	"iron_filings": 3,
 	"ghostcap_mushroom": 3,
 }
+const STARTING_QUESTS := ["first_brew", "stock_the_shelf"]
 
 var _room_builder: RoomBuilder
 var _hud: GameHud
@@ -27,6 +28,7 @@ func _ready() -> void:
 	print("Vial Story: main scene ready")
 	if GameFlow.is_new_game:
 		_grant_starting_ingredients()
+		_grant_starting_quests()
 	_start_game(Color(PlayerProfile.player_color_hex))
 
 
@@ -49,6 +51,11 @@ func _start_game(player_color: Color) -> void:
 func _grant_starting_ingredients() -> void:
 	for id in STARTING_INGREDIENTS:
 		Inventory.add_ingredient(id, STARTING_INGREDIENTS[id])
+
+
+func _grant_starting_quests() -> void:
+	for id in STARTING_QUESTS:
+		QuestManager.start_quest(id)
 
 
 func _unhandled_input(event: InputEvent) -> void:

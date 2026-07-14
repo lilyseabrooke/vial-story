@@ -5,11 +5,11 @@ extends TabContainer
 ## scripts/menu_scene.gd. hud.gd owns one instance and hands it to MenuScene
 ## the same way it always handed over the old flat game-menu VBoxContainer.
 ##
-## Inventory/Skills/Relationships/Classes tabs connect directly to the
+## Inventory/Skills/Relationships/Classes/Journal tabs connect directly to the
 ## autoload signals whose only effect is refreshing their own display —
 ## consistent with how hud.gd wires up signals whose effect is purely a
-## label update. Shop/Map/Journal are out of scope for the prototype and
-## stay as disabled tabs.
+## label update. Shop/Map are out of scope for the prototype and stay as
+## disabled tabs.
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
@@ -23,6 +23,7 @@ var _skills_list: VBoxContainer
 var _relationships_list: VBoxContainer
 var _recipes_list: VBoxContainer
 var _report_card_label: Label
+var _journal_list: VBoxContainer
 var _save_status_label: Label
 
 
@@ -36,12 +37,11 @@ func build() -> void:
 	_build_classes_tab()
 	_build_disabled_tab("Map")
 	_build_recipes_tab()
-	_build_disabled_tab("Journal")
+	_build_journal_tab()
 	_build_settings_tab()
 
 	set_tab_disabled(2, true)  # Shop
 	set_tab_disabled(5, true)  # Map
-	set_tab_disabled(7, true)  # Journal
 
 	Inventory.ingredient_changed.connect(func(_id: String, _qty: int) -> void: update_inventory())
 	Inventory.potion_added.connect(func(_id: String, _potency: float, _ease: float) -> void: update_inventory())
@@ -51,12 +51,16 @@ func build() -> void:
 	Academy.attended_class.connect(update_report_card)
 	Academy.absence_recorded.connect(func(_absences: int) -> void: update_report_card())
 	Academy.exam_graded.connect(func(_passed: bool, _score: float, _strikes: int) -> void: update_report_card())
+	QuestManager.quest_started.connect(func(_id: String) -> void: update_journal())
+	QuestManager.quest_ready_to_turn_in.connect(func(_id: String) -> void: update_journal())
+	QuestManager.quest_completed.connect(func(_id: String) -> void: update_journal())
 
 	update_inventory()
 	update_skills()
 	update_relationships()
 	update_recipes()
 	update_report_card()
+	update_journal()
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +281,74 @@ func update_recipes() -> void:
 
 		_recipes_list.add_child(row)
 		_recipes_list.add_child(HSeparator.new())
+
+
+# ---------------------------------------------------------------------------
+# Journal
+# ---------------------------------------------------------------------------
+
+func _build_journal_tab() -> void:
+	var root := VBoxContainer.new()
+	root.name = "Journal"
+	add_child(root)
+
+	_journal_list = VBoxContainer.new()
+	root.add_child(_journal_list)
+
+
+func update_journal() -> void:
+	for child in _journal_list.get_children():
+		child.queue_free()
+
+	_add_journal_section("Ready to Turn In", QuestManager.ready_to_turn_in_quest_ids(), Color(0.9, 0.8, 0.3))
+	_add_journal_section("Active", QuestManager.active_quest_ids(), Color(1, 1, 1))
+	_add_journal_section("Completed", QuestManager.completed_quest_ids(), Color(0.6, 0.6, 0.6))
+
+	if _journal_list.get_child_count() == 0:
+		var empty_label := Label.new()
+		empty_label.text = "No quests yet."
+		empty_label.modulate = Color(0.6, 0.6, 0.6)
+		_journal_list.add_child(empty_label)
+
+
+func _add_journal_section(section_title: String, quest_ids: Array[String], color: Color) -> void:
+	if quest_ids.is_empty():
+		return
+
+	var header := Label.new()
+	header.text = section_title
+	header.add_theme_font_size_override("font_size", 14)
+	_journal_list.add_child(header)
+
+	for quest_id in quest_ids:
+		var quest := ContentRegistry.get_quest(quest_id)
+
+		var row := VBoxContainer.new()
+
+		var header_row := HBoxContainer.new()
+		row.add_child(header_row)
+
+		var name_label := Label.new()
+		name_label.text = quest.display_name
+		name_label.modulate = color
+		header_row.add_child(name_label)
+
+		if QuestManager.status(quest_id) == QuestManager.Status.READY_TO_TURN_IN:
+			var turn_in_button := Button.new()
+			turn_in_button.text = "Turn In"
+			turn_in_button.pressed.connect(func() -> void: QuestManager.turn_in(quest_id))
+			header_row.add_child(turn_in_button)
+
+		var description_label := Label.new()
+		description_label.text = quest.description
+		description_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		description_label.add_theme_font_size_override("font_size", 12)
+		description_label.modulate = Color(0.8, 0.8, 0.8)
+		row.add_child(description_label)
+
+		_journal_list.add_child(row)
+
+	_journal_list.add_child(HSeparator.new())
 
 
 # ---------------------------------------------------------------------------

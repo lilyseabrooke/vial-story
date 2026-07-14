@@ -40,6 +40,10 @@ const SHOP_LOCATION_PATHS := [
 	"res://data/shop_locations/former_reliquary.tres",
 	"res://data/shop_locations/confluence_zone.tres",
 ]
+const QUEST_PATHS := [
+	"res://data/quests/first_brew.tres",
+	"res://data/quests/stock_the_shelf.tres",
+]
 
 var recipes: Array[RecipeDef] = []
 var ingredients: Array[IngredientDef] = []
@@ -47,6 +51,7 @@ var upgrades: Array[UpgradeDef] = []
 var seeds: Array[SeedDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
+var quests: Array[QuestDef] = []
 
 var _recipes_by_id: Dictionary = {}        # id -> RecipeDef
 var _ingredients_by_id: Dictionary = {}    # id -> IngredientDef
@@ -54,6 +59,7 @@ var _upgrades_by_id: Dictionary = {}       # id -> UpgradeDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
+var _quests_by_id: Dictionary = {}         # id -> QuestDef
 
 
 func _ready() -> void:
@@ -81,6 +87,10 @@ func _ready() -> void:
 		var def := load(path) as ShopLocationDef
 		shop_locations.append(def)
 		_shop_locations_by_id[def.id] = def
+	for path in QUEST_PATHS:
+		var def := load(path) as QuestDef
+		quests.append(def)
+		_quests_by_id[def.id] = def
 
 
 func get_recipe(id: String) -> RecipeDef:
@@ -105,3 +115,7 @@ func get_house(id: String) -> HouseDef:
 
 func get_shop_location(id: String) -> ShopLocationDef:
 	return _shop_locations_by_id.get(id)
+
+
+func get_quest(id: String) -> QuestDef:
+	return _quests_by_id.get(id)

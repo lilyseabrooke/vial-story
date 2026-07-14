@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "first_brew"
+display_name = "First Brew"
+description = "Reach Brewing level 1 by completing brews at the station."
+complete_condition = "skill_level(\"brewing\") >= 1"
+reward = Array[String](["give_item(\"moonpetal\", 2)"])
+auto_complete = true

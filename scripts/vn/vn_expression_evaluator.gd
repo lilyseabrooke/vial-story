@@ -75,6 +75,9 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 			return Inventory.materials
 		"skill_level":
 			return Skills.level(args[0])
+		"start_quest":
+			QuestManager.start_quest(args[0])
+			return null
 		_:
 			push_warning("VNExpressionEvaluator: unknown function '%s'" % function_name)
 			return null

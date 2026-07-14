@@ -684,6 +684,73 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
 
 ---
 
+## 15. Quest / Journal System **[BUILD]**
+
+Populates the Escape menu's Journal tab. No taxonomy of quest *types* (shop
+order vs. class assignment vs. love-interest favor vs. tutorial milestone) —
+a quest is just a completion condition plus a reward, expressed in the same
+expression language the VN layer already has (system 13), so all four kinds
+fall out of one data shape rather than needing per-category code:
+
+```
+QuestDef
+  - id
+  - display_name
+  - description
+  - complete_condition: String   # same expression grammar as VN `if`/SceneTriggerDef.condition
+  - reward: [String]             # action-call expressions, e.g. give_item(...), add_affection(...)
+  - auto_complete: bool          # true: reward grants the instant complete_condition is true
+                                  # false: waits for QuestManager.turn_in(id)
+```
+
+- **No `start_condition`.** Unlike `SceneTriggerDef`, a quest never starts
+  itself — `QuestManager.start_quest(id)` is the only way a quest becomes
+  Active, called explicitly from wherever makes sense (a debug-HUD hook, an
+  NPC interaction once Exploration exists, or a VN scene action-call — the
+  expression language gained a matching `start_quest("id")` function in
+  `VNExpressionEvaluator` for the latter, same dispatch table as
+  `give_item`/`add_affection`). This was a deliberate choice over condition-
+  gated auto-start: quests are handed out by content, not discovered by
+  polling world state.
+- **Progress *is* polled**, same pattern as `SceneDirector.recheck()`:
+  `QuestManager` re-evaluates every Active quest's `complete_condition` on
+  every `Clock.minute_tick`. This is a prototype-scope simplification — an
+  event-driven counter per objective type (increment on the specific signal
+  a quest cares about, e.g. `Brewing.brew_completed`) is the planned
+  replacement once there's enough real quest content to know what objective
+  shapes actually recur, but it's a drop-in swap behind the same
+  `QuestManager` public API, not a `QuestDef` shape change.
+- **Two completion flows**, chosen per-quest via `auto_complete`:
+  - `true`: the moment `complete_condition` evaluates true, `QuestManager`
+    evaluates every `reward` expression and marks the quest Completed in the
+    same tick — no player action needed.
+  - `false`: `complete_condition` true instead flips the quest to
+    `ReadyToTurnIn`; rewards only grant when something calls
+    `QuestManager.turn_in(id)` explicitly (the Journal tab renders a "Turn
+    In" button for any quest in this state as the prototype's one turn-in
+    surface; a station/NPC-specific turn-in interaction can replace or
+    supplement that later).
+- **Rewards reuse `VNExpressionEvaluator`**, not a separate quest-effect
+  table — a quest reward and a scene's action-call statements are the same
+  kind of thing (`give_item`, `add_affection`, `set_flag`, ...), so quest
+  authoring and scene authoring share one syntax and one place new action
+  functions get added.
+- Both `complete_condition` and every `reward` expression are parsed once at
+  `QuestManager._ready()` (same "never touch the parser mid-game" discipline
+  `SceneDirector` uses for its triggers) — a malformed expression is a
+  `push_error` at startup, not a silent no-op mid-playthrough.
+- `QuestManager` follows the same per-autoload save contract as system 14:
+  `get_save_data()`/`load_save_data()` round-trip a flat `{quest_id: status}`
+  dict; registered in `SaveManager._SAVE_ORDER` after `LoveInterests`.
+- Content lives under `data/quests/*.tres`, loaded via `ContentRegistry`
+  (`QUEST_PATHS` const list, same explicit-path pattern as every other
+  content type) — `first_brew.tres` and `stock_the_shelf.tres` are the two
+  sample quests proving the pipeline end-to-end (one `auto_complete: true`
+  skill-level milestone, one `auto_complete: false` materials-threshold quest
+  with a manual turn-in), granted to every new game by `main.gd`.
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)
@@ -696,6 +763,8 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
 8. Herbalism growing plots (system 7)
 9. Recipe-learning minigame; remaining ingredient sourcing methods; exploration polish
 10. VN/relationship layer (systems 12–13) and curse mechanical interventions (system 11)
+11. Quest/Journal system (system 15) — reuses the VN expression language, so it slots in
+    any time after system 13's expression evaluator exists
 
 ## Open Design Questions (not yet decided)
 

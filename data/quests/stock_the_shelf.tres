@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "stock_the_shelf"
+display_name = "Stock the Shelf"
+description = "Save up 50 Materials from shop sales, then bring word back to the Academy quartermaster."
+complete_condition = "materials() >= 50"
+reward = Array[String](["give_item(\"iron_filings\", 1)"])
+auto_complete = false
