@@ -603,6 +603,61 @@ SceneTriggerDef
 
 ---
 
+## 14. Save/Load System [BUILD]
+
+Persists a full playthrough to disk as JSON, with forward-compatible versioning, checksum-validated
+corruption detection, and automatic backups. Not an anti-cheat measure — save files are plain,
+human-readable JSON, since editing them isn't a concern the prototype worries about.
+
+- **Games vs. slots.** A *game* is one playthrough, identified by the game-start choices — character
+  name and shop origin (e.g. "garden" vs. "ley-line fissure") — via the new `PlayerProfile` autoload
+  (`character_name: String`, `shop_origin: String`). A game can hold any number of numbered *save
+  slots*, each a full snapshot at a point in time. This mirrors a Stardew-Valley-style per-farm save
+  list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` is
+  currently just an opaque string id — no `ShopOriginDef` content or mechanical effects exist yet;
+  character-creation UI to actually choose these values is not built either. `SaveManager.create_new_game
+  (character_name, shop_origin)` is the hook point a future new-game flow will call.
+- **Per-autoload save contract.** Every gameplay autoload (`Clock`, `Inventory`, `Resolve`, `Skills`,
+  `Brewing`, `Shop`, `Herbalism`, `Economy`, `Academy`, `Story`, `LoveInterests`, `PlayerProfile`) owns
+  a `get_save_data() -> Dictionary` / `load_save_data(data: Dictionary) -> void` pair, consistent with
+  every other system owning its own state. Only plain Dictionaries/Arrays/primitives cross this
+  boundary — `RecipeDef`/`SeedDef` references (in `BrewJob`/`GrowPlotInstance`) are saved as their
+  string `id` and re-resolved on load via the new `ContentRegistry` autoload (a small id→Resource
+  lookup that replaced `main.gd`'s previously-duplicated content path lists).
+- **Economy double-apply hazard.** Upgrade effects (station modifiers, shop capacity, plot count) are
+  applied once at purchase time directly onto `Brewing`/`Shop`/`Herbalism`'s own numbers. Those
+  *resulting* numbers are what gets saved and restored directly by each system's own
+  `load_save_data()`. `Economy.load_save_data()` restores `purchased_upgrade_ids` only for
+  `is_purchased()` UI gating and deliberately does **not** replay it through `_apply_effect()` — doing
+  so would double-apply every modifier/capacity/plot on top of the already-restored values. This is the
+  one cross-system invariant in the save system worth remembering, same category as `Resolve.
+  is_strained()` living inside `Skills.get_bonus()`.
+- **Timestamps need no rebasing.** `Clock.get_timestamp()` is an absolute, never-reset minute counter,
+  so `BrewJob`/`GrowPlotInstance` timestamps saved as raw integers compare correctly the instant `Clock`
+  is restored — `SaveManager.load_game()` restores `Clock` before anything else, so any job/plot whose
+  deadline already passed while the save was closed resolves automatically on the very next
+  `minute_tick`, with zero special catch-up code (the same mechanism `TimeSkip` already relies on).
+- **Disk layout**: `user://saves/<game_id>/meta.json` (game identity + a cheap per-slot summary, so
+  listing every game for a picker UI never opens a full slot file) plus `slot_<n>.json` per save. Every
+  write is preceded by copying the existing file to a `.bak` (one generation, last-known-good only —
+  the multiple slots themselves already give the player manual rollback) and is itself written via a
+  `.tmp` file + rename so an interrupted write can't leave a truncated file at the real path.
+- **Checksum.** SHA256 (via `HashingContext`) over the canonical JSON of a slot's payload (or, for
+  `meta.json`, the dict minus its own checksum field), stored alongside the data. On load: try the
+  primary file, fall back to `.bak` if the primary fails validation (self-healing the primary from the
+  backup afterward), and if *both* fail validation, fail loudly — return an explicit error rather than
+  silently starting a new game over a corrupted save. The caller (UI) is responsible for surfacing that
+  to the player.
+- **Versioning.** Every slot wrapper carries a `version` int; `SaveManager._MIGRATIONS` is a
+  version→`Callable` map applied in a loop until the payload reaches `CURRENT_SAVE_VERSION`. Empty
+  today (only v1 exists) but the seam is in place so a future format change doesn't require rewriting
+  the loader.
+- `SaveManager`'s public surface: `create_new_game`, `save_game`, `load_game`, `quick_load_latest`
+  (loads a game's `meta.json.latest_slot` — the "one big continue button" case), `list_games`,
+  `list_slots`, `delete_slot`, `delete_game`.
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)

@@ -79,3 +79,21 @@ func xp_to_next_level(skill_id: String) -> int:
 	if def == null or def.xp_per_level <= 0:
 		return 0
 	return def.xp_per_level - (xp_for(skill_id) % def.xp_per_level)
+
+
+func get_save_data() -> Dictionary:
+	return {"xp": _xp.duplicate()}
+
+
+## _xp is the only source of truth; _levels/_bonus_totals are re-derived by
+## replaying add_xp() through the same _apply_level_effects() path a live
+## game would have taken, so leveling/bonus logic is never duplicated here.
+func load_save_data(data: Dictionary) -> void:
+	var saved_xp: Dictionary = data.get("xp", {})
+	for skill_id in _defs:
+		_xp[skill_id] = 0
+		_levels[skill_id] = 0
+	_bonus_totals.clear()
+	for skill_id in saved_xp:
+		if _defs.has(skill_id):
+			add_xp(skill_id, saved_xp[skill_id])

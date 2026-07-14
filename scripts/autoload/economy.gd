@@ -62,3 +62,19 @@ func _apply_effect(upgrade: UpgradeDef) -> void:
 			Herbalism.add_plots(int(upgrade.effect_amount))
 		_:
 			push_warning("Unknown upgrade effect_target: %s" % upgrade.effect_target)
+
+
+func get_save_data() -> Dictionary:
+	return {"purchased_upgrade_ids": purchased_upgrade_ids.duplicate()}
+
+
+## IMPORTANT: does NOT replay purchased_upgrade_ids through _apply_effect().
+## Upgrade effects are already baked into Brewing's station modifiers, Shop's
+## capacity, and Herbalism's plot array — all restored directly by their own
+## load_save_data(). Replaying effects here would double-apply every
+## modifier/capacity/plot on top of those already-restored values.
+## purchased_upgrade_ids exists on load purely so is_purchased() gates
+## "already bought" UI correctly.
+func load_save_data(data: Dictionary) -> void:
+	var saved: Array = data.get("purchased_upgrade_ids", [])
+	purchased_upgrade_ids.assign(saved)

@@ -96,3 +96,20 @@ func _resolve_overnight_skip() -> void:
 func skip_to(target_minutes_into_day: int) -> void:
 	while minutes_into_day < target_minutes_into_day and minutes_into_day < DAY_LENGTH_MINUTES:
 		_tick_one_minute()
+
+
+func get_save_data() -> Dictionary:
+	return {
+		"day_number": day_number,
+		"minutes_into_day": minutes_into_day,
+		"is_paused": is_paused,
+	}
+
+
+## _accumulator is intentionally not saved — it's sub-minute tick fraction,
+## resetting to 0.0 on load is imperceptible.
+func load_save_data(data: Dictionary) -> void:
+	day_number = data.get("day_number", 0)
+	minutes_into_day = data.get("minutes_into_day", 0)
+	is_paused = data.get("is_paused", false)
+	_accumulator = 0.0

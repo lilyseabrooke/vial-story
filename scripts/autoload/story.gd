@@ -18,3 +18,11 @@ func set_flag(flag_id: String, value: bool = true) -> void:
 		return
 	_flags[flag_id] = value
 	flag_changed.emit(flag_id, value)
+
+
+func get_save_data() -> Dictionary:
+	return {"flags": _flags.duplicate()}
+
+
+func load_save_data(data: Dictionary) -> void:
+	_flags = (data.get("flags", {}) as Dictionary).duplicate()

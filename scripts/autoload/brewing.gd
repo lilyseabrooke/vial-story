@@ -103,3 +103,60 @@ func _on_minute_tick(timestamp: int) -> void:
 		if job and job.status == BrewJob.Status.BREWING and timestamp >= job.ready_timestamp:
 			job.status = BrewJob.Status.READY
 			brew_ready.emit(station.id, job.recipe.id)
+
+
+func get_save_data() -> Dictionary:
+	var station_data: Array[Dictionary] = []
+	for station in stations:
+		var job_data = null
+		if station.current_job != null:
+			var job := station.current_job
+			job_data = {
+				"recipe_id": job.recipe.id,
+				"start_timestamp": job.start_timestamp,
+				"ready_timestamp": job.ready_timestamp,
+				"rolled_potency": job.rolled_potency,
+				"rolled_ease": job.rolled_ease,
+				"status": int(job.status),
+				"botched": job.botched,
+			}
+		station_data.append({
+			"id": station.id,
+			"display_name": station.display_name,
+			"station_type": station.station_type,
+			"potency_modifier": station.potency_modifier,
+			"ease_modifier": station.ease_modifier,
+			"speed_modifier": station.speed_modifier,
+			"current_job": job_data,
+		})
+	return {"stations": station_data}
+
+
+## Rebuilds `stations` from scratch rather than patching the boot-time
+## default from _setup_default_stations() — station count is itself save
+## data (future upgrades can add stations), not a fixed set to mutate in place.
+func load_save_data(data: Dictionary) -> void:
+	stations.clear()
+	var station_data: Array = data.get("stations", [])
+	for entry in station_data:
+		var station := StationInstance.new()
+		station.id = entry.get("id", "")
+		station.display_name = entry.get("display_name", "")
+		station.station_type = entry.get("station_type", "")
+		station.potency_modifier = entry.get("potency_modifier", 0.0)
+		station.ease_modifier = entry.get("ease_modifier", 0.0)
+		station.speed_modifier = entry.get("speed_modifier", 1.0)
+
+		var job_data = entry.get("current_job")
+		if job_data != null:
+			var job := BrewJob.new()
+			job.recipe = ContentRegistry.get_recipe(job_data.get("recipe_id", ""))
+			job.start_timestamp = job_data.get("start_timestamp", 0)
+			job.ready_timestamp = job_data.get("ready_timestamp", 0)
+			job.rolled_potency = job_data.get("rolled_potency", 0.0)
+			job.rolled_ease = job_data.get("rolled_ease", 0.0)
+			job.status = job_data.get("status", BrewJob.Status.BREWING) as BrewJob.Status
+			job.botched = job_data.get("botched", false)
+			station.current_job = job
+
+		stations.append(station)

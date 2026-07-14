@@ -79,3 +79,20 @@ func _roll_sales() -> void:
 			Inventory.add_materials(slot.price)
 			potion_sold.emit(slot.potion_id, slot.price)
 		i -= 1
+
+
+func get_save_data() -> Dictionary:
+	return {
+		"capacity": capacity,
+		"slots": slots.duplicate(true),
+	}
+
+
+## _minutes_since_last_roll is intentionally not saved — it's a tick
+## accumulator, not deadline-comparison state, so resetting to 0 is safe.
+func load_save_data(data: Dictionary) -> void:
+	capacity = data.get("capacity", capacity)
+	slots.clear()
+	for slot in (data.get("slots", []) as Array):
+		slots.append(slot)
+	_minutes_since_last_roll = 0

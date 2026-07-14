@@ -89,3 +89,23 @@ func _on_minute_tick(_timestamp: int) -> void:
 	if Clock.minute_of_day() == CLASS_END_MINUTE:
 		absences += 1
 		absence_recorded.emit(absences)
+
+
+func get_save_data() -> Dictionary:
+	return {
+		"running_score": running_score,
+		"strikes": strikes,
+		"absences": absences,
+		"is_game_over": is_game_over,
+		"attended_today": _attended_today,
+		"last_exam_day": _last_exam_day,
+	}
+
+
+func load_save_data(data: Dictionary) -> void:
+	running_score = data.get("running_score", 0.0)
+	strikes = data.get("strikes", 0)
+	absences = data.get("absences", 0)
+	is_game_over = data.get("is_game_over", false)
+	_attended_today = data.get("attended_today", false)
+	_last_exam_day = data.get("last_exam_day", 0)

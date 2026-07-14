@@ -18,7 +18,9 @@ config/icon="res://icon.svg"
 [autoload]
 
 Clock="*res://scripts/autoload/clock.gd"
+PlayerProfile="*res://scripts/autoload/player_profile.gd"
 Inventory="*res://scripts/autoload/inventory.gd"
+ContentRegistry="*res://scripts/autoload/content_registry.gd"
 Resolve="*res://scripts/autoload/resolve.gd"
 Skills="*res://scripts/autoload/skills.gd"
 Brewing="*res://scripts/autoload/brewing.gd"
@@ -30,6 +32,7 @@ Story="*res://scripts/autoload/story.gd"
 LoveInterests="*res://scripts/autoload/love_interests.gd"
 Characters="*res://scripts/autoload/characters.gd"
 SceneDirector="*res://scripts/autoload/scene_director.gd"
+SaveManager="*res://scripts/autoload/save_manager.gd"
 
 [display]
 

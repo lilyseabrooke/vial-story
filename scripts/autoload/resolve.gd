@@ -59,3 +59,18 @@ func _check_strained_transition() -> void:
 ## or resolve collapse itself). Partial regen is an open spec question.
 func _on_day_started(_day_number: int, _day_type: int) -> void:
 	restore(max_resolve)
+
+
+func get_save_data() -> Dictionary:
+	return {
+		"current": current,
+		"max_resolve": max_resolve,
+	}
+
+
+## _was_strained is intentionally not saved — it's derivable from current vs.
+## strained_threshold and gets naturally recomputed on the next spend()/restore().
+func load_save_data(data: Dictionary) -> void:
+	max_resolve = data.get("max_resolve", max_resolve)
+	current = data.get("current", max_resolve)
+	_was_strained = is_strained()

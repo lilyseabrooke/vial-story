@@ -79,3 +79,32 @@ func _on_minute_tick(timestamp: int) -> void:
 		if plot.status == GrowPlotInstance.Status.GROWING and timestamp >= plot.ready_timestamp:
 			plot.status = GrowPlotInstance.Status.READY_TO_HARVEST
 			ready_to_harvest.emit(plot.id, plot.planted_seed.id)
+
+
+func get_save_data() -> Dictionary:
+	var plot_data: Array[Dictionary] = []
+	for plot in plots:
+		plot_data.append({
+			"id": plot.id,
+			"status": int(plot.status),
+			"planted_seed_id": plot.planted_seed.id if plot.planted_seed != null else "",
+			"planted_timestamp": plot.planted_timestamp,
+			"ready_timestamp": plot.ready_timestamp,
+		})
+	return {"plots": plot_data}
+
+
+## Rebuilds `plots` from scratch rather than patching add_plots()'s boot-time
+## default — plot count is itself save data (upgrades can add plots).
+func load_save_data(data: Dictionary) -> void:
+	plots.clear()
+	var plot_data: Array = data.get("plots", [])
+	for entry in plot_data:
+		var plot := GrowPlotInstance.new()
+		plot.id = entry.get("id", "")
+		plot.status = entry.get("status", GrowPlotInstance.Status.EMPTY) as GrowPlotInstance.Status
+		var seed_id: String = entry.get("planted_seed_id", "")
+		plot.planted_seed = ContentRegistry.get_seed(seed_id) if seed_id != "" else null
+		plot.planted_timestamp = entry.get("planted_timestamp", 0)
+		plot.ready_timestamp = entry.get("ready_timestamp", 0)
+		plots.append(plot)

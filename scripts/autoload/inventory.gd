@@ -60,3 +60,19 @@ func spend_materials(amount: int) -> bool:
 	materials -= amount
 	materials_changed.emit(materials)
 	return true
+
+
+func get_save_data() -> Dictionary:
+	return {
+		"ingredient_counts": ingredient_counts.duplicate(),
+		"potions": potions.duplicate(true),
+		"materials": materials,
+	}
+
+
+func load_save_data(data: Dictionary) -> void:
+	ingredient_counts = (data.get("ingredient_counts", {}) as Dictionary).duplicate()
+	potions.clear()
+	for potion in (data.get("potions", []) as Array):
+		potions.append(potion)
+	materials = data.get("materials", 0)

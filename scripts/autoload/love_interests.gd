@@ -20,3 +20,11 @@ func add_affection(love_interest_id: String, amount: int) -> void:
 	var new_value := get_affection(love_interest_id) + amount
 	_affection[love_interest_id] = new_value
 	affection_changed.emit(love_interest_id, new_value)
+
+
+func get_save_data() -> Dictionary:
+	return {"affection": _affection.duplicate()}
+
+
+func load_save_data(data: Dictionary) -> void:
+	_affection = (data.get("affection", {}) as Dictionary).duplicate()

@@ -4,24 +4,6 @@ const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 
 const STATION_ID := "alembic_1"
-const RECIPE_PATHS := [
-	"res://data/recipes/minor_healing_draught.tres",
-	"res://data/recipes/clarity_tonic.tres",
-]
-const INGREDIENT_PATHS := [
-	"res://data/ingredients/moonpetal.tres",
-	"res://data/ingredients/iron_filings.tres",
-	"res://data/ingredients/ghostcap_mushroom.tres",
-]
-const UPGRADE_PATHS := [
-	"res://data/upgrades/expanded_stock_shelf.tres",
-	"res://data/upgrades/alembic_tune_up.tres",
-	"res://data/upgrades/quick_brew_coil.tres",
-	"res://data/upgrades/extra_grow_plot.tres",
-]
-const SEED_PATHS := [
-	"res://data/seeds/moonpetal_seed.tres",
-]
 const STARTING_INGREDIENTS := {
 	"moonpetal": 3,
 	"iron_filings": 3,
@@ -55,11 +37,7 @@ var _supply_panel: VBoxContainer
 var _game_menu_content: VBoxContainer
 var _menu_scene: MenuScene
 
-var _recipes: Array[RecipeDef] = []
-var _ingredients: Array[IngredientDef] = []
-var _upgrades: Array[UpgradeDef] = []
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
-var _seeds: Array[SeedDef] = []
 var _plot_nodes: Dictionary = {}        # plot_id -> Interactable
 
 var _current_interactable: Interactable = null
@@ -73,10 +51,6 @@ var _current_room_id: String = ""
 
 func _ready() -> void:
 	print("Vial Story: main scene ready")
-	_load_recipes()
-	_load_ingredients()
-	_load_upgrades()
-	_load_seeds()
 	_grant_starting_ingredients()
 	_build_rooms()
 	_build_hud()
@@ -114,26 +88,6 @@ func _ready() -> void:
 	_update_skills_label()
 	_update_resolve_meter()
 	_update_report_card_label()
-
-
-func _load_recipes() -> void:
-	for path in RECIPE_PATHS:
-		_recipes.append(load(path) as RecipeDef)
-
-
-func _load_ingredients() -> void:
-	for path in INGREDIENT_PATHS:
-		_ingredients.append(load(path) as IngredientDef)
-
-
-func _load_upgrades() -> void:
-	for path in UPGRADE_PATHS:
-		_upgrades.append(load(path) as UpgradeDef)
-
-
-func _load_seeds() -> void:
-	for path in SEED_PATHS:
-		_seeds.append(load(path) as SeedDef)
 
 
 func _grant_starting_ingredients() -> void:
@@ -387,7 +341,7 @@ func _build_hud() -> void:
 	_game_menu_content.add_child(quit_button)
 
 	_brew_panel = VBoxContainer.new()
-	for recipe in _recipes:
+	for recipe in ContentRegistry.recipes:
 		var button := Button.new()
 		button.text = "Brew: %s" % recipe.display_name
 		button.pressed.connect(_on_brew_button_pressed.bind(recipe))
@@ -398,17 +352,17 @@ func _build_hud() -> void:
 	_brew_panel.add_child(collect_button)
 
 	_supply_panel = VBoxContainer.new()
-	for ingredient in _ingredients:
+	for ingredient in ContentRegistry.ingredients:
 		var ingredient_button := Button.new()
 		ingredient_button.text = "Buy %s (%d)" % [ingredient.display_name, ingredient.buy_price]
 		ingredient_button.pressed.connect(_on_buy_ingredient_button_pressed.bind(ingredient))
 		_supply_panel.add_child(ingredient_button)
-	for seed_def in _seeds:
+	for seed_def in ContentRegistry.seeds:
 		var seed_button := Button.new()
 		seed_button.text = "Buy %s (%d)" % [seed_def.display_name, seed_def.buy_price]
 		seed_button.pressed.connect(_on_buy_seed_button_pressed.bind(seed_def))
 		_supply_panel.add_child(seed_button)
-	for upgrade in _upgrades:
+	for upgrade in ContentRegistry.upgrades:
 		var upgrade_button := Button.new()
 		upgrade_button.text = "Buy upgrade: %s (%d)" % [upgrade.display_name, upgrade.cost]
 		upgrade_button.pressed.connect(_on_buy_upgrade_button_pressed.bind(upgrade))
@@ -473,8 +427,8 @@ func _interact_grow_plot(plot_id: String) -> void:
 	if plot.status == GrowPlotInstance.Status.READY_TO_HARVEST:
 		_on_harvest_button_pressed(plot_id)
 	elif plot.status == GrowPlotInstance.Status.EMPTY:
-		if _seeds.size() > 0:
-			_on_plant_button_pressed(plot_id, _seeds[0])
+		if ContentRegistry.seeds.size() > 0:
+			_on_plant_button_pressed(plot_id, ContentRegistry.seeds[0])
 	else:
 		_log_label.text = "%s is still growing." % plot_id
 
