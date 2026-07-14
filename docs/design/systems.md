@@ -467,15 +467,28 @@ placeholder art — since VN sprites fill most of the screen rather than being a
 small player-sized block, this is expected to read clearly as "VN scene" without
 needing portrait-shaped placeholders.
 
-### Runtime and presentation **[NOT BUILT YET]**
+### Runtime and presentation **[DialogueRunner BUILT / DialogueBox NOT BUILT YET]**
 
-- `DialogueRunner` — steps through a compiled scene's instructions, emitting
-  signals (`line_shown(speaker, text)`, `choice_requested(options)`,
-  `stage_changed(...)`) and waiting for the UI to call back in (`advance()`,
-  `choose(index)`).
-- `DialogueBox` — full-screen scene: background, positioned character sprites
-  (added/removed/moved per stage direction, active speaker highlighted / others
-  dimmed), name plate + text at the bottom, choice buttons.
+- `DialogueRunner` (`scripts/vn/dialogue_runner.gd`) — **built.** Loads a
+  `VNScriptCompiler.compile()` result and steps through it as a plain
+  instruction pointer, emitting `line_shown(speaker, text)`,
+  `choice_requested(options)`, `stage_changed(instruction)`, and
+  `scene_ended()`, and waiting for the presentation layer to call back in
+  (`start()`, `advance()`, `choose(index)`). Stage directions and action calls
+  (`CALL`, `JUMP`, `JUMP_IF_FALSE`) execute immediately and fall through to the
+  next instruction within the same call — only `SHOW_LINE`/`SHOW_CHOICE`/`END`
+  actually pause execution — so a scene with several back-to-back stage
+  directions or `if`-guarded actions plays out in one `advance()`/`choose()`
+  call, exactly like the compiler's flat-instruction-list design intended.
+  Verified against the `kaelith_greeting` sample end-to-end via a throwaway
+  test scene: both choice branches, the `if has_item(...)` true/false paths,
+  and the resulting `LoveInterests`/`Inventory` side effects (affection +5,
+  `clarity_tonic` consumed) all confirmed correct.
+- `DialogueBox` — **not built yet.** Full-screen scene: background, positioned
+  character sprites (added/removed/moved per stage direction, active speaker
+  highlighted / others dimmed), name plate + text at the bottom, choice
+  buttons — driven entirely by listening to `DialogueRunner`'s signals and
+  calling `advance()`/`choose()` back in response to player input.
 
 ### Scene triggering **[NOT BUILT YET]**
 
