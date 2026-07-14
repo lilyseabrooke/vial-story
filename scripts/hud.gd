@@ -1,7 +1,7 @@
 class_name GameHud
 extends CanvasLayer
-## Owns the debug HUD (status labels for clock/inventory/skills/Resolve/
-## report card), the Escape menu shell, and the brew/supply panels — the
+## Owns the debug HUD (status labels for clock/inventory/skills/Resolve),
+## the Escape menu shell, and the brew/supply panels — the
 ## "presenting information and menu chrome" half of what used to be
 ## main.gd. Connects directly to every autoload signal whose only effect is
 ## a label/log update; signals whose effect also touches world geometry
@@ -23,7 +23,6 @@ var _materials_label: Label
 var _resolve_bar: ProgressBar
 var _resolve_label: Label
 var _log_label: Label
-var _report_card_label: Label
 var _game_over_label: Label
 var _prompt_label: Label
 var _game_menu: GameMenu
@@ -80,11 +79,6 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_log_label.custom_minimum_size = Vector2(200, 0)
 	_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	calendar_vbox.add_child(_log_label)
-
-	_report_card_label = Label.new()
-	_report_card_label.custom_minimum_size = Vector2(200, 0)
-	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	calendar_vbox.add_child(_report_card_label)
 
 	calendar_vbox.add_child(HSeparator.new())
 
@@ -160,13 +154,11 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	update_materials_label()
 	update_skills_label()
 	update_resolve_meter()
-	update_report_card_label()
 
 
 func _connect_autoload_signals() -> void:
 	Clock.minute_tick.connect(func(_timestamp: int) -> void:
 		update_clock_label()
-		update_report_card_label()
 	)
 	Clock.day_started.connect(func(day_number: int, day_type: int) -> void:
 		log_message("Day %d (%s) begins." % [day_number, DAY_TYPE_NAMES[day_type]])
@@ -219,18 +211,15 @@ func _connect_autoload_signals() -> void:
 	Academy.absence_recorded.connect(func(absences: int) -> void:
 		log_message("Missed class today. Absences: %d" % absences)
 		print("Absence recorded. Total: %d" % absences)
-		update_report_card_label()
 	)
 	Academy.exam_graded.connect(func(passed: bool, score: float, strikes: int) -> void:
 		log_message("Exam %s! Score: %.0f, Strikes: %d" % ["passed" if passed else "FAILED", score, strikes])
 		print("Exam %s. Score: %.1f, Strikes: %d" % ["passed" if passed else "failed", score, strikes])
-		update_report_card_label()
 	)
 	Academy.game_over.connect(func() -> void:
 		_game_over_label.text = "GAME OVER — The Academy has revoked your selling privileges."
 		_game_over_label.visible = true
 		print("GAME OVER: strikes reached the limit.")
-		update_report_card_label()
 	)
 
 
@@ -312,7 +301,6 @@ func attend_class() -> void:
 	log_message("Couldn't attend class: %s" % error if error != "" \
 		else "Attended class — running score up, Herbalism XP gained.")
 	update_clock_label()
-	update_report_card_label()
 
 
 func _on_upgrade_purchased(upgrade_id: String) -> void:
@@ -348,9 +336,3 @@ func update_resolve_meter() -> void:
 	_resolve_bar.value = Resolve.current
 	var strained_suffix := " [STRAINED]" if Resolve.is_strained() else ""
 	_resolve_label.text = "Resolve: %d/%d%s" % [Resolve.current, Resolve.max_resolve, strained_suffix]
-
-
-func update_report_card_label() -> void:
-	_report_card_label.text = "Report Card — score: %.0f/100 | strikes: %d/%d | absences: %d | next exam in %d day(s)" % [
-		Academy.running_score, Academy.strikes, Academy.STRIKE_LIMIT, Academy.absences, Academy.days_until_exam()
-	]

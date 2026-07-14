@@ -5,11 +5,11 @@ extends TabContainer
 ## scripts/menu_scene.gd. hud.gd owns one instance and hands it to MenuScene
 ## the same way it always handed over the old flat game-menu VBoxContainer.
 ##
-## Inventory/Skills/Relationships tabs connect directly to the autoload
-## signals whose only effect is refreshing their own display — consistent
-## with how hud.gd wires up signals whose effect is purely a label update.
-## Shop/Map/Recipes/Journal are out of scope for the prototype and stay as
-## disabled tabs.
+## Inventory/Skills/Relationships/Classes tabs connect directly to the
+## autoload signals whose only effect is refreshing their own display —
+## consistent with how hud.gd wires up signals whose effect is purely a
+## label update. Shop/Map/Journal are out of scope for the prototype and
+## stay as disabled tabs.
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
@@ -21,6 +21,8 @@ const MAX_HEARTS := 5
 var _inventory_grid: GridContainer
 var _skills_list: VBoxContainer
 var _relationships_list: VBoxContainer
+var _recipes_list: VBoxContainer
+var _report_card_label: Label
 var _save_status_label: Label
 
 
@@ -31,25 +33,30 @@ func build() -> void:
 	_build_skills_tab()
 	_build_disabled_tab("Shop")
 	_build_relationships_tab()
+	_build_classes_tab()
 	_build_disabled_tab("Map")
-	_build_disabled_tab("Recipes")
+	_build_recipes_tab()
 	_build_disabled_tab("Journal")
 	_build_settings_tab()
 
 	set_tab_disabled(2, true)  # Shop
-	set_tab_disabled(4, true)  # Map
-	set_tab_disabled(5, true)  # Recipes
-	set_tab_disabled(6, true)  # Journal
+	set_tab_disabled(5, true)  # Map
+	set_tab_disabled(7, true)  # Journal
 
 	Inventory.ingredient_changed.connect(func(_id: String, _qty: int) -> void: update_inventory())
 	Inventory.potion_added.connect(func(_id: String, _potency: float, _ease: float) -> void: update_inventory())
 	Skills.xp_gained.connect(func(_id: String, _xp: int, _level: int) -> void: update_skills())
 	Skills.leveled_up.connect(func(_id: String, _level: int) -> void: update_skills())
 	LoveInterests.affection_changed.connect(func(_id: String, _amount: int) -> void: update_relationships())
+	Academy.attended_class.connect(update_report_card)
+	Academy.absence_recorded.connect(func(_absences: int) -> void: update_report_card())
+	Academy.exam_graded.connect(func(_passed: bool, _score: float, _strikes: int) -> void: update_report_card())
 
 	update_inventory()
 	update_skills()
 	update_relationships()
+	update_recipes()
+	update_report_card()
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +211,72 @@ func update_relationships() -> void:
 		row.add_child(hearts_label)
 
 		_relationships_list.add_child(row)
+
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+func _build_classes_tab() -> void:
+	var root := VBoxContainer.new()
+	root.name = "Classes"
+	add_child(root)
+
+	_report_card_label = Label.new()
+	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	root.add_child(_report_card_label)
+
+
+func update_report_card() -> void:
+	_report_card_label.text = "Report Card\n\nScore: %.0f/100\nStrikes: %d/%d\nAbsences: %d\nNext exam in %d day(s)" % [
+		Academy.running_score, Academy.strikes, Academy.STRIKE_LIMIT, Academy.absences, Academy.days_until_exam()
+	]
+
+
+# ---------------------------------------------------------------------------
+# Recipes
+# ---------------------------------------------------------------------------
+
+func _build_recipes_tab() -> void:
+	var root := VBoxContainer.new()
+	root.name = "Recipes"
+	add_child(root)
+
+	_recipes_list = VBoxContainer.new()
+	root.add_child(_recipes_list)
+
+
+## Recipes have no "learned" event yet (RecipeDef.known is static per-file for
+## now, see docs/design/systems.md system 3), so this only needs to run once
+## from build() rather than reacting to a signal like the other tabs.
+func update_recipes() -> void:
+	for child in _recipes_list.get_children():
+		child.queue_free()
+
+	for recipe in ContentRegistry.recipes:
+		var row := VBoxContainer.new()
+
+		var header := Label.new()
+		header.text = recipe.display_name if recipe.known else "??? (unknown)"
+		if not recipe.known:
+			header.modulate = Color(0.6, 0.6, 0.6)
+		row.add_child(header)
+
+		if recipe.known:
+			var ingredient_parts: Array[String] = []
+			for i in recipe.ingredient_ids.size():
+				var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
+				var ingredient_name := ingredient.display_name if ingredient != null else recipe.ingredient_ids[i]
+				ingredient_parts.append("%s x%d" % [ingredient_name, recipe.ingredient_quantities[i]])
+
+			var ingredients_label := Label.new()
+			ingredients_label.text = "Requires: %s" % ", ".join(ingredient_parts)
+			ingredients_label.add_theme_font_size_override("font_size", 12)
+			ingredients_label.modulate = Color(0.8, 0.8, 0.8)
+			row.add_child(ingredients_label)
+
+		_recipes_list.add_child(row)
+		_recipes_list.add_child(HSeparator.new())
 
 
 # ---------------------------------------------------------------------------
