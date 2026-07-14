@@ -342,12 +342,17 @@ CurseState
 
 ---
 
-## 13. VN / Relationship System **[BUILD — in progress]**
+## 13. VN / Relationship System **[Engine BUILT — content authoring next]**
 
 A custom-built dialogue engine, not a third-party addon — the explicit intent is to
 frontload real engine investment now so that later work is writing/art, not more
-engineering. Scope for the first pass: one love interest, a handful of scenes,
-proving trigger → full-screen scene → consequence end-to-end.
+engineering. The full pipeline (expression language → script compiler →
+runtime → full-screen presentation → condition-based triggering) is built and
+verified end-to-end against one placeholder scene/trigger pair
+(`kaelith_greeting`). What's left for the first pass — one love interest, a
+handful of scenes — is content: a real `LoveInterestDef`, actual writing, and
+whatever new stage-direction/grammar needs fall out of authoring real scenes
+rather than the engine itself.
 
 ### Expression language **[BUILT]**
 
@@ -513,11 +518,12 @@ needing portrait-shaped placeholders.
   stage direction, both choice branches, and the resulting affection/inventory
   side effects.
 
-### Scene triggering **[NOT BUILT YET]**
+### Scene triggering **[BUILT]**
 
 No fixed taxonomy of trigger *types* — a scene can be triggered by anything at
-any time, so a `SceneTriggerDef` just carries a condition expression (the same
-expression language as `if` statements) rather than an enum of trigger kinds.
+any time, so `SceneTriggerDef` (`scripts/data/scene_trigger_def.gd`, a `Resource`
+like `RecipeDef`/`SkillDef`) just carries a condition expression (the same
+expression language as `if` statements) rather than an enum of trigger kinds:
 
 ```
 SceneTriggerDef
@@ -529,12 +535,23 @@ SceneTriggerDef
   - show_from_menu: bool      # can this cut in through an open menu?
 ```
 
-- `SceneDirector` autoload registers all `SceneTriggerDef`s and re-evaluates them
-  via `recheck()` — on every `Clock.minute_tick` as a cheap baseline (so
-  time/flag-only conditions never lag more than a minute), and immediately from
-  specific call sites (a menu closing, a sale landing, a room change, etc.) for
-  anything that should feel instant. A satisfied trigger fires the highest
-  `priority` bucket first, then earliest-registered within that bucket.
+- `SceneDirector` (`scripts/autoload/scene_director.gd`) registers every
+  `SceneTriggerDef` listed in its `TRIGGER_PATHS` const (same "explicit path
+  list, not directory scanning" convention `main.gd` uses for recipes/ingredients).
+  Registration parses the condition *and* compiles the script up front
+  (`VNScriptCompiler.compile()` on the file's contents, read via
+  `FileAccess.get_file_as_string()`), so `recheck()` never touches the
+  filesystem or a parser mid-game — it only walks the small pre-built
+  `{trigger, condition_ast, compiled}` list. `SceneDirector` owns a single
+  `DialogueBox` child (created once in `_ready()`) that every fired scene
+  plays through.
+- `recheck()` runs on every `Clock.minute_tick` (connected in `_ready()`) plus
+  can be called directly by anything that wants instant-feeling triggers (not
+  yet wired into specific call sites like menu-close/sale/room-change — that's
+  a follow-up integration, not a `SceneDirector` limitation). A satisfied
+  trigger fires the highest `priority` bucket first, then earliest-registered
+  within that bucket (a strict-greater-than comparison while iterating in
+  registration order naturally keeps the earliest of any tie).
 - **No explicit queue.** A trigger that's satisfied but blocked (player mid-menu,
   and `show_from_menu` is false) simply doesn't fire yet; the very next
   `recheck()` — which happens constantly regardless — re-runs the same
@@ -544,6 +561,21 @@ SceneTriggerDef
 - An already-*playing* scene always blocks new scenes outright, regardless of
   `show_from_menu` — that flag only lets a scene cut through a menu (e.g. calling
   a love interest from a phone menu item), not through another scene in progress.
+  `SceneDirector` tracks this itself (`_is_scene_playing`) rather than asking
+  `DialogueBox`, since `Clock.is_paused` alone can't distinguish "a menu is open"
+  from "a scene is playing" (both set it) — `recheck()` checks its own playing
+  flag first (blocks everything, no exceptions) and only then falls back to
+  `Clock.is_paused` for the `show_from_menu` gate.
+- One-shot tracking reuses the `Story` flag store exactly as spec'd:
+  `has_flag("scene_played_" + scene_id)`, keyed by the *compiled* scene id
+  (not the trigger id), set right before firing a non-repeatable trigger.
+- Verified end-to-end via a throwaway test scene against the one real sample
+  (`data/scene_triggers/kaelith_greeting_trigger.tres` →
+  `data/vn_scenes/kaelith_greeting.vnscript`, condition `"true"`,
+  non-repeatable): confirmed it auto-fires on the very first `Clock.minute_tick`
+  with no code driving it, plays through to `scene_ended()`, sets the played
+  flag, does *not* refire afterward, stays blocked while `Clock.is_paused` is
+  true (simulating an open menu), and fires immediately once unblocked.
   No nested scenes.
 - Non-repeatable scenes mark themselves played via the same `Story` flag store
   (`has_flag("scene_played_" + scene_id)`) rather than separate "seen" bookkeeping.

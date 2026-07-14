@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SceneTriggerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/scene_trigger_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "kaelith_greeting_trigger"
+script_path = "res://data/vn_scenes/kaelith_greeting.vnscript"
+condition = "true"
+priority = 1
+repeatable = false
+show_from_menu = false

@@ -1,0 +1,24 @@
+scene kaelith_greeting
+background bedroom
+enter Kaelith at 200,400
+Kaelith: "You're still up? Typical."
+choice
+  "Ask about her day" -> ask_day
+  "Offer her a potion" -> offer_potion
+
+label ask_day
+Kaelith: "It's been long. Exams, you know."
+goto end
+
+label offer_potion
+if has_item("clarity_tonic")
+  Kaelith: "For me? How thoughtful."
+  add_affection("kaelith", 5)
+  give_item("clarity_tonic", -1)
+else
+  Kaelith: "You don't actually have one, do you?"
+endif
+goto end
+
+label end
+end_scene
