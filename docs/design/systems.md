@@ -354,14 +354,24 @@ CurseState
   as a VN scene rather than being walked to — see system #13.
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
-- **Rooms**: the interior is split into separate room containers (currently
-  `Shop` and `Bedroom`) built up front in `main.gd`'s `_build_rooms()`, each
-  holding its own floor + interactables. Only one room is active at a time —
-  `_switch_room()` toggles `visible`/`process_mode` on the room containers
-  (inactive rooms are `PROCESS_MODE_DISABLED`, which also stops their
-  `Interactable` areas from firing enter/exit signals while hidden) and
-  repositions the single shared player + camera. The player and camera are
-  scene-level nodes, not per-room, so they persist across a switch.
+- **Rooms**: the interior is split into separate hand-authored room scenes
+  (currently `scenes/rooms/Shop.tscn` and `Bedroom.tscn`), each a
+  `Room`-scripted (`scripts/room.gd`) `Node2D` with `Floor`/`Walls`
+  `TileMapLayer`s, `CameraCenter`/`SpawnPoint` `Marker2D`s, and an
+  `Interactables` container of pre-placed `Interactable` instances configured
+  entirely via the Inspector. `RoomBuilder.build_rooms()`
+  (`scripts/room_builder.gd`) loads both scenes up front, reads each room's
+  markers, and wires every pre-placed `Interactable`'s signals; grow-plot
+  `Interactable`s are the one exception and stay code-instanced (into a
+  `Plots` container node) since they come from runtime `Herbalism` data. Only
+  one room is active at a time — `switch_room()` toggles `visible`/
+  `process_mode` on the room scenes (inactive rooms are
+  `PROCESS_MODE_DISABLED`, which also stops their `Interactable` areas from
+  firing enter/exit signals while hidden) and repositions the single shared
+  player + camera. The player and camera are scene-level nodes, not per-room,
+  so they persist across a switch. Wall tiles carry real collision (physics
+  layer 2, named "Walls" in `project.godot`'s `[layer_names]`; `Player`'s
+  `collision_mask` includes it) — floor tiles don't.
 - **Room transitions** are just another `Interactable.Type` (`STAIRS`), configured
   with a `target_room` id and a `spawn_position` in the destination room, the
   same per-instance-config pattern as every other interactable type. The Bed
