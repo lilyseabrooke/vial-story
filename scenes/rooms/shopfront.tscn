@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://c0h2powai6sfc"]
+
+[ext_resource type="TileSet" uid="uid://8wm5kmwd666" path="res://assets/tilesets/outdoor_grounds.tres" id="1_yuxlk"]
+
+[node name="Shopfront" type="Node2D" unique_id=70691359]
+
+[node name="TileMapLayer" type="TileMapLayer" parent="." unique_id=2025674223]
+tile_set = ExtResource("1_yuxlk")

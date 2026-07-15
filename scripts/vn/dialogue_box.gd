@@ -11,6 +11,12 @@ extends CanvasLayer
 ## control flow. Character color/name comes from a registered CharacterDef
 ## (via the Characters autoload) when one exists for that id, falling back to
 ## a cycled placeholder palette for anyone not yet authored.
+##
+## Typewriter reveal rate is `_REVEAL_SECONDS_PER_CHAR` scaled by
+## `Settings.text_speed_multiplier` (the Settings screens' Text Speed
+## dropdown), read fresh each time a line starts so a mid-scene change takes
+## effect on the next line. A multiplier of 0.0 ("Instant") skips the timer
+## and reveals the whole line immediately.
 
 signal closed
 
@@ -123,8 +129,16 @@ func _on_line_shown(speaker: String, text: String) -> void:
 	_full_text = text
 	_revealed_chars = 0
 	_text_label.text = ""
-	_is_revealing = true
 	_set_active_speaker(speaker)
+
+	var multiplier := Settings.text_speed_multiplier
+	if multiplier <= 0.0:
+		_is_revealing = false
+		_finish_reveal()
+		return
+
+	_is_revealing = true
+	_reveal_timer.wait_time = _REVEAL_SECONDS_PER_CHAR * multiplier
 	_reveal_timer.start()
 
 

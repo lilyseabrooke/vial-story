@@ -532,8 +532,10 @@ needing portrait-shaped placeholders.
   fixed palette cycled per character), with a name+expression label instead
   of real art; the currently-speaking character is full-opacity, everyone
   else present is dimmed. Dialogue text reveals with a typewriter effect
-  (`Timer`-driven, configurable seconds-per-character); clicking anywhere on
-  the background while a line is still revealing completes it instantly
+  (`Timer`-driven, seconds-per-character scaled by `Settings.text_speed_multiplier`
+  — the Settings screens' Text Speed dropdown, `scripts/autoload/settings.gd`;
+  "Instant" skips the timer and reveals the whole line immediately); clicking
+  anywhere on the background while a line is still revealing completes it instantly
   instead of advancing, and only a second click calls `DialogueRunner.advance()`
   — the click handler lives on the full-screen background `ColorRect`, with
   the character layer and each character rectangle set to

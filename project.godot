@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Settings="*res://scripts/autoload/settings.gd"
 Clock="*res://scripts/autoload/clock.gd"
 PlayerProfile="*res://scripts/autoload/player_profile.gd"
 Inventory="*res://scripts/autoload/inventory.gd"
@@ -38,6 +39,8 @@ GameFlow="*res://scripts/autoload/game_flow.gd"
 
 [display]
 
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
