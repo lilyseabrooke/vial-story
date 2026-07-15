@@ -1,0 +1,59 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/room.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/Interactable.tscn" id="2"]
+
+[node name="Shop" type="Node2D"]
+script = ExtResource("1")
+room_id = "shop"
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Walls" type="TileMapLayer" parent="."]
+
+[node name="CameraCenter" type="Marker2D" parent="."]
+position = Vector2(352, 256)
+
+[node name="SpawnPoint" type="Marker2D" parent="."]
+position = Vector2(350, 350)
+
+[node name="Interactables" type="Node2D" parent="."]
+
+[node name="BrewStation" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(150, 100)
+interactable_type = 0
+target_id = "alembic_1"
+prompt_text = "open brewing options"
+display_name = "Alembic"
+visual_color = Color(0.8, 0.4, 0.2, 1)
+
+[node name="StockBox" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(550, 100)
+interactable_type = 1
+prompt_text = "stock the shop"
+display_name = "Stock Box"
+visual_color = Color(0.4, 0.7, 0.4, 1)
+
+[node name="SupplyShelf" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(550, 250)
+interactable_type = 3
+prompt_text = "buy supplies"
+display_name = "Supply Shelf"
+visual_color = Color(0.6, 0.5, 0.3, 1)
+
+[node name="ClassDoor" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(600, 400)
+interactable_type = 5
+prompt_text = "attend class (if in session)"
+display_name = "Classroom Door"
+visual_color = Color(0.7, 0.7, 0.2, 1)
+
+[node name="StairsUp" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(150, 400)
+interactable_type = 6
+prompt_text = "go upstairs to the Bedroom"
+display_name = "Stairs Up"
+visual_color = Color(0.5, 0.5, 0.55, 1)
+target_room = "bedroom"
+
+[node name="Plots" type="Node2D" parent="."]

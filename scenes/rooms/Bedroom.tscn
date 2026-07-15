@@ -1,0 +1,37 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/room.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/Interactable.tscn" id="2"]
+
+[node name="Bedroom" type="Node2D"]
+script = ExtResource("1")
+room_id = "bedroom"
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Walls" type="TileMapLayer" parent="."]
+
+[node name="CameraCenter" type="Marker2D" parent="."]
+position = Vector2(352, 256)
+
+[node name="SpawnPoint" type="Marker2D" parent="."]
+position = Vector2(350, 300)
+
+[node name="Interactables" type="Node2D" parent="."]
+
+[node name="Bed" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(350, 150)
+interactable_type = 4
+prompt_text = "sleep"
+display_name = "Bed"
+visual_color = Color(0.3, 0.3, 0.7, 1)
+
+[node name="StairsDown" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(350, 400)
+interactable_type = 6
+prompt_text = "go downstairs to the Shop"
+display_name = "Stairs Down"
+visual_color = Color(0.5, 0.5, 0.55, 1)
+target_room = "shop"
+
+[node name="Plots" type="Node2D" parent="."]

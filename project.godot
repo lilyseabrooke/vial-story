@@ -41,6 +41,11 @@ GameFlow="*res://scripts/autoload/game_flow.gd"
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[layer_names]
+
+2d_physics/layer_1="Player"
+2d_physics/layer_2="Walls"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

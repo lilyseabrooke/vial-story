@@ -35,7 +35,7 @@ func _ready() -> void:
 func _start_game(player_color: Color) -> void:
 	_room_builder = RoomBuilder.new()
 	add_child(_room_builder)
-	_room_builder.build_rooms(STATION_ID)
+	_room_builder.build_rooms()
 	_room_builder.player_entered_interactable.connect(_on_player_entered_interactable)
 	_room_builder.player_exited_interactable.connect(_on_player_exited_interactable)
 	_room_builder.player.get_node("Visual").color = player_color
