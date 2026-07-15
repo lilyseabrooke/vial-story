@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/quest_entry.gd" id="1"]
+
+[node name="QuestEntry" type="VBoxContainer"]
+script = ExtResource("1")
+
+[node name="HeaderRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="HeaderRow"]
+layout_mode = 2
+
+[node name="TurnInButton" type="Button" parent="HeaderRow"]
+layout_mode = 2
+text = "Turn In"
+visible = false
+
+[node name="DescriptionLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2
+modulate = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 12

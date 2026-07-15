@@ -41,6 +41,13 @@ GameFlow="*res://scripts/autoload/game_flow.gd"
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[importer_defaults]
+
+texture={
+"compress/mode": 0,
+"mipmaps/generate": false
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

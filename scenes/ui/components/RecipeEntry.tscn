@@ -1,0 +1,24 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/recipe_entry.gd" id="1"]
+
+[node name="RecipeEntry" type="VBoxContainer"]
+script = ExtResource("1")
+
+[node name="HeaderRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Icon" type="TextureRect" parent="HeaderRow"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+visible = false
+
+[node name="HeaderLabel" type="Label" parent="HeaderRow"]
+layout_mode = 2
+
+[node name="IngredientsLabel" type="Label" parent="."]
+layout_mode = 2
+modulate = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 12

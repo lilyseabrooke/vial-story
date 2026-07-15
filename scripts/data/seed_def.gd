@@ -8,6 +8,7 @@ extends Resource
 
 @export var id: String
 @export var display_name: String
+@export var icon: Texture2D
 @export var buy_price: int = 0
 @export var yields_ingredient_id: String = ""
 @export var growth_minutes: int = 480

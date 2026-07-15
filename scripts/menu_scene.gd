@@ -23,6 +23,7 @@ func _ready() -> void:
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_panel.visible = false
+	_panel.theme = preload("res://theme/ui_theme.tres")
 	add_child(_panel)
 
 	var vbox := VBoxContainer.new()

@@ -82,14 +82,26 @@ event bus or game-state object.
 - **`MenuScene`** (`scripts/menu_scene.gd`) is the generalized modal menu shell used for any
   interactable that opens a menu rather than firing instantly (brew station → recipe list, supply
   shelf → buy ingredients/seeds/upgrades). It owns only the shared chrome — title, close button, and
-  pausing — and is handed a bespoke content `Control` per menu type, built the same ad hoc,
-  code-only way the HUD panels already are (no shared content base class). `open()` reparents that
+  pausing — and is handed a bespoke content `Control` per menu type. `open()` reparents that
   content into its body and sets `Clock.is_paused = true`; `close()` reverses both. `player.gd`
   freezes movement off that same `Clock.is_paused` flag rather than tracking menu state itself, so
   `MenuScene` doesn't need to know the player exists. Menus are single-purpose per interactable (no
   tabs) and close on `Esc`, on re-pressing `E` at the same interactable, or on entering/exiting a
   different interactable; `STOCK_BOX`, `BED`, and `CLASS_DOOR` stay instant one-shot actions and never
-  go through `MenuScene`.
+  go through `MenuScene`. `_panel` (the root `PanelContainer` everything above gets reparented into) has
+  `theme/ui_theme.tres` assigned to it, so panel/button/font styling for every menu is centralized there —
+  swapping in illustrated art later is a theme/asset change, not a script change. `GameMenu`'s tab
+  container shell and its signal-wiring pattern (autoload signal → `update_x()`) are still built ad hoc
+  in code, same as `hud.gd`, but each tab's *repeated* rows/cells (item slots, skill rows, relationship
+  rows, recipe entries, quest entries) are `scenes/ui/components/*.tscn` scenes paired with a
+  `scripts/ui/components/*.gd` script (`class_name`, matching the `Interactable.tscn`/`interactable.gd`
+  pairing convention) exposing a `populate(...)` method — `update_x()` instances and populates them
+  instead of building nodes inline. Every component degrades gracefully to a tinted placeholder
+  (colored dot, border swatch) when the underlying data `Resource`'s `icon`/`portrait` field is `null`,
+  so illustrated art can land incrementally without ever breaking the UI. `IngredientDef`/`SeedDef` have
+  an `icon: Texture2D` field and `CharacterDef` a `portrait: Texture2D` field for this; `RecipeDef` has
+  no icon field of its own — the Recipes tab borrows the first required ingredient's icon as a stand-in
+  until a `PotionDef` resource exists to hang a real one on.
 - **Centering an ad hoc `Control` needs both calls.** `some_control.set_anchors_preset(Control.PRESET_CENTER)`
   only sets the anchor ratios — it leaves offsets untouched, so a freshly created, unsized `Control`
   ends up with its *top-left corner* pinned to the anchor point (screen center) rather than actually

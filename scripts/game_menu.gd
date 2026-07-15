@@ -1,9 +1,13 @@
 class_name GameMenu
 extends TabContainer
-## The Escape menu's content — a tabbed utility screen. Built ad hoc in code,
-## same "no .tscn, no shared content base class" style as scripts/hud.gd and
-## scripts/menu_scene.gd. hud.gd owns one instance and hands it to MenuScene
-## the same way it always handed over the old flat game-menu VBoxContainer.
+## The Escape menu's content — a tabbed utility screen. The tab shell itself
+## is still built ad hoc in code, same as scripts/hud.gd and
+## scripts/menu_scene.gd, but each tab's repeated rows/cells (item slots,
+## skill rows, relationship rows, recipe entries, quest entries) are
+## scenes/ui/components/*.tscn scenes with a populate() method, instanced
+## here rather than built node-by-node inline — see the *_SCENE consts below.
+## hud.gd owns one GameMenu instance and hands it to MenuScene the same way
+## it always handed over the old flat game-menu VBoxContainer.
 ##
 ## Inventory/Skills/Shop/Relationships/Classes/Journal tabs connect directly
 ## to the autoload signals whose only effect is refreshing their own display —
@@ -13,10 +17,15 @@ extends TabContainer
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
-const SLOT_SIZE := Vector2(72, 72)
 
 const AFFECTION_PER_HEART := 20
 const MAX_HEARTS := 5
+
+const ITEM_SLOT_SCENE := preload("res://scenes/ui/components/ItemSlot.tscn")
+const SKILL_ROW_SCENE := preload("res://scenes/ui/components/SkillRow.tscn")
+const RELATIONSHIP_ROW_SCENE := preload("res://scenes/ui/components/RelationshipRow.tscn")
+const RECIPE_ENTRY_SCENE := preload("res://scenes/ui/components/RecipeEntry.tscn")
+const QUEST_ENTRY_SCENE := preload("res://scenes/ui/components/QuestEntry.tscn")
 
 var _inventory_grid: GridContainer
 var _skills_list: VBoxContainer
@@ -92,48 +101,23 @@ func update_inventory() -> void:
 	for ingredient in ContentRegistry.ingredients:
 		var count := Inventory.ingredient_count(ingredient.id)
 		if count > 0:
-			entries.append({"text": "%s x%d" % [ingredient.display_name, count], "color": _color_for_id(ingredient.id)})
+			entries.append({"name": ingredient.display_name, "subtitle": "x%d" % count, "color": _color_for_id(ingredient.id), "icon": ingredient.icon})
 
 	var potion_counts: Dictionary = {}
 	for potion in Inventory.potions:
 		var potion_id: String = potion.potion_id
 		potion_counts[potion_id] = potion_counts.get(potion_id, 0) + 1
 	for potion_id in potion_counts:
-		entries.append({"text": "%s x%d" % [String(potion_id).capitalize(), potion_counts[potion_id]], "color": _color_for_id(potion_id)})
+		entries.append({"name": String(potion_id).capitalize(), "subtitle": "x%d" % potion_counts[potion_id], "color": _color_for_id(potion_id), "icon": null})
 
 	for i in GRID_COLUMNS * GRID_ROWS:
-		var entry: Variant = null
+		var slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
+		_inventory_grid.add_child(slot)
 		if i < entries.size():
-			entry = entries[i]
-		_inventory_grid.add_child(_build_slot(entry))
-
-
-func _build_slot(entry: Variant) -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = SLOT_SIZE
-	if entry == null:
-		panel.modulate = Color(1, 1, 1, 0.35)
-
-	var vbox := VBoxContainer.new()
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(vbox)
-
-	var dot := Label.new()
-	dot.text = "●" if entry != null else ""
-	dot.add_theme_font_size_override("font_size", 26)
-	if entry != null:
-		dot.add_theme_color_override("font_color", entry.color)
-	dot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(dot)
-
-	var name_label := Label.new()
-	name_label.text = entry.text if entry != null else ""
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	name_label.add_theme_font_size_override("font_size", 11)
-	vbox.add_child(name_label)
-
-	return panel
+			var entry: Dictionary = entries[i]
+			slot.populate(entry.name, entry.subtitle, entry.color, entry.icon)
+		else:
+			slot.clear()
 
 
 func _color_for_id(id: String) -> Color:
@@ -160,29 +144,11 @@ func update_skills() -> void:
 
 	for skill_id in Skills.skill_ids():
 		var def := Skills.get_def(skill_id)
-		var row := HBoxContainer.new()
+		var current_xp := def.xp_per_level - Skills.xp_to_next_level(skill_id) if def.xp_per_level > 0 else 0
 
-		var name_label := Label.new()
-		name_label.text = def.display_name
-		name_label.custom_minimum_size = Vector2(120, 0)
-		row.add_child(name_label)
-
-		var level_label := Label.new()
-		level_label.text = "Lvl %d" % Skills.level(skill_id)
-		level_label.custom_minimum_size = Vector2(60, 0)
-		row.add_child(level_label)
-
-		var progress := ProgressBar.new()
-		progress.custom_minimum_size = Vector2(180, 20)
-		progress.max_value = def.xp_per_level
-		progress.value = def.xp_per_level - Skills.xp_to_next_level(skill_id) if def.xp_per_level > 0 else 0
-		row.add_child(progress)
-
-		var progress_label := Label.new()
-		progress_label.text = "%d / %d xp" % [progress.value, def.xp_per_level]
-		row.add_child(progress_label)
-
+		var row: SkillRow = SKILL_ROW_SCENE.instantiate()
 		_skills_list.add_child(row)
+		row.populate(def.display_name, Skills.level(skill_id), current_xp, def.xp_per_level)
 
 
 # ---------------------------------------------------------------------------
@@ -218,14 +184,13 @@ func update_shop() -> void:
 		child.queue_free()
 
 	for i in Shop.capacity:
-		var entry: Variant = null
+		var item_slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
+		_shop_grid.add_child(item_slot)
 		if i < Shop.slots.size():
 			var slot: Dictionary = Shop.slots[i]
-			entry = {
-				"text": "%s\n%d" % [String(slot.potion_id).capitalize(), slot.price],
-				"color": _color_for_id(slot.potion_id),
-			}
-		_shop_grid.add_child(_build_slot(entry))
+			item_slot.populate(String(slot.potion_id).capitalize(), "%d" % slot.price, _color_for_id(slot.potion_id))
+		else:
+			item_slot.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -251,20 +216,9 @@ func update_relationships() -> void:
 		@warning_ignore("integer_division")
 		var hearts := clampi(affection / AFFECTION_PER_HEART, 0, MAX_HEARTS)
 
-		var row := HBoxContainer.new()
-
-		var name_label := Label.new()
-		name_label.text = def.display_name
-		name_label.custom_minimum_size = Vector2(120, 0)
-		name_label.add_theme_color_override("font_color", def.placeholder_color)
-		row.add_child(name_label)
-
-		var hearts_label := Label.new()
-		hearts_label.text = "♥".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts)
-		hearts_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.4))
-		row.add_child(hearts_label)
-
+		var row: RelationshipRow = RELATIONSHIP_ROW_SCENE.instantiate()
 		_relationships_list.add_child(row)
+		row.populate(def.display_name, hearts, MAX_HEARTS, def.placeholder_color, def.portrait)
 
 
 # ---------------------------------------------------------------------------
@@ -308,28 +262,23 @@ func update_recipes() -> void:
 		child.queue_free()
 
 	for recipe in ContentRegistry.recipes:
-		var row := VBoxContainer.new()
-
-		var header := Label.new()
-		header.text = recipe.display_name if recipe.known else "??? (unknown)"
-		if not recipe.known:
-			header.modulate = Color(0.6, 0.6, 0.6)
-		row.add_child(header)
-
+		var ingredients_text := ""
+		var icon: Texture2D = null
 		if recipe.known:
 			var ingredient_parts: Array[String] = []
 			for i in recipe.ingredient_ids.size():
 				var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
 				var ingredient_name := ingredient.display_name if ingredient != null else recipe.ingredient_ids[i]
 				ingredient_parts.append("%s x%d" % [ingredient_name, recipe.ingredient_quantities[i]])
+			ingredients_text = ", ".join(ingredient_parts)
+			# TODO: use the output potion's own icon once a PotionDef resource
+			# exists; for now the first required ingredient stands in for it.
+			var first_ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[0])
+			icon = first_ingredient.icon if first_ingredient != null else null
 
-			var ingredients_label := Label.new()
-			ingredients_label.text = "Requires: %s" % ", ".join(ingredient_parts)
-			ingredients_label.add_theme_font_size_override("font_size", 12)
-			ingredients_label.modulate = Color(0.8, 0.8, 0.8)
-			row.add_child(ingredients_label)
-
+		var row: RecipeEntry = RECIPE_ENTRY_SCENE.instantiate()
 		_recipes_list.add_child(row)
+		row.populate(recipe.display_name, recipe.known, ingredients_text, icon)
 		_recipes_list.add_child(HSeparator.new())
 
 
@@ -372,31 +321,12 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 
 	for quest_id in quest_ids:
 		var quest := ContentRegistry.get_quest(quest_id)
+		var show_turn_in := QuestManager.status(quest_id) == QuestManager.Status.READY_TO_TURN_IN
 
-		var row := VBoxContainer.new()
-
-		var header_row := HBoxContainer.new()
-		row.add_child(header_row)
-
-		var name_label := Label.new()
-		name_label.text = quest.display_name
-		name_label.modulate = color
-		header_row.add_child(name_label)
-
-		if QuestManager.status(quest_id) == QuestManager.Status.READY_TO_TURN_IN:
-			var turn_in_button := Button.new()
-			turn_in_button.text = "Turn In"
-			turn_in_button.pressed.connect(func() -> void: QuestManager.turn_in(quest_id))
-			header_row.add_child(turn_in_button)
-
-		var description_label := Label.new()
-		description_label.text = quest.description
-		description_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-		description_label.add_theme_font_size_override("font_size", 12)
-		description_label.modulate = Color(0.8, 0.8, 0.8)
-		row.add_child(description_label)
-
+		var row: QuestEntry = QUEST_ENTRY_SCENE.instantiate()
 		_journal_list.add_child(row)
+		row.populate(quest_id, quest.display_name, quest.description, color, show_turn_in)
+		row.turn_in_pressed.connect(QuestManager.turn_in)
 
 	_journal_list.add_child(HSeparator.new())
 
