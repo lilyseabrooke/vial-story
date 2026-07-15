@@ -7,6 +7,12 @@ extends Area2D
 ## live in the systems already built (Brewing, Shop, Herbalism, Economy,
 ## Clock, Academy) — this is just the spatial trigger for them.
 
+## CAUTION: the feature/tilemap-rooms branch stores this enum's values as raw
+## ordinals inside scenes/rooms/Shop.tscn and Bedroom.tscn (Godot serializes
+## @export enums as int, not name). Until that branch merges, only append new
+## types at the end — inserting one in the middle silently repoints every
+## pre-placed Interactable in those scenes to the wrong type, with no merge
+## conflict to flag it. Safe to reorder/insert freely again once merged.
 enum Type { BREW_STATION, STOCK_BOX, GROW_PLOT, SUPPLY_SHELF, BED, CLASS_DOOR, STAIRS }
 
 signal player_entered(interactable: Interactable)
