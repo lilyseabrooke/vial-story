@@ -10,6 +10,7 @@ signal attended_class
 signal absence_recorded(absences: int)
 signal exam_graded(passed: bool, score: float, strikes: int)
 signal game_over
+signal class_performance_rolled(result: Dictionary)
 
 const CLASS_START_MINUTE := 8 * 60    # 8:00 AM
 const CLASS_END_MINUTE := 12 * 60     # 12:00 PM
@@ -18,6 +19,8 @@ const PASSING_SCORE := 50.0
 const ATTENDANCE_BONUS := 15.0
 const STRIKE_LIMIT := 3
 const CLASS_XP_REWARD := 10
+const CLASS_PERFORMANCE_DC := 11.0
+const CLASS_PERFORMANCE_BONUS := 10.0
 
 var running_score: float = 0.0
 var strikes: int = 0
@@ -55,6 +58,13 @@ func attend_class() -> String:
 
 	_attended_today = true
 	running_score = minf(running_score + ATTENDANCE_BONUS, 100.0)
+
+	var modifier := Skills.get_bonus("class_performance")
+	var result := Rng.roll_2d10(modifier, CLASS_PERFORMANCE_DC)
+	if result.passed:
+		running_score = minf(running_score + CLASS_PERFORMANCE_BONUS, 100.0)
+	class_performance_rolled.emit(result)
+
 	Skills.add_xp("herbalism", CLASS_XP_REWARD)
 	Clock.skip_to(CLASS_END_MINUTE - Clock.DAY_START_MINUTE)
 	attended_class.emit()

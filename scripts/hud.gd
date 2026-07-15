@@ -10,6 +10,7 @@ extends CanvasLayer
 
 const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
+const DICE_ROLL_POPUP_SCENE := preload("res://scenes/ui/components/DiceRollPopup.tscn")
 
 var brew_panel: VBoxContainer
 var supply_panel: VBoxContainer
@@ -27,6 +28,7 @@ var _game_over_label: Label
 var _prompt_label: Label
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
+var _dice_popup: DiceRollPopup
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
@@ -147,6 +149,8 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
 
+	_dice_popup = DICE_ROLL_POPUP_SCENE.instantiate()
+
 	_connect_autoload_signals()
 
 	update_clock_label()
@@ -183,6 +187,10 @@ func _connect_autoload_signals() -> void:
 		log_message("Brew botched at %s: %s! Resolve took a hit." % [station_id, recipe_id])
 		print("Brew botched at %s: %s" % [station_id, recipe_id])
 	)
+	Brewing.brew_roll_resolved.connect(func(_brewing_station_id: String, recipe_id: String, roll: Dictionary) -> void:
+		_menu_scene.open(_dice_popup, "Brewing Roll: %s" % recipe_id)
+		_dice_popup.show_roll(roll, "Brewing")
+	)
 	Skills.leveled_up.connect(func(skill_id: String, new_level: int) -> void:
 		log_message("%s leveled up to %d!" % [skill_id.capitalize(), new_level])
 		print("%s leveled up to %d." % [skill_id, new_level])
@@ -218,6 +226,10 @@ func _connect_autoload_signals() -> void:
 	Academy.exam_graded.connect(func(passed: bool, score: float, strikes: int) -> void:
 		log_message("Exam %s! Score: %.0f, Strikes: %d" % ["passed" if passed else "FAILED", score, strikes])
 		print("Exam %s. Score: %.1f, Strikes: %d" % ["passed" if passed else "failed", score, strikes])
+	)
+	Academy.class_performance_rolled.connect(func(result: Dictionary) -> void:
+		_menu_scene.open(_dice_popup, "Class Performance Check")
+		_dice_popup.show_roll(result, "Class Performance")
 	)
 	Academy.game_over.connect(func() -> void:
 		_game_over_label.text = "GAME OVER — The Academy has revoked your selling privileges."

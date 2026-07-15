@@ -135,7 +135,8 @@ BrewJob
   - ready_timestamp                # start_timestamp + brew_time, modified by speed_modifier/skill
   - rolled_potency                 # from base_potency_range, Brewing skill, station potency_modifier
   - rolled_ease                    # from base_ease_range, Brewing skill, station ease_modifier
-  - botched                        # rolled at brew start; see below
+  - botched                        # set from the brew roll's natural die faces; see below
+  - potion_count                   # 1, or 2 on a critical success
   - status: Brewing | Ready | Collected
 ```
 
@@ -146,9 +147,20 @@ BrewJob
 - `rolled_potency`/`rolled_ease` are raw numeric values shown directly to the player,
   not bucketed into tiers — they feed shop pricing/sale-chance and, later, buyer- and
   love-interest-specific preferences.
-- A brew has a flat chance (prototype: 10%) of being botched, rolled at brew start.
-  A botched brew still consumes the full brew time and ingredients, but yields no
-  potion and costs Resolve instead — see system 8.
+- Starting a brew rolls **one** visible 2d10 check (`Rng.roll_2d10`, system 16) — a
+  BG3-style dice popup, `DICE_DC := 11.0`, modifier = the averaged
+  `potency_modifier`/`ease_modifier` (station + `Skills.get_bonus()`). The roll's
+  total sets a shared quality scalar `t`, lerped onto the recipe's existing
+  `potency_range`/`ease_range` (no recipe `.tres` data changed), and each stat then
+  gets its own small independent quiet `+/- STAT_VARIANCE` wobble (`Rng.range_f`) so
+  potency and ease aren't identical despite sharing one quality roll.
+- The roll's *natural* die faces (not the modified total) decide the outcome, not the
+  pass/fail-vs-DC result: a natural 1 on either die is a critical failure and botches
+  the brew — still consumes the full brew time and ingredients, yields no potion, and
+  costs Resolve instead (system 8) — replacing the old flat 10% botch chance. A
+  natural 10 on either die is a critical success and sets `potion_count = 2` (no
+  stacking if both dice show 10). A natural 1+10 pair is an "inflection point" — shown
+  distinctly in the popup, but has no mechanics attached yet.
 
 ---
 
@@ -170,7 +182,9 @@ ShopStock
 - While the current clock time falls within the shop's Ambient open-hours window
   (system 1), stocked potions roll sell-chance on a fixed simulated interval (e.g.
   every N in-game minutes), weighted by price, potency/ease (per system 3/4), and
-  shop reputation (reputation stat: stub for now, default flat weight).
+  shop reputation (reputation stat: stub for now, default flat weight). This roll
+  goes through `Rng.chance()` (system 16) — quiet/background, no dice popup, same
+  behavior/values as before.
 - On sale: remove one unit, add the price to `coffers` (not directly to
   Inventory.materials) and log the sale for a "while you were away" summary shown
   to the player at the next check-in.
@@ -286,6 +300,13 @@ Prototype implementation values (tunable):
   walk-to-trigger — attending fires `Clock.skip_to()` to the window's end, the
   first real use of the `TimeSkip` concept for something other than sleep/collapse.
 - Attendance: +15 to `running_score` (capped 100), +10 Herbalism XP.
+- A visible 2d10 check also runs on every class attendance (`Rng.roll_2d10`, system
+  16; modifier `Skills.get_bonus("class_performance")`, flat `CLASS_PERFORMANCE_DC :=
+  11.0`), on top of — not gating — the base attendance bonus: passing grants an
+  additional `CLASS_PERFORMANCE_BONUS := 10.0` to `running_score`. Shown via the dice
+  popup. No `AcademyClassDef` resource introduced for this — kept as flat consts on
+  `Academy`, matching the existing `ATTENDANCE_BONUS`/`PASSING_SCORE` style. Only
+  `roll.passed` is consulted; the roll's crit fields (system 16) aren't used here yet.
 - Exams: every 7 in-game days; `running_score` resets to 0 after each exam so
   attendance matters every cycle rather than accumulating indefinitely.
 - Passing threshold: `running_score >= 50`.
@@ -758,6 +779,56 @@ QuestDef
   sample quests proving the pipeline end-to-end (one `auto_complete: true`
   skill-level milestone, one `auto_complete: false` materials-threshold quest
   with a manual turn-in), granted to every new game by `main.gd`.
+
+---
+
+## 16. Shared Randomness System **[BUILD]**
+
+A single seeded `RandomNumberGenerator` stream, shared by every random outcome in the
+game — from silent background rolls (shop sale chance) to visible 2d10-and-modifier
+dice checks (brewing, Academy class performance, and later VN/social checks). One
+shared stream means one consumption order and one thing to persist (`.state`), rather
+than juggling determinism across several independent RNG instances.
+
+```
+Rng (autoload)
+  - _rng: RandomNumberGenerator   # private, single instance
+```
+
+- **Quiet API** — direct replacement for bare `randf()`/`randf_range()`:
+  `Rng.chance(probability) -> bool`, `Rng.range_f(from, to) -> float`,
+  `Rng.range_i(from, to) -> int`.
+- **Visible dice API** — `Rng.roll_2d10(modifier, dc) -> Dictionary`, returning
+  `{die_a, die_b, modifier, total, dc, passed, critical_failure, critical_success,
+  inflection_point}`. Additive, BG3/5e-style: roll 2d10, add a flat modifier sourced
+  from `Skills.get_bonus()` (already strain-aware per system 8), compare against a
+  difficulty class. No advantage/disadvantage mechanic in scope.
+- **Crit semantics** are computed generically from the roll's *natural* (unmodified)
+  die faces, so any caller can opt into them without `Rng` knowing what a "botch" or
+  a "crit" means to that system: a natural `1` on either die is a `critical_failure`,
+  a natural `10` on either die is a `critical_success`, and a natural `1`+`10` pair
+  overrides both into an `inflection_point` — currently flavor-only, no mechanics
+  attached to it anywhere yet. It's on each caller to decide what (if anything) these
+  mean; Brewing (system 4) is the only current consumer of the crit fields.
+- The popup UI (`scripts/ui/components/dice_roll_popup.gd`) never rolls dice itself —
+  it only renders an already-produced result `Dictionary` via a Timer-driven staggered
+  reveal (die A, die B, modifier, total/result), matching `DialogueBox`'s typewriter-
+  reveal pattern (system 13). This keeps logic and UI consuming the same call, so
+  headless code can call `Rng.roll_2d10()` with no UI involvement.
+- **Seeding**: `Rng.seed_new_game()` is called exactly once, from `main.gd`'s
+  `GameFlow.is_new_game` branch, at the same point starting ingredients/quests are
+  granted. Loading a save never reseeds — only `.state` (the stream's draw position)
+  is restored via the per-autoload save contract (system 14), so a player cannot
+  reroll a bad outcome by reloading.
+- Registered in `SaveManager._SAVE_ORDER` immediately after `Clock`, and in
+  `project.godot`'s autoload list immediately after `Clock` — it has no dependencies
+  of its own but must exist before every system that rolls (`Resolve`, `Skills`,
+  `Brewing`, `Shop`, `Herbalism`, `Academy`, ...).
+- **Which checks are quiet vs. visible** (a deliberate per-call-site choice, not a
+  blanket rule): shop passive sale-chance ticks (system 5) stay quiet/background —
+  frequent and ambient, a popup would be noise. Brewing's combined roll and Academy
+  class performance are visible 2d10 checks — infrequent, player-meaningful moments
+  worth surfacing.
 
 ---
 

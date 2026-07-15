@@ -11,3 +11,4 @@ var rolled_potency: float
 var rolled_ease: float
 var status: Status = Status.BREWING
 var botched: bool = false
+var potion_count: int = 1

@@ -6,10 +6,12 @@ signal brew_started(station_id: String, recipe_id: String)
 signal brew_ready(station_id: String, recipe_id: String)
 signal brew_collected(station_id: String, recipe_id: String, potency: float, ease_value: float)
 signal brew_botched(station_id: String, recipe_id: String)
+signal brew_roll_resolved(station_id: String, recipe_id: String, roll: Dictionary)
 
 const XP_PER_BREW := 20
-const BOTCH_CHANCE := 0.1
 const BOTCH_RESOLVE_COST := 15
+const DICE_DC := 11.0          # 2d10 midpoint -- coinflip-ish, no per-recipe tuning needed
+const STAT_VARIANCE := 5.0     # quiet +/- wobble applied to potency/ease independently
 
 var stations: Array[StationInstance] = []
 
@@ -61,13 +63,20 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 
 	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency")
 	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease")
-	job.rolled_potency = _roll_stat(recipe.potency_range, potency_modifier)
-	job.rolled_ease = _roll_stat(recipe.ease_range, ease_modifier)
-	job.botched = randf() < BOTCH_CHANCE
+
+	var modifier := (potency_modifier + ease_modifier) / 2.0
+	var roll := Rng.roll_2d10(modifier, DICE_DC)
+	var t := clampf(inverse_lerp(2.0, 30.0, roll.total), 0.0, 1.0)
+
+	job.rolled_potency = clampf(lerp(recipe.potency_range.x, recipe.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
+	job.rolled_ease = clampf(lerp(recipe.ease_range.x, recipe.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
+	job.botched = roll.critical_failure
+	job.potion_count = 2 if roll.critical_success else 1
 	job.status = BrewJob.Status.BREWING
 
 	station.current_job = job
 	brew_started.emit(station.id, recipe.id)
+	brew_roll_resolved.emit(station.id, recipe.id, roll)
 	return ""
 
 
@@ -86,15 +95,11 @@ func collect(station_id: String) -> bool:
 		brew_botched.emit(station.id, job.recipe.id)
 		return true
 
-	Inventory.add_potion(job.recipe.output_potion_id, job.rolled_potency, job.rolled_ease)
+	for i in job.potion_count:
+		Inventory.add_potion(job.recipe.output_potion_id, job.rolled_potency, job.rolled_ease)
 	Skills.add_xp("brewing", XP_PER_BREW)
 	brew_collected.emit(station.id, job.recipe.id, job.rolled_potency, job.rolled_ease)
 	return true
-
-
-func _roll_stat(stat_range: Vector2, modifier: float) -> float:
-	var value := randf_range(stat_range.x, stat_range.y) + modifier
-	return clampf(value, 0.0, 100.0)
 
 
 func _on_minute_tick(timestamp: int) -> void:
@@ -119,6 +124,7 @@ func get_save_data() -> Dictionary:
 				"rolled_ease": job.rolled_ease,
 				"status": int(job.status),
 				"botched": job.botched,
+				"potion_count": job.potion_count,
 			}
 		station_data.append({
 			"id": station.id,
@@ -157,6 +163,7 @@ func load_save_data(data: Dictionary) -> void:
 			job.rolled_ease = job_data.get("rolled_ease", 0.0)
 			job.status = job_data.get("status", BrewJob.Status.BREWING) as BrewJob.Status
 			job.botched = job_data.get("botched", false)
+			job.potion_count = job_data.get("potion_count", 1)
 			station.current_job = job
 
 		stations.append(station)

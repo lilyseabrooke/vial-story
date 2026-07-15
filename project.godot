@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Settings="*res://scripts/autoload/settings.gd"
 Clock="*res://scripts/autoload/clock.gd"
+Rng="*res://scripts/autoload/rng.gd"
 PlayerProfile="*res://scripts/autoload/player_profile.gd"
 Inventory="*res://scripts/autoload/inventory.gd"
 ContentRegistry="*res://scripts/autoload/content_registry.gd"

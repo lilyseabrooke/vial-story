@@ -95,7 +95,7 @@ func _roll_sales() -> void:
 		var chance: float = clampf(
 			BASE_SALE_CHANCE - slot.price * PRICE_SALE_CHANCE_FACTOR, MIN_SALE_CHANCE, BASE_SALE_CHANCE
 		)
-		if randf() < chance:
+		if Rng.chance(chance):
 			slots.remove_at(i)
 			coffers += slot.price
 			potion_sold.emit(slot.potion_id, slot.price)

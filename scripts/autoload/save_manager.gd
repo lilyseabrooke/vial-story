@@ -34,7 +34,7 @@ const _MIGRATIONS: Dictionary = {}
 ## since Brewing/Shop/Herbalism already restore their resulting numbers
 ## directly.
 const _SAVE_ORDER := [
-	"PlayerProfile", "Clock", "Inventory", "Resolve", "Skills",
+	"PlayerProfile", "Clock", "Rng", "Inventory", "Resolve", "Skills",
 	"Brewing", "Herbalism", "Shop", "Economy", "Academy", "Story", "LoveInterests",
 	"QuestManager",
 ]

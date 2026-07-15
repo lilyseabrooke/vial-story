@@ -27,6 +27,7 @@ var _current_interactable: Interactable = null
 func _ready() -> void:
 	print("Vial Story: main scene ready")
 	if GameFlow.is_new_game:
+		Rng.seed_new_game()
 		_grant_starting_ingredients()
 		_grant_starting_quests()
 	_start_game(Color(PlayerProfile.player_color_hex))
