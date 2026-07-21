@@ -4,9 +4,9 @@
 
 [resource]
 script = ExtResource("1")
-id = "brewing"
-display_name = "Brewing"
+id = "summoning"
+display_name = "Summoning"
 xp_per_level = 100
 effect_levels = Array[int]([2, 2, 4])
-effect_targets = Array[String](["station_potency", "station_ease", "station_speed"])
-effect_amounts = Array[float]([5.0, 5.0, 0.1])
+effect_targets = Array[String](["learn_speed_extraplanar", "summon_control", "summon_range"])
+effect_amounts = Array[float]([0.1, 1.0, 1.0])

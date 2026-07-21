@@ -4,9 +4,9 @@
 
 [resource]
 script = ExtResource("1")
-id = "herbalism"
-display_name = "Herbalism"
+id = "alchemy"
+display_name = "Alchemy"
 xp_per_level = 100
 effect_levels = Array[int]([2, 2, 4])
-effect_targets = Array[String](["grow_yield", "learn_speed_natural", "grow_speed"])
-effect_amounts = Array[float]([1.0, 0.1, 0.1])
+effect_targets = Array[String](["station_potency", "station_ease", "station_speed"])
+effect_amounts = Array[float]([5.0, 5.0, 0.1])

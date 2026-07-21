@@ -10,9 +10,39 @@ signal xp_gained(skill_id: String, xp: int, level: int)
 signal leveled_up(skill_id: String, new_level: int)
 
 const SKILL_PATHS := [
-	"res://data/skills/brewing.tres",
+	"res://data/skills/alchemy.tres",
 	"res://data/skills/herbalism.tres",
+	"res://data/skills/summoning.tres",
+	"res://data/skills/arcane_history.tres",
+	"res://data/skills/draconology.tres",
+	"res://data/skills/demonology.tres",
+	"res://data/skills/transmutation.tres",
+	"res://data/skills/charm.tres",
+	"res://data/skills/focus.tres",
+	"res://data/skills/creativity.tres",
+	"res://data/skills/insight.tres",
 ]
+
+## The five skills freely allocated at character creation. The other six
+## (Herbalism/Summoning/Arcane History/Draconology/Demonology/Transmutation)
+## are each tied to an IngredientDef.Category and instead get their starting
+## points from the player's chosen shop origin — see CATEGORY_SKILL_IDS.
+const STARTING_ALLOCATABLE_SKILL_IDS := ["alchemy", "charm", "focus", "creativity", "insight"]
+const STARTING_ALLOCATION_POINTS := 5
+const STARTING_ALLOCATION_MAX_PER_SKILL := 3
+const STARTING_ORIGIN_SKILL_POINTS := 2
+
+## Maps each ingredient category to the skill that learns that category's
+## ingredients faster — e.g. a shop origin whose ingredient_category is
+## DEMONIC (raven_canopy) grants its starting points to "demonology".
+const CATEGORY_SKILL_IDS := {
+	IngredientDef.Category.NATURAL: "herbalism",
+	IngredientDef.Category.ARTIFICIAL: "transmutation",
+	IngredientDef.Category.SPECTRAL: "arcane_history",
+	IngredientDef.Category.DEMONIC: "demonology",
+	IngredientDef.Category.DRACONIC: "draconology",
+	IngredientDef.Category.EXTRAPLANAR: "summoning",
+}
 
 var _defs: Dictionary = {}          # skill_id -> SkillDef
 var _xp: Dictionary = {}            # skill_id -> int
@@ -68,6 +98,21 @@ func get_bonus(effect_target: String) -> float:
 
 func skill_ids() -> Array:
 	return _defs.keys()
+
+
+func skill_id_for_category(category: IngredientDef.Category) -> String:
+	return CATEGORY_SKILL_IDS.get(category, "")
+
+
+## Grants a whole number of starting levels via xp_per_level * points, so
+## it replays through the normal add_xp()/leveled_up path rather than
+## setting _levels directly. Used by SaveManager.create_new_game() to apply
+## the point allocations made in CharacterCreator's skills step.
+func grant_starting_points(skill_id: String, points: int) -> void:
+	var def: SkillDef = _defs.get(skill_id)
+	if def == null or points <= 0:
+		return
+	add_xp(skill_id, points * def.xp_per_level)
 
 
 func get_def(skill_id: String) -> SkillDef:

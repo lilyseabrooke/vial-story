@@ -262,21 +262,59 @@ ShopStock
 
 ```
 Skill
-  - id                             # Brewing, Herbalism, Summoning, ...
+  - id                             # alchemy, herbalism, summoning, ...
   - xp
-  - level
-  - level_up_curve
-  - effects: [(level_threshold, effect)]
+  - level                          # xp / xp_per_level, no cap
+  - xp_per_level                   # 100 for every skill today
+  - effects: [(level_threshold, effect_target, effect_amount)]
 ```
 
 - Skills system is a passive listener: other systems fire XP events (brew completed,
   harvest completed, class attended, exam passed) and the skill system applies xp/levels.
-- Effect examples:
-  - Brewing: + `potency_modifier`/`ease_modifier`, + brew speed
-  - Herbalism: + grow yield, + grow speed, unlocks higher-tier natural ingredients
-  - Summoning: unlocks demonic/extraplanar sourcing tiers **[STUB — no sourcing path yet]**
-- Prototype needs Brewing + Herbalism fully wired; other skills can exist as data
-  with no unlocked effects yet.
+- The full 11-skill roster (`data/skills/*.tres`, registered via `Skills.SKILL_PATHS`):
+  1. **Alchemy** — better-quality potions, faster. `station_potency`, `station_ease`, `station_speed`.
+  2. **Herbalism** — better-quality plants, easier harvest/care, learns natural ingredients faster.
+     `grow_yield`, `grow_speed`, `learn_speed_natural`.
+  3. **Summoning** — wider range/control of extraplanar phenomena, learns extraplanar ingredients
+     faster. `summon_range`, `summon_control`, `learn_speed_extraplanar` **[STUB — no summoning path
+     yet]**.
+  4. **Arcane History** — easier ley-line interactions returning more spectral ingredients, learns
+     spectral ingredients faster. `leyline_ease`, `leyline_yield`, `learn_speed_spectral` **[STUB]**.
+  5. **Draconology** — safer in draconic areas, more ingredients from draconic nodes, learns draconic
+     ingredients faster. `draconic_safety`, `draconic_yield`, `learn_speed_draconic` **[STUB]**.
+  6. **Demonology** — better demon barter with less drawback, learns demonic ingredients faster.
+     `demon_barter`, `demon_yield`, `learn_speed_demonic` **[STUB]**.
+  7. **Transmutation** — better dismantling of objects for materials, learns artificial ingredients
+     faster. `transmute_ease`, `transmute_yield`, `learn_speed_artificial` **[STUB]**.
+  8. **Charm** — better social-check success, unlocks new dialog options. `social_check_bonus`
+     **[STUB — no social-check/dialog system yet]**.
+  9. **Focus** — better class performance. `class_performance` — the one non-Alchemy/Herbalism skill
+     that's actually wired: `Academy.attend_class()` reads `Skills.get_bonus("class_performance")` as
+     the roll modifier and awards Focus XP on attendance.
+  10. **Creativity** — better art-creation success (second material source or shop-status boost).
+      `art_success` **[STUB — no art system yet]**.
+  11. **Insight** — better shop sales and customer retention. `shop_sales`, `customer_retention`
+      **[STUB — Shop doesn't read these yet]**.
+- Skills whose category-linked ingredient-learning effect isn't consumed anywhere yet (Summoning,
+  Arcane History, Draconology, Demonology, Transmutation) still exist fully as data — only the
+  mechanic that would read `learn_speed_*` is unbuilt, same scope choice as the old Summoning stub.
+- Ingredient category ↔ skill mapping (`Skills.CATEGORY_SKILL_IDS`, `IngredientDef.Category`):
+  NATURAL→Herbalism, ARTIFICIAL→Transmutation, SPECTRAL→Arcane History, DEMONIC→Demonology,
+  DRACONIC→Draconology, EXTRAPLANAR→Summoning.
+- **Starting skill points**, allocated on `CharacterCreator`'s skills step and applied by
+  `SaveManager.create_new_game()` via `Skills.grant_starting_points()`:
+  - `Skills.STARTING_ALLOCATION_POINTS` (5) points spread freely across
+    `Skills.STARTING_ALLOCATABLE_SKILL_IDS` (Alchemy, Charm, Focus, Creativity, Insight), capped at
+    `Skills.STARTING_ALLOCATION_MAX_PER_SKILL` (3) per skill.
+  - `Skills.STARTING_ORIGIN_SKILL_POINTS` (2) points, fixed and non-editable, in whichever ingredient
+    skill the player's shop-origin choice favors via `Skills.skill_id_for_category()` — e.g. Raven
+    Canopy (`ingredient_category = DEMONIC`) grants +2 Demonology.
+  - A "point" is a full starting level: `grant_starting_points()` calls `add_xp(skill_id, points *
+    xp_per_level)`, so it replays through the normal leveling/effect path rather than setting level
+    directly.
+- Prototype needs Alchemy + Herbalism + Focus fully wired; the other 8 skills exist as complete data
+  (levelable, grants starting points, `get_bonus()` returns their totals) with no consuming mechanic
+  yet.
 
 ---
 
@@ -727,10 +765,12 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   slots*, each a full snapshot at a point in time. This mirrors a Stardew-Valley-style per-farm save
   list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` and
   `house_id` are now real `ShopLocationDef`/`HouseDef` ids (loaded via `ContentRegistry.get_shop_location()`
-  / `get_house()`) — `ShopLocationDef` additionally stubs in a favored `IngredientDef.Category` per
-  location, not yet consumed by any mechanic. `scripts/character_creator.gd` is the character-creation
-  UI that collects these choices (plus an HSV color for the player's placeholder rectangle) and calls
-  `SaveManager.create_new_game(character_name, pronouns, house_id, shop_origin, player_color)`.
+  / `get_house()`) — `ShopLocationDef`'s favored `IngredientDef.Category` per location is now consumed:
+  it drives the +2 shop-origin skill bonus (system 6). `scripts/character_creator.gd` is the
+  character-creation UI that collects these choices (plus a 5-point skill allocation and an HSV color
+  for the player's placeholder rectangle) and calls `SaveManager.create_new_game(character_name,
+  pronouns, house_id, shop_origin, player_color, skill_allocations)` — which also resets `Skills` (in
+  case a prior playthrough left XP behind) and grants the allocated starting points.
 - **Title screen.** `res://scenes/MainMenu.tscn` (`scripts/main_menu.gd`, `MainMenu`) is now
   `run/main_scene` and is where CharacterCreator fires from — behind a "New Game" button rather than
   unconditionally at boot. "Load Game" lists `SaveManager.list_games()` and calls

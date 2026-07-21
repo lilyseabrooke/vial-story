@@ -65,7 +65,7 @@ func attend_class() -> String:
 		running_score = minf(running_score + CLASS_PERFORMANCE_BONUS, 100.0)
 	class_performance_rolled.emit(result)
 
-	Skills.add_xp("herbalism", CLASS_XP_REWARD)
+	Skills.add_xp("focus", CLASS_XP_REWARD)
 	Clock.skip_to(CLASS_END_MINUTE - Clock.DAY_START_MINUTE)
 	attended_class.emit()
 	return ""

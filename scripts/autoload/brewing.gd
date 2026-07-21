@@ -105,7 +105,7 @@ func collect(station_id: String) -> bool:
 	station.current_job = null
 	for i in job.potion_count:
 		Inventory.add_potion(job.recipe.output_potion_id, job.rolled_potency, job.rolled_ease)
-	Skills.add_xp("brewing", XP_PER_BREW)
+	Skills.add_xp("alchemy", XP_PER_BREW)
 	brew_collected.emit(station.id, job.recipe.id, job.rolled_potency, job.rolled_ease)
 	return true
 

@@ -45,11 +45,15 @@ func _node_for(autoload_name: String) -> Node:
 
 
 ## Creates a brand-new game (character name, pronouns, House, shop origin,
-## player color), sets PlayerProfile, and writes its meta.json with no slots
+## player color, skill point allocation), sets PlayerProfile, resets Skills
+## and grants the starting allocation, and writes its meta.json with no slots
 ## yet. Called by scripts/character_creator.gd once the player confirms.
+## skill_allocations is skill_id -> starting points, built by CharacterCreator
+## (the 5 freely-allocated skills plus the shop-origin ingredient-skill bonus
+## from Skills.skill_id_for_category()).
 func create_new_game(
 	character_name: String, pronouns: String, house_id: String,
-	shop_origin: String, player_color: Color
+	shop_origin: String, player_color: Color, skill_allocations: Dictionary
 ) -> String:
 	var created_at := int(Time.get_unix_time_from_system())
 	var game_id := "%s_%d" % [_slugify(character_name), created_at]
@@ -59,6 +63,10 @@ func create_new_game(
 	PlayerProfile.house_id = house_id
 	PlayerProfile.shop_origin = shop_origin
 	PlayerProfile.player_color_hex = player_color.to_html()
+
+	Skills.load_save_data({})  # reset any leftover XP from a prior playthrough
+	for skill_id in skill_allocations:
+		Skills.grant_starting_points(skill_id, skill_allocations[skill_id])
 
 	var meta := {
 		"version": 1,
