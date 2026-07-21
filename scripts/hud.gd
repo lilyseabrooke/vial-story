@@ -11,6 +11,7 @@ extends CanvasLayer
 const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
+const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 
 var brew_panel: VBoxContainer
 var supply_panel: VBoxContainer
@@ -30,6 +31,7 @@ var _game_menu: GameMenu
 var _menu_scene: MenuScene
 var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
+var _ley_line_panel: LeyLineMinigamePanel
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
@@ -132,6 +134,12 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_attempt_puzzle_panel = AttemptPuzzlePanel.new()
 	_attempt_puzzle_panel.build()
 
+	# Instanced from a scene (not .new()) so its minigame tunables are
+	# editable in the inspector on LeyLineMinigamePanel.tscn; build() still
+	# constructs the panel's children in code, same as the other HUD panels.
+	_ley_line_panel = LEY_LINE_MINIGAME_PANEL_SCENE.instantiate()
+	_ley_line_panel.build()
+
 	brew_panel = VBoxContainer.new()
 	_rebuild_brew_panel()
 
@@ -155,6 +163,15 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
+	# LeyLines has no walk-away tether (MenuScene already freezes the player
+	# for the whole session) -- closing the menu by any route (Esc, the
+	# close button, or the panel's own Abort button after it's already
+	# resolved) is what stands in for "leaving mid-minigame", so a still-
+	# active session here means the player bailed without finishing.
+	_menu_scene.closed.connect(func() -> void:
+		if LeyLines.is_active():
+			LeyLines.abort_minigame()
+	)
 
 	_message_wall = MESSAGE_WALL_SCENE.instantiate()
 	add_child(_message_wall)
@@ -281,6 +298,26 @@ func _connect_autoload_signals() -> void:
 		log_message("The Dragon's Stash gives up its hoard! Received: %s." % ", ".join(ingredient_summary))
 		print("Dragon's Stash resolved at %s -- ingredients: %s" % [stash_id, ingredient_summary])
 		update_ingredients_label()
+	)
+	LeyLines.minigame_started.connect(func(node_id: String, difficulty: float, rounds: int) -> void:
+		_ley_line_panel.show_for(node_id, difficulty, rounds)
+		open_menu(_ley_line_panel, "Ley Line Node")
+		log_message("The ley line stirs, ready to resonate...")
+	)
+	LeyLines.minigame_resolved.connect(func(_node_id: String, _performance: float, tier: String, ingredients: Dictionary) -> void:
+		close_menu()
+		var ingredient_summary: Array[String] = []
+		for id in ingredients:
+			ingredient_summary.append("%d %s" % [ingredients[id], id])
+		if ingredient_summary.is_empty():
+			log_message("The ley line settles (%s) -- nothing crystallized this time." % tier)
+		else:
+			log_message("The ley line settles (%s)! Received: %s." % [tier, ", ".join(ingredient_summary)])
+		print("Ley line minigame resolved -- tier %s, ingredients: %s" % [tier, ingredient_summary])
+		update_ingredients_label()
+	)
+	LeyLines.minigame_aborted.connect(func(_node_id: String) -> void:
+		log_message("You break away from the ley line -- no ingredients gathered.")
 	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
 		_message_wall.add_dice_result(roll, "Transmutation")
