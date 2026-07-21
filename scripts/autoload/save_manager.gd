@@ -35,7 +35,7 @@ const _MIGRATIONS: Dictionary = {}
 ## directly.
 const _SAVE_ORDER := [
 	"PlayerProfile", "Clock", "Rng", "Inventory", "Resolve", "Skills",
-	"Brewing", "Herbalism", "Shop", "Economy", "Academy", "Story", "LoveInterests",
+	"Brewing", "Alchemy", "Herbalism", "Shop", "Economy", "Academy", "Story", "LoveInterests",
 	"QuestManager",
 ]
 

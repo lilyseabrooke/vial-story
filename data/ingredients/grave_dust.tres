@@ -4,11 +4,13 @@
 
 [resource]
 script = ExtResource("1")
-id = "iron_filings"
-display_name = "Iron Filings"
-category = 1
+id = "grave_dust"
+display_name = "Grave Dust"
+category = 2
 tier = 1
 source_methods = Array[int]([0])
-buy_price = 4
-role = 1
-weight = 3.0
+buy_price = 6
+role = 0
+weight = 2.0
+characteristic_ids = Array[String](["necromantic", "astral"])
+characteristic_values = Array[int]([3, -1])

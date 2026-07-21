@@ -77,6 +77,9 @@ Ingredient
   - tier: int                     # gates which recipes/stations can use it
   - source_methods: [Buy, Grow, Craft, Summon, Forage]  # unlocked per-save
   - quantity                      # tracked in player inventory
+  - role: Base | Binder | Catalyst
+  - weight: float
+  - characteristics: [(characteristic_id, value)]   # e.g. ("astral", 3), ("dream", -1)
 ```
 
 - `category` is mostly flavor plus which upgrade ladder unlocks its sourcing method.
@@ -84,6 +87,12 @@ Ingredient
 - Prototype only needs `Buy` and `Grow` implemented; `Craft`/`Summon`/`Forage` are
   stubbed as source methods that recipes/upgrades can reference but that have no
   unlock path yet.
+- `role`/`weight`/`characteristics` don't do anything on their own — they only feed a
+  recipe's discovery puzzle (system 3). `characteristics` is a set of free-form,
+  signed integer axes (astral, abyssal, necromantic, dream, ...) with no fixed enum;
+  an axis absent from an ingredient's list is implicitly 0. `IngredientDef` stores
+  both as parallel arrays (`characteristic_ids`/`characteristic_values`), same
+  convention as `RecipeDef`'s `ingredient_ids`/`ingredient_quantities`.
 
 ---
 
@@ -93,21 +102,60 @@ Ingredient
 Recipe
   - id
   - display_name
-  - known: bool                   # separate from "available to learn"
+  - known: bool                   # seeds Alchemy's learned set at new-game start only
   - station_required: StationType
   - brew_time: int                # in minutes of game-clock time
   - ingredients: [(ingredient_id, quantity)]
   - base_potency_range: (min, max)
   - base_ease_range: (min, max)
   - output_potion_id
-  - unlock_minigame_id            # puzzle used to learn it
+  - unlock_minigame_id            # unused legacy field, superseded by puzzle_constraints below
+  - puzzle_constraints: [(type, target, min, max)]   # the recipe-discovery puzzle
 ```
 
-- Two-stage unlock: a recipe can be *available for purchase* before it's *known*.
-  Learning it consumes the puzzle minigame identified by `unlock_minigame_id`.
+- Two-stage unlock: a recipe can be *listed* (station menu shows a "Discover" button
+  for it) before it's *learned* (brewable). Recipe *learned* state now lives at
+  runtime in the `Alchemy` autoload (`is_learned`/`learn_recipe`/`unlearn_recipe`,
+  `recipe_learned`/`recipe_unlearned`/`puzzle_attempted` signals, its own
+  `get_save_data()`/`load_save_data()`), not on `RecipeDef` itself — `known` on the
+  `.tres` only seeds which recipes `Alchemy` starts a new game already knowing.
+  `unlearn_recipe()` has no UI trigger yet in the prototype; it's a hook for a later
+  curse/memory-loss mechanical intervention (system 11).
 - Recipes should live in a data table/resource, not hardcoded — content will grow fast.
-- Prototype: minigame can be stubbed as an instant "learn" button; the puzzle itself
-  is a separate build task.
+- **Recipe-discovery puzzle [BUILT]**: attempting an unlearned recipe (the alchemy
+  lab / brew station's "Discover: X" button) opens a drag-and-drop puzzle
+  (`scripts/ui/attempt_puzzle_panel.gd`, `AttemptPuzzlePanel`), laid out in three
+  columns: a pinned note (top-left, tilted `PanelContainer`) showing the recipe's
+  objectives with a live ✓ against each one already satisfied by the current field;
+  the potion field (middle) — one `PotionRoleSlot` per Base/Binder/Catalyst
+  (`scenes/ui/components/PotionRoleSlot.tscn`), Base visually marked required via a
+  gold accent border; and the player's ingredients (right) — one draggable
+  `IngredientDragChip` (`scenes/ui/components/IngredientDragChip.tscn`) per owned
+  ingredient, grouped into Base/Binder/Catalyst sections, showing weight and
+  non-zero characteristics. Both components are standard Godot Control drag-and-drop
+  (`_get_drag_data`/`_can_drop_data`/`_drop_data`); a slot only accepts a chip whose
+  ingredient's `role` matches. Since each of the 3 slots holds at most one
+  ingredient, "2 or 3 ingredients, always including a Base" falls out of the layout
+  itself — `AttemptPuzzlePanel._selection_is_valid()` requires the Base slot filled
+  plus at least one of Binder/Catalyst, and disables Submit otherwise. Submitting
+  consumes exactly the filled slots' ingredients (win or lose — same "ingredients are
+  spent on the attempt" feel as a real brew) and calls `Alchemy.attempt_puzzle()`,
+  which checks the selection against `RecipeDef.puzzle_constraint_types` (parallel
+  arrays: `_types`/`_targets`/`_min`/`_max`, same convention as
+  `ingredient_ids`/`ingredient_quantities`) — `characteristic_range` (a summed
+  characteristic must land in `[min, max]`), `total_weight_range`,
+  `ingredient_count_range`, and `role_lightest`/`role_heaviest` (every ingredient of
+  the target role must be strictly lighter/heavier than every ingredient of every
+  other role present — requires the role, and at least one other role, to actually be
+  used, not vacuously true). `Alchemy.check_constraints()` returns a per-constraint
+  pass/fail array, reused both by `attempt_puzzle()` (all must pass) and by the note's
+  live ✓ markers, so the UI's feedback and the actual judging logic can't drift apart.
+  All constraints must pass for the attempt to succeed; success calls
+  `Alchemy.learn_recipe()`, failure only logs a message — no separate "wasted" penalty
+  beyond the consumed ingredients. `data/recipes/grave_ward_tonic.tres` (ships
+  `known: false`) is the sample proving the pipeline: Necromantic 4–6, Dream ≤ 0,
+  catalyst must be the lightest component — solved by Grave Dust as Base (weight 2.0,
+  necromantic +3) + Ghostcap Mushroom as Catalyst (weight 0.5, necromantic +2, dream -1).
 - Quality is two independent numeric axes, not a single grade (see system 4):
   **potency** (how powerful the effect is) and **ease** (how easy the potion is to
   take/use). Different buyer archetypes and love interests will eventually weight
@@ -135,7 +183,6 @@ BrewJob
   - ready_timestamp                # start_timestamp + brew_time, modified by speed_modifier/skill
   - rolled_potency                 # from base_potency_range, Brewing skill, station potency_modifier
   - rolled_ease                    # from base_ease_range, Brewing skill, station ease_modifier
-  - botched                        # set from the brew roll's natural die faces; see below
   - potion_count                   # 1, or 2 on a critical success
   - status: Brewing | Ready | Collected
 ```
@@ -156,11 +203,25 @@ BrewJob
   potency and ease aren't identical despite sharing one quality roll.
 - The roll's *natural* die faces (not the modified total) decide the outcome, not the
   pass/fail-vs-DC result: a natural 1 on either die is a critical failure and botches
-  the brew — still consumes the full brew time and ingredients, yields no potion, and
-  costs Resolve instead (system 8) — replacing the old flat 10% botch chance. A
-  natural 10 on either die is a critical success and sets `potion_count = 2` (no
-  stacking if both dice show 10). A natural 1+10 pair is an "inflection point" — shown
-  distinctly in the popup, but has no mechanics attached yet.
+  the brew — it fails immediately rather than occupying the station for the brew
+  time (ingredients are still consumed, since they're spent before the roll), yields
+  no potion, and costs Resolve instead (system 8) — replacing the old flat 10% botch
+  chance. No `BrewJob` is ever created for a botched roll, so the station is free
+  again the instant `start_brew()` returns. A natural 10 on either die is a critical
+  success and sets `potion_count = 2` (no stacking if both dice show 10). A natural
+  1+10 pair is an "inflection point" — shown distinctly in the popup, but has no
+  mechanics attached yet.
+- Each `BREW_STATION` `Interactable` shows a bottom-to-top progress bar above it while
+  `Brewing`, swapping to a "Ready!" popup once the job's status flips to `Ready`
+  (`RoomBuilder._sync_station_indicator()`, driven off `Brewing`'s signals plus
+  `Clock.minute_tick` so it also restores correctly on a loaded save). A station with
+  a job running — `Brewing` or `Ready` — can't be interacted with to open the brew
+  menu; interacting with a `Ready` station auto-collects it instead
+  (`main.gd._interact_brew_station()`), failing quietly (job stays put) if
+  `Inventory.has_room_for_potions()` says there's no room. `Inventory.MAX_POTIONS`
+  (20) is the first potion-capacity limit in the prototype; the brew menu's old
+  standalone "Collect" button was removed since the menu only opens when a station
+  has no job at all.
 
 ---
 
@@ -852,7 +913,8 @@ Rng (autoload)
 6. Resolve meter, wired to brewing failure events (system 8)
 7. Class scheduled-window resolution + grade/strike tracking (system 9)
 8. Herbalism growing plots (system 7)
-9. Recipe-learning minigame; remaining ingredient sourcing methods; exploration polish
+9. ~~Recipe-learning minigame~~ [BUILT] (system 3); remaining ingredient sourcing
+   methods; exploration polish
 10. VN/relationship layer (systems 12–13) and curse mechanical interventions (system 11)
 11. Quest/Journal system (system 15) — reuses the VN expression language, so it slots in
     any time after system 13's expression evaluator exists

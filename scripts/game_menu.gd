@@ -69,6 +69,8 @@ func build() -> void:
 	QuestManager.quest_started.connect(func(_id: String) -> void: update_journal())
 	QuestManager.quest_ready_to_turn_in.connect(func(_id: String) -> void: update_journal())
 	QuestManager.quest_completed.connect(func(_id: String) -> void: update_journal())
+	Alchemy.recipe_learned.connect(func(_id: String) -> void: update_recipes())
+	Alchemy.recipe_unlearned.connect(func(_id: String) -> void: update_recipes())
 
 	update_inventory()
 	update_skills()
@@ -254,9 +256,6 @@ func _build_recipes_tab() -> void:
 	root.add_child(_recipes_list)
 
 
-## Recipes have no "learned" event yet (RecipeDef.known is static per-file for
-## now, see docs/design/systems.md system 3), so this only needs to run once
-## from build() rather than reacting to a signal like the other tabs.
 func update_recipes() -> void:
 	for child in _recipes_list.get_children():
 		child.queue_free()
@@ -264,7 +263,8 @@ func update_recipes() -> void:
 	for recipe in ContentRegistry.recipes:
 		var ingredients_text := ""
 		var icon: Texture2D = null
-		if recipe.known:
+		var learned := Alchemy.is_learned(recipe.id)
+		if learned:
 			var ingredient_parts: Array[String] = []
 			for i in recipe.ingredient_ids.size():
 				var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
@@ -278,7 +278,7 @@ func update_recipes() -> void:
 
 		var row: RecipeEntry = RECIPE_ENTRY_SCENE.instantiate()
 		_recipes_list.add_child(row)
-		row.populate(recipe.display_name, recipe.known, ingredients_text, icon)
+		row.populate(recipe.display_name, learned, ingredients_text, icon)
 		_recipes_list.add_child(HSeparator.new())
 
 

@@ -10,11 +10,13 @@ extends Node
 const RECIPE_PATHS := [
 	"res://data/recipes/minor_healing_draught.tres",
 	"res://data/recipes/clarity_tonic.tres",
+	"res://data/recipes/grave_ward_tonic.tres",
 ]
 const INGREDIENT_PATHS := [
 	"res://data/ingredients/moonpetal.tres",
 	"res://data/ingredients/iron_filings.tres",
 	"res://data/ingredients/ghostcap_mushroom.tres",
+	"res://data/ingredients/grave_dust.tres",
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",

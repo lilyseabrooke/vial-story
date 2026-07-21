@@ -6,6 +6,8 @@ signal ingredient_changed(ingredient_id: String, quantity: int)
 signal potion_added(potion_id: String, potency: float, ease_value: float)
 signal materials_changed(amount: int)
 
+const MAX_POTIONS := 20
+
 var ingredient_counts: Dictionary = {}   # ingredient_id -> int
 var potions: Array[Dictionary] = []      # {potion_id, potency, ease}
 var materials: int = 100
@@ -47,6 +49,10 @@ func consume_ingredient(id: String, quantity: int) -> bool:
 func add_potion(potion_id: String, potency: float, ease_value: float) -> void:
 	potions.append({"potion_id": potion_id, "potency": potency, "ease": ease_value})
 	potion_added.emit(potion_id, potency, ease_value)
+
+
+func has_room_for_potions(count: int) -> bool:
+	return potions.size() + count <= MAX_POTIONS
 
 
 func add_materials(amount: int) -> void:

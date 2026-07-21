@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Vial Story"
 run/main_scene="res://scenes/MainMenu.tscn"
-config/features=PackedStringArray("4.7", "Forward Plus")
+config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
@@ -26,6 +26,7 @@ ContentRegistry="*res://scripts/autoload/content_registry.gd"
 Resolve="*res://scripts/autoload/resolve.gd"
 Skills="*res://scripts/autoload/skills.gd"
 Brewing="*res://scripts/autoload/brewing.gd"
+Alchemy="*res://scripts/autoload/alchemy.gd"
 Shop="*res://scripts/autoload/shop.gd"
 Herbalism="*res://scripts/autoload/herbalism.gd"
 Economy="*res://scripts/autoload/economy.gd"
@@ -63,4 +64,5 @@ texture={
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"

@@ -46,10 +46,26 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 		return "Station is already brewing something."
 	if recipe.station_type != station.station_type:
 		return "This recipe needs a %s." % recipe.station_type
+	if not Alchemy.is_learned(recipe.id):
+		return "You haven't learned this recipe yet."
 	if not Inventory.has_ingredients_for(recipe):
 		return "Not enough ingredients."
 
 	Inventory.consume_ingredients_for(recipe)
+
+	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency")
+	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease")
+
+	var modifier := (potency_modifier + ease_modifier) / 2.0
+	var roll := Rng.roll_2d10(modifier, DICE_DC)
+	brew_roll_resolved.emit(station.id, recipe.id, roll)
+
+	# A critical failure never occupies the station -- it fails right away
+	# instead of consuming the full brew time first.
+	if roll.critical_failure:
+		Resolve.spend(BOTCH_RESOLVE_COST, "botched brew: %s" % recipe.display_name)
+		brew_botched.emit(station.id, recipe.id)
+		return ""
 
 	var job := BrewJob.new()
 	job.recipe = recipe
@@ -61,40 +77,32 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 		brew_minutes = int(brew_minutes / speed_modifier)
 	job.ready_timestamp = job.start_timestamp + brew_minutes
 
-	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency")
-	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease")
-
-	var modifier := (potency_modifier + ease_modifier) / 2.0
-	var roll := Rng.roll_2d10(modifier, DICE_DC)
 	var t := clampf(inverse_lerp(2.0, 30.0, roll.total), 0.0, 1.0)
-
 	job.rolled_potency = clampf(lerp(recipe.potency_range.x, recipe.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
 	job.rolled_ease = clampf(lerp(recipe.ease_range.x, recipe.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
-	job.botched = roll.critical_failure
 	job.potion_count = 2 if roll.critical_success else 1
 	job.status = BrewJob.Status.BREWING
 
 	station.current_job = job
 	brew_started.emit(station.id, recipe.id)
-	brew_roll_resolved.emit(station.id, recipe.id, roll)
 	return ""
 
 
+## Returns false without changing anything if there's nothing ready to
+## collect, or if there's not enough potion inventory room -- the caller
+## (interacting with a finished station) is expected to leave the job in
+## place and let the player try again once they've made room.
 func collect(station_id: String) -> bool:
 	var station := get_station(station_id)
 	if station == null or station.current_job == null:
 		return false
-	if station.current_job.status != BrewJob.Status.READY:
+	var job := station.current_job
+	if job.status != BrewJob.Status.READY:
+		return false
+	if not Inventory.has_room_for_potions(job.potion_count):
 		return false
 
-	var job := station.current_job
 	station.current_job = null
-
-	if job.botched:
-		Resolve.spend(BOTCH_RESOLVE_COST, "botched brew: %s" % job.recipe.display_name)
-		brew_botched.emit(station.id, job.recipe.id)
-		return true
-
 	for i in job.potion_count:
 		Inventory.add_potion(job.recipe.output_potion_id, job.rolled_potency, job.rolled_ease)
 	Skills.add_xp("brewing", XP_PER_BREW)
@@ -123,7 +131,6 @@ func get_save_data() -> Dictionary:
 				"rolled_potency": job.rolled_potency,
 				"rolled_ease": job.rolled_ease,
 				"status": int(job.status),
-				"botched": job.botched,
 				"potion_count": job.potion_count,
 			}
 		station_data.append({
@@ -162,7 +169,6 @@ func load_save_data(data: Dictionary) -> void:
 			job.rolled_potency = job_data.get("rolled_potency", 0.0)
 			job.rolled_ease = job_data.get("rolled_ease", 0.0)
 			job.status = job_data.get("status", BrewJob.Status.BREWING) as BrewJob.Status
-			job.botched = job_data.get("botched", false)
 			job.potion_count = job_data.get("potion_count", 1)
 			station.current_job = job
 

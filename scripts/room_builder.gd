@@ -28,6 +28,7 @@ var _rooms: Dictionary = {}             # room_id -> Room
 var _room_camera_centers: Dictionary = {}  # room_id -> Vector2
 var _spawn_points: Dictionary = {}      # room_id -> Vector2
 var _plot_nodes: Dictionary = {}        # plot_id -> Interactable
+var _station_nodes: Dictionary = {}     # station_id -> Interactable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -55,6 +56,17 @@ func build_rooms() -> void:
 	Herbalism.plot_added.connect(_on_plot_added)
 	Herbalism.planted.connect(_on_planted)
 
+	Brewing.brew_started.connect(func(station_id: String, _recipe_id: String) -> void: _sync_station_indicator(station_id))
+	Brewing.brew_ready.connect(func(station_id: String, _recipe_id: String) -> void: _sync_station_indicator(station_id))
+	Brewing.brew_collected.connect(func(station_id: String, _recipe_id: String, _potency: float, _ease_value: float) -> void: _sync_station_indicator(station_id))
+	Brewing.brew_botched.connect(func(station_id: String, _recipe_id: String) -> void: _sync_station_indicator(station_id))
+	Clock.minute_tick.connect(func(_timestamp: int) -> void:
+		for station_id in _station_nodes:
+			_sync_station_indicator(station_id)
+	)
+	for station_id in _station_nodes:
+		_sync_station_indicator(station_id)
+
 
 ## Instantiates a room scene, registers its camera/spawn markers, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -80,6 +92,8 @@ func _load_room(scene: PackedScene) -> void:
 func _wire_interactable(interactable: Interactable) -> void:
 	interactable.player_entered.connect(func(i: Interactable) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: Interactable) -> void: player_exited_interactable.emit(i))
+	if interactable.interactable_type == Interactable.Type.BREW_STATION:
+		_station_nodes[interactable.target_id] = interactable
 
 
 func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
@@ -128,6 +142,26 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	_camera.position = _room_camera_centers[room_id]
 
 	SceneDirector.recheck()
+
+
+## Drives a station Interactable's progress bar/ready popup from Brewing's
+## current state -- called on every relevant Brewing signal plus every
+## minute tick (to advance the fill) and once up front (to restore state on
+## a loaded save with a brew already in progress).
+func _sync_station_indicator(station_id: String) -> void:
+	var node: Interactable = _station_nodes.get(station_id)
+	if node == null:
+		return
+	var station := Brewing.get_station(station_id)
+	var job := station.current_job if station else null
+	if job == null:
+		node.clear_brew_indicator()
+	elif job.status == BrewJob.Status.READY:
+		node.show_brew_ready()
+	else:
+		var total := float(job.ready_timestamp - job.start_timestamp)
+		var elapsed := float(Clock.get_timestamp() - job.start_timestamp)
+		node.set_brew_progress(elapsed / total if total > 0.0 else 1.0)
 
 
 func _on_plot_added(plot_id: String) -> void:

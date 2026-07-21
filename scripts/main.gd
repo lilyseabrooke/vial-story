@@ -83,7 +83,7 @@ func _on_interact_pressed() -> void:
 		return
 	match _current_interactable.interactable_type:
 		Interactable.Type.BREW_STATION:
-			_hud.toggle_menu(_hud.brew_panel, "Brewing")
+			_interact_brew_station(_current_interactable.target_id)
 		Interactable.Type.SUPPLY_SHELF:
 			_hud.toggle_menu(_hud.supply_panel, "Supplies")
 		Interactable.Type.STOCK_BOX:
@@ -96,6 +96,21 @@ func _on_interact_pressed() -> void:
 			_interact_grow_plot(_current_interactable.target_id)
 		Interactable.Type.STAIRS:
 			_switch_room(_current_interactable.target_room, _current_interactable.spawn_position)
+
+
+## A station with no job open the brew menu; a finished one auto-collects
+## (failing quietly if there's no potion room); a still-brewing one can't be
+## interacted with at all.
+func _interact_brew_station(station_id: String) -> void:
+	var station := Brewing.get_station(station_id)
+	var job := station.current_job if station else null
+	if job == null:
+		_hud.toggle_menu(_hud.brew_panel, "Brewing")
+	elif job.status == BrewJob.Status.READY:
+		if not Brewing.collect(station_id):
+			_hud.log_message("Inventory is full — couldn't collect the potion.")
+	else:
+		_hud.log_message("Still brewing — check back later.")
 
 
 func _interact_grow_plot(plot_id: String) -> void:

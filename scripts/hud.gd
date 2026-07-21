@@ -29,6 +29,7 @@ var _prompt_label: Label
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
 var _dice_popup: DiceRollPopup
+var _attempt_puzzle_panel: AttemptPuzzlePanel
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
@@ -117,16 +118,11 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_game_menu = GameMenu.new()
 	_game_menu.build()
 
+	_attempt_puzzle_panel = AttemptPuzzlePanel.new()
+	_attempt_puzzle_panel.build()
+
 	brew_panel = VBoxContainer.new()
-	for recipe in ContentRegistry.recipes:
-		var button := Button.new()
-		button.text = "Brew: %s" % recipe.display_name
-		button.pressed.connect(on_brew_button_pressed.bind(recipe))
-		brew_panel.add_child(button)
-	var collect_button := Button.new()
-	collect_button.text = "Collect from %s" % _station_id
-	collect_button.pressed.connect(on_collect_button_pressed)
-	brew_panel.add_child(collect_button)
+	_rebuild_brew_panel()
 
 	supply_panel = VBoxContainer.new()
 	for ingredient in ContentRegistry.ingredients:
@@ -174,6 +170,8 @@ func _connect_autoload_signals() -> void:
 		print("Day ended: %s" % END_REASON_NAMES[reason])
 	)
 	Brewing.brew_started.connect(func(station_id: String, recipe_id: String) -> void:
+		var recipe := ContentRegistry.get_recipe(recipe_id)
+		log_message("Started brewing %s." % (recipe.display_name if recipe else recipe_id))
 		print("Brew started at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_ready.connect(func(station_id: String, recipe_id: String) -> void:
@@ -181,6 +179,8 @@ func _connect_autoload_signals() -> void:
 		print("Brew ready at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_collected.connect(func(_collected_station_id: String, recipe_id: String, potency: float, ease_value: float) -> void:
+		var recipe := ContentRegistry.get_recipe(recipe_id)
+		log_message("Collected %s!" % (recipe.display_name if recipe else recipe_id))
 		print("Collected %s — potency %.1f, ease %.1f" % [recipe_id, potency, ease_value])
 	)
 	Brewing.brew_botched.connect(func(station_id: String, recipe_id: String) -> void:
@@ -236,6 +236,21 @@ func _connect_autoload_signals() -> void:
 		_game_over_label.visible = true
 		print("GAME OVER: strikes reached the limit.")
 	)
+	Alchemy.recipe_learned.connect(func(recipe_id: String) -> void:
+		var recipe := ContentRegistry.get_recipe(recipe_id)
+		log_message("Learned recipe: %s!" % (recipe.display_name if recipe else recipe_id))
+		print("Learned recipe: %s" % recipe_id)
+		_rebuild_brew_panel()
+	)
+	Alchemy.recipe_unlearned.connect(func(_recipe_id: String) -> void:
+		_rebuild_brew_panel()
+	)
+	Alchemy.puzzle_attempted.connect(func(recipe_id: String, success: bool) -> void:
+		if not success:
+			var recipe := ContentRegistry.get_recipe(recipe_id)
+			log_message("That combination didn't work for %s." % (recipe.display_name if recipe else recipe_id))
+		print("Puzzle attempted for %s: %s" % [recipe_id, "success" if success else "failure"])
+	)
 
 
 func log_message(text: String) -> void:
@@ -276,15 +291,44 @@ func toggle_game_menu() -> void:
 		_menu_scene.open(_game_menu, "Menu")
 
 
+## Rebuilds brew_panel's buttons in place (same container instance, since
+## main.gd's _on_interact_pressed() toggles it by reference) — one "Brew"
+## button per learned recipe, one "Discover" button per unlearned recipe that
+## has a puzzle, called both at build() and whenever Alchemy's learned set
+## changes so the buttons stay in sync. This menu only ever opens when the
+## station has no job running (main.gd's _interact_brew_station()), so there's
+## no collect button here — a finished brew is auto-collected on interact
+## instead.
+func _rebuild_brew_panel() -> void:
+	for child in brew_panel.get_children():
+		child.queue_free()
+
+	for recipe in ContentRegistry.recipes:
+		if Alchemy.is_learned(recipe.id):
+			var button := Button.new()
+			button.text = "Brew: %s" % recipe.display_name
+			button.pressed.connect(on_brew_button_pressed.bind(recipe))
+			brew_panel.add_child(button)
+		elif recipe.has_puzzle():
+			var discover_button := Button.new()
+			discover_button.text = "Discover: %s" % recipe.display_name
+			discover_button.pressed.connect(_on_discover_button_pressed.bind(recipe))
+			brew_panel.add_child(discover_button)
+
+
+func _on_discover_button_pressed(recipe: RecipeDef) -> void:
+	_attempt_puzzle_panel.show_for(recipe)
+	open_menu(_attempt_puzzle_panel, "Discover: %s" % recipe.display_name)
+
+
+## Success feedback (started brewing / botched) comes from the brew_started
+## and brew_botched signal listeners above — start_brew() emits those
+## synchronously before returning, so only the failure-to-start case needs
+## handling here.
 func on_brew_button_pressed(recipe: RecipeDef) -> void:
 	var error := Brewing.start_brew(_station_id, recipe)
-	log_message("Couldn't brew %s: %s" % [recipe.display_name, error] if error != "" \
-		else "Started brewing %s." % recipe.display_name)
-
-
-func on_collect_button_pressed() -> void:
-	if not Brewing.collect(_station_id):
-		log_message("Nothing ready to collect at %s." % _station_id)
+	if error != "":
+		log_message("Couldn't brew %s: %s" % [recipe.display_name, error])
 
 
 func on_stock_button_pressed() -> void:

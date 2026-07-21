@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/recipe_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "grave_ward_tonic"
+display_name = "Grave Ward Tonic"
+known = false
+station_type = "alembic"
+brew_time_minutes = 75
+ingredient_ids = Array[String](["ghostcap_mushroom", "grave_dust"])
+ingredient_quantities = Array[int]([1, 1])
+potency_range = Vector2(40, 65)
+ease_range = Vector2(15, 35)
+output_potion_id = "grave_ward_tonic"
+unlock_minigame_id = ""
+puzzle_constraint_types = Array[String](["characteristic_range", "characteristic_range", "role_lightest"])
+puzzle_constraint_targets = Array[String](["necromantic", "dream", "catalyst"])
+puzzle_constraint_min = Array[float]([4.0, -9999.0, 0.0])
+puzzle_constraint_max = Array[float]([6.0, 0.0, 0.0])

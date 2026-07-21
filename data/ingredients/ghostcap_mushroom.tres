@@ -10,3 +10,7 @@ category = 2
 tier = 1
 source_methods = Array[int]([0])
 buy_price = 7
+role = 2
+weight = 0.5
+characteristic_ids = Array[String](["necromantic", "dream", "astral"])
+characteristic_values = Array[int]([2, -1, 1])
