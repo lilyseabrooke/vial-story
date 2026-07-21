@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/DragonStashInteractable.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/LeyLineNodeInteractable.tscn" id="10"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -67,30 +68,40 @@ visual_color = Color(0.7, 0.7, 0.2, 1)
 
 [node name="StairsUp" parent="Interactables" unique_id=1698573428 instance=ExtResource("6")]
 position = Vector2(85, 37)
+target_room = "bedroom"
+spawn_position = Vector2(0, 0)
 prompt_text = "go upstairs to the Bedroom"
 display_name = "Stairs Up"
 visual_color = Color(0.5, 0.5, 0.55, 1)
-target_room = "bedroom"
 
-[node name="ContractBook" parent="Interactables" instance=ExtResource("7")]
+[node name="ContractBook" parent="Interactables" unique_id=581705282 instance=ExtResource("7")]
 position = Vector2(520, 300)
 target_id = "contract_book_1"
 prompt_text = "open the Contract Book"
 display_name = "Contract Book"
 visual_color = Color(0.35, 0.15, 0.5, 1)
 
-[node name="Workbench" parent="Interactables" instance=ExtResource("8")]
+[node name="Workbench" parent="Interactables" unique_id=170532065 instance=ExtResource("8")]
 position = Vector2(150, 300)
 target_id = "workbench_1"
 prompt_text = "break down Scrap"
 display_name = "Workbench"
 visual_color = Color(0.55, 0.55, 0.6, 1)
 
-[node name="DragonStash" parent="Interactables" instance=ExtResource("9")]
+[node name="DragonStash" parent="Interactables" unique_id=1919002959 instance=ExtResource("9")]
 position = Vector2(300, 250)
 target_id = "dragon_stash_1"
 prompt_text = "dig through the Dragon's Stash"
 display_name = "Dragon's Stash"
 visual_color = Color(0.5, 0.08, 0.2, 1)
+
+[node name="LeyLineNode" parent="Interactables" unique_id=1932554392 instance=ExtResource("10")]
+position = Vector2(600, 400)
+difficulty = 2.0
+rounds = 3
+target_id = "ley_line_node_1"
+prompt_text = "commune with the ley line"
+display_name = "Ley Line Node"
+visual_color = Color(0.6, 0.85, 0.95, 1)
 
 [node name="Plots" type="Node2D" parent="." unique_id=1672512134]

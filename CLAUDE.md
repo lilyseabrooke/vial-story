@@ -63,22 +63,32 @@ event bus or game-state object.
 - **`scripts/main.gd`** is now a thin orchestrator: it grants starting ingredients, builds a
   `RoomBuilder` and a `GameHud` (both plain, non-autoload `Node`s it owns as children, not scenes), and
   wires the handful of signals that need to touch both — e.g. `Herbalism.harvested` updates a HUD label
-  *and* a grow-plot `Interactable`'s status text. `_on_interact_pressed()`'s type match is the other
-  thing that stays here, since dispatching an interaction is inherently "which system do I call, which
-  panel do I open." `scripts/room_builder.gd` (`RoomBuilder`) owns exploration-layer geometry — rooms,
-  the shared player/camera, `Interactable` placement/switching — and connects directly to any autoload
-  signal whose effect is purely spatial (`Herbalism.plot_added`/`planted`). `scripts/hud.gd` (`GameHud`)
-  owns the debug HUD, the Escape menu shell, and the brew/supply panels, and connects directly to any
+  *and* a grow-plot `Interactable`'s status text. `_on_interact_pressed()` is pure delegation
+  (`_current_interactable.interact(self)`) now that each interactable type owns its own behavior — see
+  the "Exploration layer" bullet below. `scripts/room_builder.gd` (`RoomBuilder`) owns exploration-layer
+  geometry — rooms, the shared player/camera, `Interactable` placement/switching — and connects directly
+  to any autoload signal whose effect is purely spatial (`Herbalism.plot_added`/`planted`).
+  `scripts/hud.gd` (`GameHud`) owns the debug HUD, the Escape menu shell, and the brew/supply panels,
+  and connects directly to any
   autoload signal whose effect is purely a label/log update (most of them). Split out once `main.gd`
   grew past ~700 lines of two unrelated concerns (world geometry vs. presentation) glued together by
   signal wiring; keep new systems' UI-only reactions in `hud.gd` and world-only reactions in
   `room_builder.gd`, and only add to `main.gd` when a reaction genuinely needs both.
-- **Exploration layer**: `Interactable` (`scripts/interactable.gd`) is one reusable `Area2D` scene
-  configured per-instance (`interactable_type` enum, `target_id`, prompt text, color) rather than a
-  subclass per interaction kind — the actual behavior for each type lives in `main.gd`'s
-  `_on_interact_pressed()`, not on the Interactable itself. Player movement uses raw
-  `Input.is_key_pressed(KEY_*)` checks (`scripts/player.gd`) rather than an InputMap, consistent with
-  how the debug hotkeys (`Space`, `R`, `Up`/`Down`) are handled in `main.gd`'s `_unhandled_input`.
+- **Exploration layer**: `InteractableBase` (`scripts/interactable_base.gd`) is a shared `Area2D`
+  scene/script owning only what every interactable has in common — the proximity signals
+  (`player_entered`/`player_exited`) and the visual/label chrome (`target_id`, `prompt_text`,
+  `display_name`, `visual_color`). One subclass per behavior (`BrewStationInteractable`,
+  `ContractBookInteractable`, `DragonStashInteractable`, `GrowPlotInteractable`,
+  `LeyLineNodeInteractable`, `StockBoxInteractable`, `SupplyShelfInteractable`,
+  `WorkbenchInteractable`, `BedInteractable`, `ClassDoorInteractable`, `StairsInteractable`) overrides
+  `interact(main: MainScene) -> void` with that type's actual action — calling straight into whichever
+  autoload owns it, opening a `MenuScene` panel, or both — rather than a type match living in
+  `main.gd`; `_on_interact_pressed()` just calls `_current_interactable.interact(self)`. Each subclass
+  pairs a `.gd` script (`class_name`) with a `.tscn` under `scenes/interactables/` that instances
+  `InteractableBase.tscn` and swaps in the subclass script — copy an existing sibling's `.tscn` exactly
+  when adding a new one. Player movement uses raw `Input.is_key_pressed(KEY_*)` checks
+  (`scripts/player.gd`) rather than an InputMap, consistent with how the debug hotkeys (`Space`, `R`,
+  `Up`/`Down`) are handled in `main.gd`'s `_unhandled_input`.
 - **`MenuScene`** (`scripts/menu_scene.gd`) is the generalized modal menu shell used for any
   interactable that opens a menu rather than firing instantly (brew station → recipe list, supply
   shelf → buy ingredients/seeds/upgrades). It owns only the shared chrome — title, close button, and
@@ -87,15 +97,17 @@ event bus or game-state object.
   freezes movement off that same `Clock.is_paused` flag rather than tracking menu state itself, so
   `MenuScene` doesn't need to know the player exists. Menus are single-purpose per interactable (no
   tabs) and close on `Esc`, on re-pressing `E` at the same interactable, or on entering/exiting a
-  different interactable; `STOCK_BOX`, `BED`, and `CLASS_DOOR` stay instant one-shot actions and never
-  go through `MenuScene`. `_panel` (the root `PanelContainer` everything above gets reparented into) has
+  different interactable (`main.gd`'s `_on_player_entered_interactable`/`_on_player_exited_interactable`
+  call `hud.close_menu()`); `StockBoxInteractable`, `BedInteractable`, and `ClassDoorInteractable` stay
+  instant one-shot actions and never go through `MenuScene`. `_panel` (the root `PanelContainer`
+  everything above gets reparented into) has
   `theme/ui_theme.tres` assigned to it, so panel/button/font styling for every menu is centralized there —
   swapping in illustrated art later is a theme/asset change, not a script change. `GameMenu`'s tab
   container shell and its signal-wiring pattern (autoload signal → `update_x()`) are still built ad hoc
   in code, same as `hud.gd`, but each tab's *repeated* rows/cells (item slots, skill rows, relationship
   rows, recipe entries, quest entries) are `scenes/ui/components/*.tscn` scenes paired with a
-  `scripts/ui/components/*.gd` script (`class_name`, matching the `Interactable.tscn`/`interactable.gd`
-  pairing convention) exposing a `populate(...)` method — `update_x()` instances and populates them
+  `scripts/ui/components/*.gd` script (`class_name`, matching the interactable `.tscn`/`.gd` pairing
+  convention above) exposing a `populate(...)` method — `update_x()` instances and populates them
   instead of building nodes inline. Every component degrades gracefully to a tinted placeholder
   (colored dot, border swatch) when the underlying data `Resource`'s `icon`/`portrait` field is `null`,
   so illustrated art can land incrementally without ever breaking the UI. `IngredientDef`/`SeedDef` have

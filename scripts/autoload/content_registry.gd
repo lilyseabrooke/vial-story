@@ -23,6 +23,8 @@ const INGREDIENT_PATHS := [
 	"res://data/ingredients/refined_component.tres",
 	"res://data/ingredients/dragon_scale.tres",
 	"res://data/ingredients/ember_dust.tres",
+	"res://data/ingredients/glimmer_dust.tres",
+	"res://data/ingredients/echo_shard.tres",
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",

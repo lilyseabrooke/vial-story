@@ -1300,6 +1300,98 @@ Draconology (autoload)
 
 ---
 
+## 20. Ley Line Node System **[BUILT]**
+
+Gathering spectral ingredients by interacting with a Ley Line Node and playing a short minigame at
+it. Unlike the Contract Book or Dragon's Stash, there's no background timer or tether: `MenuScene`
+already pauses `Clock` and freezes the player for as long as it's open, so the whole interaction is
+synchronous — nothing to tick, nothing that needs to survive the player walking away.
+
+```
+LeyLines (autoload)
+  - _active_node_id: String       # "" when no minigame is running
+  - _active_difficulty: float     # base_difficulty - leyline_ease, floored at 0
+  - _active_rounds: int
+```
+
+- **`LeyLineNodeInteractable`** (`scripts/ley_line_node_interactable.gd`) carries its own
+  per-instance `difficulty: float` and `rounds: int` exports — different nodes can be tuned
+  harder/longer with no code change. `interact()` calls `LeyLines.start_minigame(target_id,
+  difficulty, rounds)` and otherwise does nothing; it has no progress meter and needs no wiring in
+  `RoomBuilder`, unlike the Dragon's Stash.
+- **`start_minigame()`** applies `Skills.get_bonus("leyline_ease")` against the node's base
+  difficulty before handing it to the minigame, then emits `minigame_started(node_id, difficulty,
+  rounds)`. `hud.gd` reacts by opening a minigame content `Control` in `MenuScene`, the same
+  "autoload signal → HUD opens a panel" shape `AttemptPuzzlePanel` uses.
+- **The minigame** (`scripts/ui/ley_line_minigame_panel.gd`, `LeyLineMinigamePanel`) is a real-time
+  positioning game hosted in `MenuScene`. Its outer `VBoxContainer` owns only a status/hint label;
+  the play itself lives in the inner `LeyArena extends Control`, kept in the same file so the whole
+  minigame stays a single swappable unit. A big circle is the ley line node — *everything* in it is
+  dangerous except a few small glowing safe zones. The player steers a small icon (WASD or arrow
+  keys, polled in `_process` — `MenuScene` only flips `Clock.is_paused`, it never pauses the
+  SceneTree, so `_process`/`_draw` run normally) around the arena. Each round a **resonance ring**
+  collapses from the wall to the center; when it snaps shut the game measures, via circle-circle lens
+  area, what fraction of the icon overlaps the best-covering safe zone. **Movement is velocity-based**
+  (acceleration + friction, clamped to a max speed, with a solid wall at the arena edge) so it has
+  weight but stays responsive — feel is the priority.
+- **Difficulty and Arcane History are separate levers.** The `difficulty` handed in (already softened
+  by `leyline_ease` upstream) is normalised over `difficulty_span` (3.0) and, as it rises, shrinks
+  the safe zones, shortens the round timer, drops the zone count (3→1), and makes the zones **drift
+  and shrink as the ring collapses** — the high-skill element is tracking that moving, shrinking
+  target and arriving centered. Arcane History (`Skills.level("arcane_history")`, curved over
+  `level_cap` 6) instead tunes the icon itself: a higher level makes it **smaller, faster, snappier,
+  and sharper-turning** (more accel/friction, plus a turn-responsiveness factor that lets steering
+  overrule existing momentum — a novice's icon is deliberately awkward and slow to reverse), so a
+  skilled arcanist both fits zones more easily and commits to them more precisely. Lower difficulties
+  use noticeably bigger safe zones partly to compensate for that early-game sluggishness. Every curve
+  endpoint is a `Vector2` (easy→hard / novice→skilled) `@export` on the panel's scene root, editable in
+  the inspector on `scenes/ui/LeyLineMinigamePanel.tscn` — hud.gd instances that scene (rather than
+  `.new()`ing the script, as the other menu panels do) so the tunables are inspector-editable, and
+  `build()` forwards them into the inner `LeyArena` (whose own `@export`s Godot wouldn't surface).
+- **Resolve is charged per round, at each snap**, proportional to the danger fraction (`1 - safe`)
+  and weighted up by difficulty (`max_resolve_per_round` 12 × `0.6 + 0.6·norm`) — the minigame calls
+  `Resolve.spend()` directly, the same "a mishap event charges Resolve" shape Brewing's botch uses,
+  rather than routing it through `LeyLines`. Getting caught costs immediately; it isn't a run-ending
+  failure. The icon **bounces off the arena wall** (outward velocity reflected, damped by
+  `wall_bounce`) rather than stopping dead, so overshooting the edge is a recoverable mistake with
+  consequences, not a soft wall to lean on.
+- **Bonus motes** add a risk/reward beat. Each round has a `bonus_chance` of spawning one glowing gold
+  mote, placed clear of the safe zones (and the player's current spot), so committing to grab it
+  genuinely trades away safe position as the ring collapses. Touching it (a cheap circle overlap
+  checked every movement frame) banks one extra spectral ingredient. The arena tracks the count and
+  passes it to `LeyLines.resolve_minigame(performance, bonus_ingredients)`; those bonus ingredients are
+  granted **regardless of tier** — even on a run that clears no tier — since the mote is its own earned
+  reward and the risk was already paid in resolve/position. They fold into the same ingredients dict as
+  the tier reward, so hud.gd's "Received: …" summary shows them together.
+- After the last round the arena averages the per-round safe fractions into a single `performance` and,
+  after a short on-screen grade readout (which also shows any `+N bonus`), reports it via
+  `LeyLines.resolve_minigame(performance, bonus_ingredients)` — the `performance` half is the same
+  0.0–1.0 contract the old placeholder satisfied and `bonus_ingredients` defaults to 0, so
+  `LeyLineNodeInteractable`, `hud.gd`'s signal wiring, and the abort-on-close guard were untouched.
+  `abort_minigame()` (Esc/close) still bails with no reward, and any Resolve already spent during the
+  run stays spent.
+- **Performance maps to a reward tier**, not a continuous formula like Draconology's quality/divisor
+  — `great` (≥0.85) / `good` (≥0.6) / `poor` (≥0.25) / below that, nothing. Each tier has a base
+  spectral-ingredient count (3/2/1), with `Skills.get_bonus("leyline_yield")` (Arcane History) added
+  on top before ingredients are granted from `SPECTRAL_INGREDIENT_IDS` (`glimmer_dust`,
+  `echo_shard` — the first two `IngredientDef.Category.SPECTRAL` resources; `source_methods =
+  [SourceMethod.FORAGE]`, `buy_price = 0`, only obtainable this way). Grants `XP_PER_MINIGAME` (20)
+  Arcane History XP — the skill's `leyline_ease`/`leyline_yield`/`learn_speed_spectral` triplet is
+  now consumed by the first two (`learn_speed_spectral` remains **[STUB]**, same as every other
+  category's ingredient-learning effect).
+- **Aborting grants nothing** — `abort_minigame()` throws the session away with no ingredients and
+  no XP, same "walking away costs everything" shape as `Draconology.cancel_stash()`, just triggered
+  by the player choosing to quit the minigame (or closing the menu by any route — Esc, the close
+  button) rather than leaving the node's proximity, since the player can't physically walk away
+  mid-session anyway. `hud.gd` wires `MenuScene.closed` to check `LeyLines.is_active()` and call
+  `abort_minigame()` if a session is still open when the menu closes for any reason, so an Esc-press
+  mid-minigame can't leave a dangling session.
+- **No save contract.** Same as Transmutation, there's no state that outlives a single synchronous
+  interaction — `LeyLines` has no `get_save_data()`/`load_save_data()` and isn't in
+  `SaveManager._SAVE_ORDER`.
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)
