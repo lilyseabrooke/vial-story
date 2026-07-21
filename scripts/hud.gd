@@ -10,7 +10,7 @@ extends CanvasLayer
 
 const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
-const DICE_ROLL_POPUP_SCENE := preload("res://scenes/ui/components/DiceRollPopup.tscn")
+const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
 
 var brew_panel: VBoxContainer
 var supply_panel: VBoxContainer
@@ -24,12 +24,11 @@ var _speed_buttons: Array[Button] = []
 var _materials_label: Label
 var _resolve_bar: ProgressBar
 var _resolve_label: Label
-var _log_label: Label
 var _game_over_label: Label
 var _prompt_label: Label
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
-var _dice_popup: DiceRollPopup
+var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
@@ -97,14 +96,6 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 
 	calendar_vbox.add_child(HSeparator.new())
 
-	_log_label = Label.new()
-	_log_label.modulate = Color(0.8, 0.8, 0.8)
-	_log_label.custom_minimum_size = Vector2(200, 0)
-	_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	calendar_vbox.add_child(_log_label)
-
-	calendar_vbox.add_child(HSeparator.new())
-
 	var hint := Label.new()
 	hint.text = "WASD: move | E: interact | Esc: menu | Space: pause | R: drain Resolve (debug) | 1/2/3: speed"
 	hint.modulate = Color(0.6, 0.6, 0.6)
@@ -165,7 +156,8 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
 
-	_dice_popup = DICE_ROLL_POPUP_SCENE.instantiate()
+	_message_wall = MESSAGE_WALL_SCENE.instantiate()
+	add_child(_message_wall)
 
 	_connect_autoload_signals()
 
@@ -211,8 +203,7 @@ func _connect_autoload_signals() -> void:
 		print("Brew botched at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_roll_resolved.connect(func(_brewing_station_id: String, recipe_id: String, roll: Dictionary) -> void:
-		_menu_scene.open(_dice_popup, "Brewing Roll: %s" % recipe_id)
-		_dice_popup.show_roll(roll, "Brewing")
+		_message_wall.add_dice_result(roll, "Brewing: %s" % recipe_id)
 	)
 	Skills.leveled_up.connect(func(skill_id: String, new_level: int) -> void:
 		log_message("%s leveled up to %d!" % [skill_id.capitalize(), new_level])
@@ -251,8 +242,7 @@ func _connect_autoload_signals() -> void:
 		print("Exam %s. Score: %.1f, Strikes: %d" % ["passed" if passed else "failed", score, strikes])
 	)
 	Academy.class_performance_rolled.connect(func(result: Dictionary) -> void:
-		_menu_scene.open(_dice_popup, "Class Performance Check")
-		_dice_popup.show_roll(result, "Class Performance")
+		_message_wall.add_dice_result(result, "Class Performance")
 	)
 	Academy.game_over.connect(func() -> void:
 		_game_over_label.text = "GAME OVER — The Academy has revoked your selling privileges."
@@ -270,8 +260,7 @@ func _connect_autoload_signals() -> void:
 		print("Writ revised at %s: revision %d, quality %.1f" % [book_id, revisions_completed, quality])
 	)
 	Demonology.writ_submitted.connect(func(book_id: String, roll: Dictionary, ingredients: Dictionary, drawback_messages: Array) -> void:
-		_menu_scene.open(_dice_popup, "Demonology Roll: %s" % book_id)
-		_dice_popup.show_roll(roll, "Demonology")
+		_message_wall.add_dice_result(roll, "Demonology: %s" % book_id)
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -285,13 +274,7 @@ func _connect_autoload_signals() -> void:
 		print("Delayed demonic consequence: %s" % message)
 	)
 	Draconology.stash_resolved.connect(func(stash_id: String, roll: Dictionary, ingredients: Dictionary) -> void:
-		# Safe to interrupt the screen with, same as Demonology.writ_submitted/
-		# Transmutation.scrap_broken_down -- unlike a BrewJob deadline, a stash
-		# only ever resolves while the player is standing right there (walking
-		# away cancels it outright), so this never fires out from under them
-		# mid-menu or in another room.
-		_menu_scene.open(_dice_popup, "Draconology Roll: %s" % stash_id)
-		_dice_popup.show_roll(roll, "Draconology")
+		_message_wall.add_dice_result(roll, "Draconology: %s" % stash_id)
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -300,8 +283,7 @@ func _connect_autoload_signals() -> void:
 		update_ingredients_label()
 	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
-		_menu_scene.open(_dice_popup, "Transmutation Roll")
-		_dice_popup.show_roll(roll, "Transmutation")
+		_message_wall.add_dice_result(roll, "Transmutation")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -327,7 +309,7 @@ func _connect_autoload_signals() -> void:
 
 
 func log_message(text: String) -> void:
-	_log_label.text = text
+	_message_wall.add_notice(text)
 
 
 func set_prompt(text: String) -> void:

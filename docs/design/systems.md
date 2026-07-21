@@ -200,7 +200,7 @@ BrewJob
   not bucketed into tiers — they feed shop pricing/sale-chance and, later, buyer- and
   love-interest-specific preferences.
 - Starting a brew rolls **one** visible 2d10 check (`Rng.roll_2d10`, system 16) — a
-  BG3-style dice popup, `DICE_DC := 11.0`, modifier = the averaged
+  BG3-style dice check surfaced in the message wall (system 16), `DICE_DC := 11.0`, modifier = the averaged
   `potency_modifier`/`ease_modifier` (station + `Skills.get_bonus()`). The roll's
   total sets a shared quality scalar `t`, lerped onto the recipe's existing
   `potency_range`/`ease_range` (no recipe `.tres` data changed), and each stat then
@@ -214,8 +214,8 @@ BrewJob
   chance. No `BrewJob` is ever created for a botched roll, so the station is free
   again the instant `start_brew()` returns. A natural 10 on either die is a critical
   success and sets `potion_count = 2` (no stacking if both dice show 10). A natural
-  1+10 pair is an "inflection point" — shown distinctly in the popup, but has no
-  mechanics attached yet.
+  1+10 pair is an "inflection point" — shown distinctly in the message wall, but has
+  no mechanics attached yet.
 - Each `BrewStationInteractable` shows a bottom-to-top progress bar above it while
   `Brewing`, swapping to a "Ready!" popup once the job's status flips to `Ready`
   (`RoomBuilder._sync_station_indicator()`, driven off `Brewing`'s signals plus
@@ -249,8 +249,8 @@ ShopStock
   (system 1), stocked potions roll sell-chance on a fixed simulated interval (e.g.
   every N in-game minutes), weighted by price, potency/ease (per system 3/4), and
   shop reputation (reputation stat: stub for now, default flat weight). This roll
-  goes through `Rng.chance()` (system 16) — quiet/background, no dice popup, same
-  behavior/values as before.
+  goes through `Rng.chance()` (system 16) — quiet/background, no message-wall row,
+  same behavior/values as before.
 - On sale: remove one unit, add the price to `coffers` (not directly to
   Inventory.materials) and log the sale for a "while you were away" summary shown
   to the player at the next check-in.
@@ -962,11 +962,19 @@ Rng (autoload)
   overrides both into an `inflection_point` — currently flavor-only, no mechanics
   attached to it anywhere yet. It's on each caller to decide what (if anything) these
   mean; Brewing (system 4) is the only current consumer of the crit fields.
-- The popup UI (`scripts/ui/components/dice_roll_popup.gd`) never rolls dice itself —
-  it only renders an already-produced result `Dictionary` via a Timer-driven staggered
-  reveal (die A, die B, modifier, total/result), matching `DialogueBox`'s typewriter-
-  reveal pattern (system 13). This keeps logic and UI consuming the same call, so
-  headless code can call `Rng.roll_2d10()` with no UI involvement.
+- Visible rolls render through the message wall (`scripts/ui/components/message_wall.gd`
+  + `message_entry.gd`), a bottom-right translucent scrollback that replaced the old
+  modal `DiceRollPopup`/`MenuScene` pairing — dice results and info notices (e.g. a
+  potion selling in the shop) both land there as rows that fade in, linger a few
+  seconds, then dim rather than pausing the game (`GameHud.log_message()` and
+  `MessageWall.add_dice_result()` are the two entry points; `hud.gd` calls the latter
+  directly off each roll signal instead of opening a menu). A row never actually
+  disappears once posted, only dims — the wall scrolls (wheel, or click-drag) back
+  through history, and hovering a row brightens it to full opacity and expands its
+  detail line. The wall collapses to a small icon in the corner once nothing is
+  recent and the mouse isn't over it. Neither component ever rolls dice itself — they
+  only render an already-produced result `Dictionary`, so headless code can call
+  `Rng.roll_2d10()` with no UI involvement.
 - **Seeding**: `Rng.seed_new_game()` is called exactly once, from `main.gd`'s
   `GameFlow.is_new_game` branch, at the same point starting ingredients/quests are
   granted. Loading a save never reseeds — only `.state` (the stream's draw position)
@@ -978,9 +986,9 @@ Rng (autoload)
   `Brewing`, `Shop`, `Herbalism`, `Academy`, ...).
 - **Which checks are quiet vs. visible** (a deliberate per-call-site choice, not a
   blanket rule): shop passive sale-chance ticks (system 5) stay quiet/background —
-  frequent and ambient, a popup would be noise. Brewing's combined roll and Academy
-  class performance are visible 2d10 checks — infrequent, player-meaningful moments
-  worth surfacing.
+  frequent and ambient, even an unobtrusive message-wall row would be noise. Brewing's
+  combined roll and Academy class performance are visible 2d10 checks — infrequent,
+  player-meaningful moments worth surfacing in the message wall.
 
 ---
 
@@ -1134,7 +1142,8 @@ Transmutation (autoload)
 - **`WorkbenchInteractable`** (`scripts/workbench_interactable.gd` +
   `scenes/interactables/WorkbenchInteractable.tscn`) calls `Transmutation.break_down_scrap()`
   directly on `interact()` — no `MenuScene` panel, matching `StockBoxInteractable`'s
-  one-shot shape. Success feedback (dice popup + ingredient log) is driven off
+  one-shot shape. Success feedback (dice result + ingredient log, both via the
+  message wall) is driven off
   `Transmutation.scrap_broken_down` in `hud.gd`, same pattern as
   `Demonology.writ_submitted`; the interactable only has to handle the "nothing to break
   down" case itself, since no signal fires for a no-op.
