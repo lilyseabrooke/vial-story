@@ -11,9 +11,6 @@ room_id = "bedroom"
 
 [node name="Walls" type="TileMapLayer" parent="."]
 
-[node name="CameraCenter" type="Marker2D" parent="."]
-position = Vector2(352, 256)
-
 [node name="SpawnPoint" type="Marker2D" parent="."]
 position = Vector2(350, 300)
 

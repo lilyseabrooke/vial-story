@@ -7,3 +7,8 @@ extends Node2D
 ## populated by RoomBuilder.add_grow_plot_interactable).
 
 @export var room_id: String = ""
+## Room bounds in pixels, top-left at (0, 0) — used to clamp the follow
+## camera so it never shows past the room's walls. Defaults match the
+## hand-authored Shop/Bedroom floor size; override per-room if a future
+## room is a different size.
+@export var room_size: Vector2 = Vector2(704, 576)

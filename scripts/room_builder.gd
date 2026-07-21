@@ -4,10 +4,12 @@ extends Node2D
 ## Interactables scattered through them. See docs/design/systems.md, system
 ## 12 — a couple of small interiors connected by stairs, not open-world.
 ## Rooms are hand-authored scenes under scenes/rooms/ (Room-scripted Node2D
-## with Floor/Walls TileMapLayers, CameraCenter/SpawnPoint markers, and
-## pre-placed Interactables); this script loads them, wires their signals,
-## and (de)activates them, plus code-instances the one thing that can't be
-## authored up front — runtime grow-plot Interactables.
+## with Floor/Walls TileMapLayers, a SpawnPoint marker, and pre-placed
+## Interactables); this script loads them, wires their signals, and
+## (de)activates them, plus code-instances the one thing that can't be
+## authored up front — runtime grow-plot Interactables. The camera is a
+## child of the player (see build_rooms()) so it follows automatically;
+## switch_room() clamps it to each room's Room.room_size.
 
 signal player_entered_interactable(interactable: Interactable)
 signal player_exited_interactable(interactable: Interactable)
@@ -25,7 +27,6 @@ var current_room_id: String = ""
 
 var _camera: Camera2D
 var _rooms: Dictionary = {}             # room_id -> Room
-var _room_camera_centers: Dictionary = {}  # room_id -> Vector2
 var _spawn_points: Dictionary = {}      # room_id -> Vector2
 var _plot_nodes: Dictionary = {}        # plot_id -> Interactable
 var _station_nodes: Dictionary = {}     # station_id -> Interactable
@@ -39,13 +40,17 @@ func build_rooms() -> void:
 
 	# Added after the rooms so they draw on top of each room's floor — 2D draw
 	# order follows tree order, and rooms are siblings of the player/camera.
-	_camera = Camera2D.new()
-	add_child(_camera)
-	_camera.make_current()
-
 	player = PLAYER_SCENE.instantiate()
 	player.add_to_group("player")
 	add_child(player)
+
+	# Camera is a child of the player so it follows automatically; smoothing
+	# is enabled for a soft follow rather than a rigid lock-on. Per-room
+	# limits (set in switch_room) keep it from showing past the walls.
+	_camera = Camera2D.new()
+	_camera.position_smoothing_enabled = true
+	player.add_child(_camera)
+	_camera.make_current()
 
 	switch_room(SHOP_ROOM_ID, _spawn_points[SHOP_ROOM_ID])
 
@@ -68,7 +73,7 @@ func build_rooms() -> void:
 		_sync_station_indicator(station_id)
 
 
-## Instantiates a room scene, registers its camera/spawn markers, connects
+## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
 ## positions from the target room's SpawnPoint (target room must already be
 ## loaded — build_rooms() loads both up front, so order doesn't matter here).
@@ -79,7 +84,6 @@ func _load_room(scene: PackedScene) -> void:
 	room.process_mode = Node.PROCESS_MODE_DISABLED
 
 	_rooms[room.room_id] = room
-	_room_camera_centers[room.room_id] = room.get_node("CameraCenter").position
 	_spawn_points[room.room_id] = room.get_node("SpawnPoint").position
 
 	for interactable in room.get_node("Interactables").get_children():
@@ -139,7 +143,12 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	room.process_mode = Node.PROCESS_MODE_INHERIT
 
 	player.position = spawn_position
-	_camera.position = _room_camera_centers[room_id]
+
+	_camera.limit_left = 0
+	_camera.limit_top = 0
+	_camera.limit_right = int(room.room_size.x)
+	_camera.limit_bottom = int(room.room_size.y)
+	_camera.reset_smoothing()  # snap instead of gliding in from the previous room
 
 	SceneDirector.recheck()
 
