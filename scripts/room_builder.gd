@@ -13,6 +13,10 @@ extends Node2D
 
 signal player_entered_interactable(interactable: InteractableBase)
 signal player_exited_interactable(interactable: InteractableBase)
+## Fired instead of player_exited_interactable when an Interactable is
+## destroyed out from under the player (currently only a resolved Dragon's
+## Stash) rather than actually walked away from -- see _on_stash_resolved().
+signal interactable_destroyed(interactable: InteractableBase)
 
 const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const SHOP_SCENE := preload("res://scenes/rooms/Shop.tscn")
@@ -31,6 +35,7 @@ var _spawn_points: Dictionary = {}      # room_id -> Vector2
 var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
+var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -83,6 +88,13 @@ func build_rooms() -> void:
 	for book_id in _contract_nodes:
 		_sync_contract_indicator(book_id)
 
+	Draconology.stash_started.connect(func(stash_id: String) -> void: _sync_stash_indicator(stash_id))
+	Draconology.stash_progress.connect(func(stash_id: String) -> void: _sync_stash_indicator(stash_id))
+	Draconology.stash_cancelled.connect(func(stash_id: String) -> void: _sync_stash_indicator(stash_id))
+	Draconology.stash_resolved.connect(_on_stash_resolved)
+	for stash_id in _stash_nodes:
+		_sync_stash_indicator(stash_id)
+
 
 ## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -114,6 +126,19 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 		# progress); resuming is deliberately only done from interact()
 		# (an E-press), not just from re-entering the proximity area.
 		interactable.player_exited.connect(func(_i: InteractableBase) -> void: Demonology.pause_writ(interactable.target_id))
+	elif interactable is DragonStashInteractable:
+		# A stash already collected on a prior save doesn't get re-registered
+		# -- its hand-placed node is just discarded, so it stays gone across
+		# a save/load the same as a live queue_free() would leave it.
+		if Draconology.is_collected(interactable.target_id):
+			interactable.queue_free()
+		else:
+			_stash_nodes[interactable.target_id] = interactable
+			# Unlike the Contract Book's pause-on-exit, walking away from a
+			# Dragon's Stash throws the whole dig away (design: punish
+			# wandering off) -- Draconology.cancel_stash() erases the job
+			# outright rather than freezing it for a later resume.
+			interactable.player_exited.connect(func(_i: InteractableBase) -> void: Draconology.cancel_stash(interactable.target_id))
 
 
 func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
@@ -202,6 +227,46 @@ func _sync_contract_indicator(book_id: String) -> void:
 		node.clear_writ_indicator()
 	else:
 		node.set_writ_progress(writ.progress_fraction(), writ.revisions_completed)
+
+
+## Drives a Dragon's Stash Interactable's progress bar from Draconology's
+## current state -- called on stash_started/stash_progress/stash_cancelled.
+## Unlike brewing's indicator, no Clock.minute_tick hook is needed here:
+## progress only ever changes on an engaged minute tick (same reasoning as
+## _sync_contract_indicator), and a cancel clears the job (and the bar) back
+## to nothing rather than freezing it like a paused writ would.
+func _sync_stash_indicator(stash_id: String) -> void:
+	var node: DragonStashInteractable = _stash_nodes.get(stash_id)
+	if node == null:
+		return
+	var job := Draconology.get_job(stash_id)
+	if job == null:
+		node.clear_stash_indicator()
+	else:
+		node.set_stash_progress(job.progress_fraction())
+
+
+## A stash is single-use -- once Draconology resolves it, its Interactable
+## node is gone for good, not just cleared like a brew station's indicator.
+## The player is guaranteed to be standing right on top of it when this
+## fires (that's the whole point of the tether), so freeing an Area2D still
+## overlapping them triggers a body_exited cleanup signal from the physics
+## server -- disconnect player_exited first so that doesn't forward through
+## player_exited_interactable into main.gd's _on_player_exited_interactable()
+## and close_menu() the dice-roll popup hud.gd just opened for this very
+## resolution (that handler's close_menu() is meant for an actual walk-away,
+## not "the interactable just got destroyed"). interactable_destroyed is the
+## non-menu-closing equivalent main.gd needs to still clear its
+## _current_interactable/prompt state.
+func _on_stash_resolved(stash_id: String, _roll: Dictionary, _ingredients: Dictionary) -> void:
+	var node: DragonStashInteractable = _stash_nodes.get(stash_id)
+	if node == null:
+		return
+	_stash_nodes.erase(stash_id)
+	for connection in node.player_exited.get_connections():
+		node.player_exited.disconnect(connection.callable)
+	interactable_destroyed.emit(node)
+	node.queue_free()
 
 
 func _on_plot_added(plot_id: String) -> void:

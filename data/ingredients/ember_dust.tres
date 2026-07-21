@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ingredient_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ember_dust"
+display_name = "Ember Dust"
+category = 4
+tier = 3
+source_methods = Array[int]([4])
+buy_price = 0
+role = 2
+weight = 0.5
+characteristic_ids = Array[String](["draconic", "volatile"])
+characteristic_values = Array[int]([2, 3])

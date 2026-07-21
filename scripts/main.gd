@@ -43,6 +43,7 @@ func _start_game(player_color: Color) -> void:
 	room_builder.build_rooms()
 	room_builder.player_entered_interactable.connect(_on_player_entered_interactable)
 	room_builder.player_exited_interactable.connect(_on_player_exited_interactable)
+	room_builder.interactable_destroyed.connect(_on_interactable_destroyed)
 	room_builder.player.get_node("Visual").color = player_color
 
 	hud = GameHud.new()
@@ -93,7 +94,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_interact_pressed() -> void:
-	if _current_interactable == null:
+	if _current_interactable == null or not is_instance_valid(_current_interactable):
+		_current_interactable = null
 		return
 	_current_interactable.interact(self)
 
@@ -124,6 +126,20 @@ func _on_player_exited_interactable(interactable: InteractableBase) -> void:
 	_current_interactable = null
 	hud.set_prompt("")
 	hud.close_menu()
+
+
+## The non-menu-closing counterpart to _on_player_exited_interactable(),
+## for an Interactable destroyed out from under the player (a resolved
+## Dragon's Stash) rather than one they actually walked away from -- see
+## RoomBuilder._on_stash_resolved(). Must not call hud.close_menu(): the
+## whole reason this handler exists separately is that the destruction event
+## fires in the same beat as hud.gd opening this resolution's dice-roll
+## popup, and that popup needs to stay open.
+func _on_interactable_destroyed(interactable: InteractableBase) -> void:
+	if _current_interactable != interactable:
+		return
+	_current_interactable = null
+	hud.set_prompt("")
 
 
 func _on_ready_to_harvest(plot_id: String, _seed_id: String) -> void:

@@ -21,6 +21,8 @@ const INGREDIENT_PATHS := [
 	"res://data/ingredients/brimstone_shard.tres",
 	"res://data/ingredients/scrap_alloy.tres",
 	"res://data/ingredients/refined_component.tres",
+	"res://data/ingredients/dragon_scale.tres",
+	"res://data/ingredients/ember_dust.tres",
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",

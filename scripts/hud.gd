@@ -284,6 +284,21 @@ func _connect_autoload_signals() -> void:
 		log_message(message)
 		print("Delayed demonic consequence: %s" % message)
 	)
+	Draconology.stash_resolved.connect(func(stash_id: String, roll: Dictionary, ingredients: Dictionary) -> void:
+		# Safe to interrupt the screen with, same as Demonology.writ_submitted/
+		# Transmutation.scrap_broken_down -- unlike a BrewJob deadline, a stash
+		# only ever resolves while the player is standing right there (walking
+		# away cancels it outright), so this never fires out from under them
+		# mid-menu or in another room.
+		_menu_scene.open(_dice_popup, "Draconology Roll: %s" % stash_id)
+		_dice_popup.show_roll(roll, "Draconology")
+		var ingredient_summary: Array[String] = []
+		for id in ingredients:
+			ingredient_summary.append("%d %s" % [ingredients[id], id])
+		log_message("The Dragon's Stash gives up its hoard! Received: %s." % ", ".join(ingredient_summary))
+		print("Dragon's Stash resolved at %s -- ingredients: %s" % [stash_id, ingredient_summary])
+		update_ingredients_label()
+	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
 		_menu_scene.open(_dice_popup, "Transmutation Roll")
 		_dice_popup.show_roll(roll, "Transmutation")

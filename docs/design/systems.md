@@ -286,7 +286,9 @@ Skill
   4. **Arcane History** — easier ley-line interactions returning more spectral ingredients, learns
      spectral ingredients faster. `leyline_ease`, `leyline_yield`, `learn_speed_spectral` **[STUB]**.
   5. **Draconology** — safer in draconic areas, more ingredients from draconic nodes, learns draconic
-     ingredients faster. `draconic_safety`, `draconic_yield`, `learn_speed_draconic` **[STUB]**.
+     ingredients faster. `draconic_safety` (Dragon's Stash roll modifier) and `draconic_yield`
+     (ingredients granted per stash) are both read by the Draconology / Dragon's Stash System
+     (system 19); `learn_speed_draconic` **[STUB]**.
   6. **Demonology** — better demon barter with less drawback, learns demonic ingredients faster.
      `demon_barter` (writ speed + submission roll modifier) and `demon_yield` (ingredients granted
      per writ) are both read by the Demonology / Contract System (system 17); `learn_speed_demonic`
@@ -1140,6 +1142,152 @@ Transmutation (autoload)
   `STARTING_SCRAP_COUNT` (3) pieces at random quality on a new game, the same stopgap role
   `STARTING_INGREDIENTS` plays for ingredients. A real acquisition path (buying, finding, a
   quest reward) is future scope.
+
+---
+
+## 19. Draconology / Dragon's Stash System **[BUILD]**
+
+Digging draconic ingredients out of a Dragon's Stash interactable. Player-tethered like the
+Contract Book (system 17) — progress only advances while the player stands at it — but with no
+pause/resume: walking away doesn't freeze a writ's progress in place, it throws the whole dig
+away, forcing a full restart (and a freshly rolled hidden quality) next time. It's also
+single-use: once resolved, the stash Interactable is destroyed and never comes back.
+
+**Fictional framing (why this system looks the way it does):** a Dragon's Stash isn't a shop
+fixture like the Contract Book or Workbench — it's meant to be procedurally scattered through a
+future exploration layer's "dragons' grounds," dangerous territory the player has no business
+lingering in. Digging one out is a commitment made under threat, not a safe errand: the player
+should feel the same tension a Contract Book gives them (a meter climbing, deciding whether to
+keep watching it) but sharpened by the possibility of a dragon showing up mid-dig. That's the
+whole reason walking away *cancels* instead of *pausing* — the Contract Book lets the player
+step away and pick a writ back up later because nothing in a shop punishes hesitation, but a
+stash is meant to force a real decision in the moment: commit to finishing the dig, or cut
+losses and flee, knowing that bailing costs everything gathered so far. It's also why a stash is
+destroyed on collection rather than reset to idle like a brew station or grow plot: the design
+intent is that dragons' grounds will later regenerate their stashes gradually over a period of
+days once collected (not in scope yet — see below), so "gone until the ground itself
+replenishes it" is the intended read, not "gone forever." Both of these are departures from
+every other interactable in the prototype, and only make sense in that light — see the "Walking
+away cancels" and "Single-use, and actually destroyed" notes below for the mechanical
+consequences.
+
+```
+DragonStashJob (scripts/data/dragon_stash_job.gd, RefCounted)
+  - stash_id: String
+  - minutes_elapsed: int
+  - minutes_required: int
+  - quality: float          # hidden, rerolled fresh every start_stash()
+
+Draconology (autoload)
+  - _jobs: Dictionary                # stash_id -> DragonStashJob, actively being dug only
+  - _collected_stash_ids: Dictionary # stash_id -> true, forever
+```
+
+- **`interact()` only ever starts the dig.** `DragonStashInteractable.interact()` calls
+  `Draconology.start_stash(stash_id)` if no job is running yet, or just logs a flavor message if
+  one already is — there's no submit/collect action for the player to take, unlike
+  `BrewStationInteractable`/`ContractBookInteractable`. `start_stash()` sets `minutes_required =
+  STASH_MINUTES` (5, deliberately much shorter than a writ or a brew) and rolls the job's hidden
+  `quality` from `Rng.range_f(QUALITY_MIN, QUALITY_MAX)` — independent of the player's Draconology
+  skill level, since this is meant to read as a property of *this particular stash* (some are just
+  better than others), the same "hidden per-instance quality" shape as `Inventory.scrap`'s per-unit
+  quality, not `WritJob.quality`'s skill-seeded roll.
+- **Engagement, not a deadline — and no pause.** A job existing in `Draconology._jobs` at all means
+  it's actively being dug: there's no separate `is_working` flag like `WritJob`'s, because
+  `RoomBuilder` guarantees a job is cancelled the instant the player leaves (see below), so
+  `_on_minute_tick()` just increments `minutes_elapsed` for every job that still exists. This is
+  the same "accumulator, not a `Clock.get_timestamp()` deadline" shape `WritJob` uses, deliberately
+  *not* `BrewJob`/`GrowPlotInstance`'s fire-and-forget shape — the loop is meant to be about staying
+  put, the same way a writ is.
+- **Walking away cancels, it doesn't pause.** `DragonStashInteractable`'s `player_exited` is wired
+  in `RoomBuilder._wire_interactable()` straight to `Draconology.cancel_stash(stash_id)`, which
+  erases the job outright and emits `stash_cancelled` — unlike `ContractBookInteractable`'s
+  `player_exited`, which calls `Demonology.pause_writ()` to freeze progress for a later resume.
+  This is the one deliberate behavioral difference from the Contract Book, and it's a fictional
+  one, not just a mechanical one: per the framing above, a stash sits out in dangerous
+  dragons' grounds territory, so stepping away is meant to read as fleeing a threat, not idly
+  wandering off from a shop fixture. Losing all progress on exit is what makes "keep digging or
+  cut losses and run" an actual decision under pressure instead of a free pause button. Opening
+  the Escape menu doesn't need special handling either way — `Clock.is_paused` already halts every
+  `minute_tick`, writs and stashes both.
+- **Resolution is automatic** once `minutes_elapsed >= minutes_required`, with nobody needing to
+  press anything further. `_resolve()` rolls `Rng.roll_2d10(Skills.get_bonus("draconic_safety"),
+  ROLL_DC)`; a critical success/failure shifts `quality` by `±CRIT_QUALITY_SWING`, same "crit only
+  nudges quality" rule `Demonology.submit_writ()`/`Transmutation.break_down_scrap()` both use.
+  Final quality drives ingredient count: `BASE_INGREDIENT_COUNT (1) + floor(quality /
+  QUALITY_INGREDIENT_DIVISOR (20.0)) + Skills.get_bonus("draconic_yield")`, granted from
+  `DRACONIC_INGREDIENT_IDS` (`dragon_scale`, `ember_dust` — the first two
+  `IngredientDef.Category.DRACONIC` resources; `source_methods = [SourceMethod.FORAGE]`,
+  `buy_price = 0`, only obtainable this way). Grants `XP_PER_STASH` (20) Draconology XP.
+- **The bar fills pale green → rich maroon** instead of Brewing's red → green or the Contract
+  Book's indigo → violet, purely a cosmetic choice to read as "danger climbing" rather than
+  "potion topping off." `DragonStashInteractable` follows `BrewStationInteractable`'s pattern for
+  geometry exactly (same `Panel`/`ProgressBar` dimensions, a fill `StyleBoxFlat` duplicated per
+  instance) so the bar reads at the same size as every other station's, not the oversized/squat
+  one an early draft accidentally shipped with. `RoomBuilder._sync_stash_indicator()` drives it
+  off `Draconology.get_job(stash_id)`, called on `stash_started`/`stash_progress`/
+  `stash_cancelled` — the same "no `Clock.minute_tick` polling needed" shape
+  `_sync_contract_indicator()` uses, since progress only ever changes on an engaged tick and
+  `stash_progress` already fires exactly then; a cancel clears the bar back to empty instead of
+  freezing it like a paused writ's meter would. Because `STASH_MINUTES` is only 5, each
+  `minute_tick` is just a fraction of a real second apart at normal speed — snapping
+  `ProgressBar.value` straight to the new fraction on every tick reads as a visible staircase
+  rather than a fill on a bar this short, so `DragonStashInteractable.set_stash_progress()` tweens
+  `value` to the new target over roughly one tick's real-world duration
+  (`1.0 / Clock.tick_rate_minutes_per_second`) instead of snapping it, which is enough to read as
+  a continuous fill without `Draconology` itself needing to know or care about real time.
+- **Single-use, and actually destroyed.** `Draconology.stash_resolved` (fired from `_resolve()`,
+  after the job is erased and the stash id is recorded into `_collected_stash_ids`) is wired in
+  `RoomBuilder.build_rooms()` to `queue_free()` the stash's Interactable node and drop it from
+  `_stash_nodes` — unlike every other Interactable type, which persists or gets cleared back to an
+  idle state, a resolved Dragon's Stash is just gone. This is the other departure the fictional
+  framing above explains: a permanent fixture like a brew station makes sense in a shop, but a
+  stash is a one-time find in the wild, and "gone" here specifically means gone-until-the-ground-
+  regenerates-it, not gone-forever — the regeneration itself just isn't built yet (see below).
+  Because `DragonStashInteractable` nodes are hand-placed in room scenes (like
+  `ContractBook`/`Workbench`, not runtime-instanced like grow plots), `_wire_interactable()` has to
+  guard the reload path too: on room load it checks `Draconology.is_collected(stash_id)` and
+  immediately `queue_free()`s the node instead of registering it, so a stash collected before a
+  save doesn't reappear when its room is loaded again.
+- **Destroying the node while the player is standing on it needed one extra guard.** Because the
+  tether guarantees the player is still overlapping the stash's `Area2D` at the exact moment it's
+  freed, Godot's physics-server cleanup fires a `body_exited` for it — which would otherwise
+  forward through `player_exited_interactable` into `main.gd`'s `_on_player_exited_interactable()`
+  and immediately `close_menu()` the dice-roll popup `hud.gd` just opened for this very
+  resolution (that handler's `close_menu()` call is correct for every other Interactable, where
+  the signal really does mean "the player walked away," but wrong here, where it only means "the
+  Interactable got destroyed"). `RoomBuilder._on_stash_resolved()` disconnects the node's
+  `player_exited` before freeing it and emits a dedicated `interactable_destroyed` signal instead,
+  which `main.gd`'s `_on_interactable_destroyed()` handles by clearing `_current_interactable`/the
+  HUD prompt *without* touching the menu. `_on_interact_pressed()` also gained an
+  `is_instance_valid()` guard as a defensive backstop against acting on a stale reference to a
+  freed Interactable.
+- **Feedback is the same dice-popup pattern as Demonology/Transmutation.** `hud.gd`'s
+  `Draconology.stash_resolved` handler opens `_dice_popup` in `MenuScene` (`show_roll(roll,
+  "Draconology")`) plus logs the ingredient summary, same as `Demonology.writ_submitted`/
+  `Transmutation.scrap_broken_down`. This is safe specifically because the tethering makes it safe:
+  a stash only ever resolves while the player is standing right there and `Clock` is unpaused (any
+  open `MenuScene` panel — including this one — sets `Clock.is_paused = true`, so a resolution can
+  never land underneath an already-open menu), which is the same guarantee a direct E-press gives
+  the other two systems.
+- **Save contract**: `Draconology.get_save_data()`/`load_save_data()` follow the same per-autoload
+  shape as system 14, registered in `SaveManager._SAVE_ORDER` right after `Demonology`. Active
+  jobs are deliberately *not* persisted — the player is never standing at the stash the instant a
+  save loads, and unlike a writ there's no paused state to restore into, so a save/load is simply
+  treated as another walk-away (any in-progress dig is just gone on reload, same as it would be if
+  the player had stepped away). Only `_collected_stash_ids` is persisted, so a finished stash
+  stays gone.
+- Not in scope for the prototype, but load-bearing for the fictional framing above and worth
+  keeping in mind when touching this system: **dragons' grounds** as an actual place — a
+  dangerous zone in the future exploration layer (system 12, still `[STUB]`) that procedurally
+  scatters Dragon's Stash instances through it instead of the single hand-placed
+  `dragon_stash_1` that stands in for one today; a **regeneration mechanic** that slowly
+  restocks a ground's stashes over a period of days once collected, which is the piece that
+  turns `Draconology.is_collected()`'s permanence into something temporary — when that lands,
+  collected-ness likely needs a timestamp instead of a bare bool, and `_wire_interactable()`'s
+  reload guard will need to check "collected and not yet due to respawn" rather than "collected,
+  full stop"; and `learn_speed_draconic` (no ingredient-learning system exists yet for any
+  category).
 
 ---
 
