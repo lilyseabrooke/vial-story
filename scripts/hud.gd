@@ -236,6 +236,31 @@ func _connect_autoload_signals() -> void:
 		_game_over_label.visible = true
 		print("GAME OVER: strikes reached the limit.")
 	)
+	Demonology.writ_started.connect(func(_book_id: String) -> void:
+		log_message("A new writ takes shape at the Contract Book.")
+	)
+	Demonology.writ_first_draft_done.connect(func(_book_id: String, quality: float) -> void:
+		log_message("First draft of the writ finished (quality %.0f) -- revising automatically." % quality)
+		print("Writ first draft done: quality %.1f" % quality)
+	)
+	Demonology.writ_revised.connect(func(book_id: String, revisions_completed: int, quality: float) -> void:
+		print("Writ revised at %s: revision %d, quality %.1f" % [book_id, revisions_completed, quality])
+	)
+	Demonology.writ_submitted.connect(func(book_id: String, roll: Dictionary, ingredients: Dictionary, drawback_messages: Array) -> void:
+		_menu_scene.open(_dice_popup, "Demonology Roll: %s" % book_id)
+		_dice_popup.show_roll(roll, "Demonology")
+		var ingredient_summary: Array[String] = []
+		for id in ingredients:
+			ingredient_summary.append("%d %s" % [ingredients[id], id])
+		var drawback_summary := "; ".join(drawback_messages) if not drawback_messages.is_empty() else "no immediate drawbacks"
+		log_message("Writ submitted! Received: %s. %s" % [", ".join(ingredient_summary), drawback_summary])
+		print("Writ submitted at %s -- ingredients: %s, drawbacks: %s" % [book_id, ingredient_summary, drawback_messages])
+		update_ingredients_label()
+	)
+	Demonology.consequence_triggered.connect(func(message: String) -> void:
+		log_message(message)
+		print("Delayed demonic consequence: %s" % message)
+	)
 	Alchemy.recipe_learned.connect(func(recipe_id: String) -> void:
 		var recipe := ContentRegistry.get_recipe(recipe_id)
 		log_message("Learned recipe: %s!" % (recipe.display_name if recipe else recipe_id))

@@ -30,6 +30,7 @@ var _rooms: Dictionary = {}             # room_id -> Room
 var _spawn_points: Dictionary = {}      # room_id -> Vector2
 var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
+var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -72,6 +73,16 @@ func build_rooms() -> void:
 	for station_id in _station_nodes:
 		_sync_station_indicator(station_id)
 
+	Demonology.writ_started.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_progress.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_first_draft_done.connect(func(book_id: String, _quality: float) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_revised.connect(func(book_id: String, _revisions: int, _quality: float) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_paused.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_resumed.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
+	Demonology.writ_submitted.connect(func(book_id: String, _roll: Dictionary, _ingredients: Dictionary, _messages: Array) -> void: _sync_contract_indicator(book_id))
+	for book_id in _contract_nodes:
+		_sync_contract_indicator(book_id)
+
 
 ## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -97,6 +108,12 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
 	if interactable is BrewStationInteractable:
 		_station_nodes[interactable.target_id] = interactable
+	elif interactable is ContractBookInteractable:
+		_contract_nodes[interactable.target_id] = interactable
+		# Walking away always pauses the writ (design: movement pauses
+		# progress); resuming is deliberately only done from interact()
+		# (an E-press), not just from re-entering the proximity area.
+		interactable.player_exited.connect(func(_i: InteractableBase) -> void: Demonology.pause_writ(interactable.target_id))
 
 
 func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
@@ -169,6 +186,22 @@ func _sync_station_indicator(station_id: String) -> void:
 		var total := float(job.ready_timestamp - job.start_timestamp)
 		var elapsed := float(Clock.get_timestamp() - job.start_timestamp)
 		node.set_brew_progress(elapsed / total if total > 0.0 else 1.0)
+
+
+## Drives a Contract Book Interactable's meter/diamonds from Demonology's
+## current state -- called on every relevant Demonology signal. Unlike
+## brewing's indicator, no Clock.minute_tick hook is needed here: progress
+## only ever changes on an engaged minute tick, and Demonology.writ_progress
+## already fires exactly then.
+func _sync_contract_indicator(book_id: String) -> void:
+	var node: ContractBookInteractable = _contract_nodes.get(book_id)
+	if node == null:
+		return
+	var writ := Demonology.get_writ(book_id)
+	if writ == null:
+		node.clear_writ_indicator()
+	else:
+		node.set_writ_progress(writ.progress_fraction(), writ.revisions_completed)
 
 
 func _on_plot_added(plot_id: String) -> void:

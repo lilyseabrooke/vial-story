@@ -14,7 +14,7 @@ const DAY_LENGTH_MINUTES := 1200   # forced collapse 20 hours later, i.e. 2:00 A
 const MINUTES_PER_CALENDAR_DAY := 1440
 const WEEKEND_DAY_INDICES := [5, 6]
 
-@export var tick_rate_minutes_per_second: float = 10.0
+@export var tick_rate_minutes_per_second: float = 2.5
 var is_paused: bool = false
 
 var day_number: int = 0

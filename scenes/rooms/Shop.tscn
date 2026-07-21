@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/SupplyShelfInteractable.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ClassDoorInteractable.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="7"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -68,5 +69,12 @@ prompt_text = "go upstairs to the Bedroom"
 display_name = "Stairs Up"
 visual_color = Color(0.5, 0.5, 0.55, 1)
 target_room = "bedroom"
+
+[node name="ContractBook" parent="Interactables" instance=ExtResource("7")]
+position = Vector2(520, 300)
+target_id = "contract_book_1"
+prompt_text = "open the Contract Book"
+display_name = "Contract Book"
+visual_color = Color(0.35, 0.15, 0.5, 1)
 
 [node name="Plots" type="Node2D" parent="." unique_id=1672512134]

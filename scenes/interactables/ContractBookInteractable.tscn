@@ -1,0 +1,178 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/contract_book_interactable.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ui/components/diamond_marker.gd" id="3"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_writ_bg"]
+bg_color = Color(0.1, 0.1, 0.13, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.85, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_writ_bg"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_writ_fill"]
+bg_color = Color(0.16, 0.13, 0.4, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_left = 2
+corner_radius_bottom_right = 2
+
+[node name="ContractBookInteractable" instance=ExtResource("1")]
+script = ExtResource("2")
+
+[node name="WritProgressContainer" type="Panel" parent="."]
+visible = false
+offset_left = -10.0
+offset_top = -104.0
+offset_right = 10.0
+offset_bottom = -46.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_writ_bg")
+
+[node name="WritProgress" type="ProgressBar" parent="WritProgressContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 3.0
+offset_top = 3.0
+offset_right = -3.0
+offset_bottom = -3.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/background = SubResource("StyleBoxEmpty_writ_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_writ_fill")
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+value = 0.0
+fill_mode = 3
+show_percentage = false
+
+[node name="TensDiamonds" type="GridContainer" parent="."]
+offset_left = -46.0
+offset_top = -104.0
+offset_right = -16.0
+offset_bottom = -74.0
+columns = 3
+
+[node name="Tens0" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens1" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens2" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens3" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens4" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens5" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens6" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens7" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="Tens8" type="Control" parent="TensDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.831, 0.686, 0.216, 1)
+
+[node name="OnesDiamonds" type="GridContainer" parent="."]
+offset_left = 16.0
+offset_top = -104.0
+offset_right = 46.0
+offset_bottom = -74.0
+columns = 3
+
+[node name="Ones0" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones1" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones2" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones3" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones4" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones5" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones6" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones7" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)
+
+[node name="Ones8" type="Control" parent="OnesDiamonds"]
+visible = false
+custom_minimum_size = Vector2(8, 8)
+script = ExtResource("3")
+fill_color = Color(0.549, 0.353, 0.706, 1)

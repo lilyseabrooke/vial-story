@@ -283,7 +283,9 @@ Skill
   5. **Draconology** — safer in draconic areas, more ingredients from draconic nodes, learns draconic
      ingredients faster. `draconic_safety`, `draconic_yield`, `learn_speed_draconic` **[STUB]**.
   6. **Demonology** — better demon barter with less drawback, learns demonic ingredients faster.
-     `demon_barter`, `demon_yield`, `learn_speed_demonic` **[STUB]**.
+     `demon_barter` (writ speed + submission roll modifier) and `demon_yield` (ingredients granted
+     per writ) are both read by the Demonology / Contract System (system 17); `learn_speed_demonic`
+     **[STUB]**.
   7. **Transmutation** — better dismantling of objects for materials, learns artificial ingredients
      faster. `transmute_ease`, `transmute_yield`, `learn_speed_artificial` **[STUB]**.
   8. **Charm** — better social-check success, unlocks new dialog options. `social_check_bonus`
@@ -296,8 +298,9 @@ Skill
   11. **Insight** — better shop sales and customer retention. `shop_sales`, `customer_retention`
       **[STUB — Shop doesn't read these yet]**.
 - Skills whose category-linked ingredient-learning effect isn't consumed anywhere yet (Summoning,
-  Arcane History, Draconology, Demonology, Transmutation) still exist fully as data — only the
-  mechanic that would read `learn_speed_*` is unbuilt, same scope choice as the old Summoning stub.
+  Arcane History, Draconology, Transmutation, and Demonology's own `learn_speed_demonic`) still exist
+  fully as data — only the mechanic that would read `learn_speed_*` is unbuilt, same scope choice as
+  the old Summoning stub.
 - Ingredient category ↔ skill mapping (`Skills.CATEGORY_SKILL_IDS`, `IngredientDef.Category`):
   NATURAL→Herbalism, ARTIFICIAL→Transmutation, SPECTRAL→Arcane History, DEMONIC→Demonology,
   DRACONIC→Draconology, EXTRAPLANAR→Summoning.
@@ -974,6 +977,116 @@ Rng (autoload)
 
 ---
 
+## 17. Demonology / Contract System **[BUILD]**
+
+Bartering with a demonic entity for demonic ingredients, via a Contract Book interactable.
+Unlike Brewing/Herbalism, a writ's timer only advances while the player is physically
+standing at the book — walking away or opening the Escape menu pauses it — so the
+loop is deliberately about staying put and watching a meter climb, not a
+fire-and-forget deadline.
+
+```
+WritJob (scripts/data/writ_job.gd, RefCounted)
+  - book_id: String
+  - status: Status(WRITING, REVISING)
+  - is_working: bool
+  - minutes_elapsed: int
+  - minutes_required: int
+  - quality: float
+  - revisions_completed: int
+
+Demonology (autoload)
+  - _writs: Dictionary            # book_id -> WritJob
+  - _pending_consequences: Array[Dictionary]  # {type, severity, trigger_timestamp}
+```
+
+- **Writing, then automatic revision.** `start_writ(book_id)` opens a writ in the
+  `WRITING` phase (`BASE_WRITING_MINUTES` = 60, reduced by the Demonology skill's
+  `demon_barter` bonus). Finishing WRITING rolls an initial `quality` from
+  `Skills.level("demonology")` plus `±QUALITY_BASE_VARIANCE` random swing, flips the
+  writ to `REVISING`, and immediately starts the first revision — the player never has
+  to re-trigger revising, only submission. Every revision costs the same fixed
+  `BASE_REVISION_MINUTES` (30, i.e. exactly half of the writing time, also
+  `demon_barter`-reduced) regardless of how many have already happened; only the
+  *quality bonus per revision* shrinks, geometrically (`FIRST_REVISION_BONUS *
+  REVISION_DECAY^(n-1)`), matching "smaller bonus each time" without making later
+  revisions faster or slower than earlier ones.
+- **Engagement, not a deadline.** `WritJob.minutes_elapsed`/`minutes_required` is an
+  accumulator `Demonology._on_minute_tick()` increments only for writs whose
+  `is_working` is true — never a `Clock.get_timestamp()` deadline comparison like
+  `BrewJob`/`GrowPlotInstance`. `ContractBookInteractable` is the only interactable
+  whose `player_exited` signal is wired (in `RoomBuilder._wire_interactable()`) to
+  mutate autoload state directly (`Demonology.pause_writ()`) rather than just clearing
+  the HUD prompt — walking away is the pause button. Opening the Escape menu doesn't
+  need special-casing at all: `Clock.is_paused` already halts every Clock-driven system,
+  writs included.
+- **`interact()` is a three-way toggle**, not a menu open like `BrewStationInteractable`:
+  no writ → `start_writ()`; an existing writ currently `is_working` → `submit_writ()` if
+  it's past its first draft (`REVISING`), or just `pause_writ()` if it's still on its
+  initial `WRITING` pass (nothing to submit yet); a paused writ → `resume_writ()`. No
+  `MenuScene` panel is involved in the core loop at all — pausing the Clock (which
+  `MenuScene.open()` does) would also freeze the player, making "walk away to pause"
+  impossible, so the entire mechanic lives in world-space HUD (the meter + diamonds
+  above the book), the same shape as `BrewStationInteractable`'s progress bar.
+- **Submission**: `submit_writ()` rolls `Rng.roll_2d10(Skills.get_bonus("demon_barter"),
+  SUBMIT_DC)`; a critical success/failure only shifts `quality` by `±CRIT_QUALITY_SWING`
+  (per the design note that crits just nudge quality, nothing more exotic). Final
+  quality drives two independent outputs:
+  - **Ingredient count** — `BASE_INGREDIENT_COUNT + floor(quality / QUALITY_INGREDIENT_DIVISOR)
+    + Skills.get_bonus("demon_yield")`, granted from `DEMONIC_INGREDIENT_IDS` (currently
+    `imp_ash`, `brimstone_shard` — the first two `IngredientDef.Category.DEMONIC`
+    resources; `source_methods = [SourceMethod.SUMMON]`, `buy_price = 0` since they're
+    only obtainable through a writ, never bought).
+  - **Drawback count** — `_drawback_count_for_quality()`: 0 at/above `quality
+    100`, climbing to `MAX_DRAWBACKS` (4) well below `70`. Each rolled drawback is one
+    of `ConsequenceType` (`RESOLVE_LOSS`, `REPUTATION_LOSS`, `CLASS_PERFORMANCE_LOSS`,
+    `RELATIONSHIP_LOSS`, `SHOP_STOCK_LOSS`, `INVENTORY_LOSS`), each independently a
+    coin-flip between firing immediately (`_apply_consequence_now()`) or queued
+    `FUTURE_CONSEQUENCE_MIN/MAX_DAYS` out into `_pending_consequences`, resolved by
+    `_resolve_pending_consequences()` comparing against `Clock.get_timestamp()` on every
+    `minute_tick` — the one deadline-style timestamp comparison in this system, since
+    delayed consequences (unlike writ progress) should land whether or not the player
+    is standing at the book.
+  - **"Shop damage"** (from the original design brief) has no drawback branch — there's
+    no shop-condition/durability stat anywhere in the game yet to damage, unlike
+    `Shop.reputation` (system 5's existing, previously-unread stat, which
+    `REPUTATION_LOSS` is now the first thing to actually decrement). Not stubbing a new
+    stat for one drawback type keeps this in scope; a mechanical shop-damage system
+    would be a prerequisite, not part of this feature.
+- **The meter and diamonds** live entirely on `ContractBookInteractable`
+  (`scripts/contract_book_interactable.gd` + `scenes/interactables/
+  ContractBookInteractable.tscn`), following `BrewStationInteractable`'s pattern exactly
+  (a `Panel`/`ProgressBar` child, a fill `StyleBoxFlat` duplicated per instance so
+  recoloring one book doesn't bleed into others) but filling deep midnight indigo →
+  violet instead of red → green. Two `GridContainer`s of 9 pre-placed,
+  individually-toggled-visible `DiamondMarker` controls
+  (`scripts/ui/components/diamond_marker.gd` — a plain `Control` that draws its own
+  diamond polygon in `_draw()`, rather than a rotated `ColorRect`, since
+  `Container.fit_child_in_rect()` resets a child's rotation to 0 on every layout pass
+  and so silently un-rotates anything rotated inside a `GridContainer`) sit to either
+  side of the meter: `OnesDiamonds` (violet, `revisions_completed % 10`) and
+  `TensDiamonds` (gold, `revisions_completed / 10`, capped at 9, filled right-to-left
+  via `_set_diamond_row()`'s `reversed` flag so both grids grow outward from the meter
+  at the center). `RoomBuilder._sync_contract_indicator()` is the single function
+  driving all of it from `Demonology.get_writ(book_id)`, called on every relevant
+  Demonology signal — no `Clock.minute_tick` polling hook needed here (unlike
+  Brewing's indicator sync) since `writ_progress` already fires on exactly the ticks
+  that matter. Reaching `MAX_REVISIONS` (100) auto-submits and files the writ away — an
+  explicit edge case for something never expected to happen in normal play (most writs
+  are expected to land around 3-7 revisions).
+- **Save contract**: `Demonology.get_save_data()`/`load_save_data()` follow the same
+  per-autoload shape as every other system (system 14) — registered in
+  `SaveManager._SAVE_ORDER` right after `Academy`. `is_working` is deliberately never
+  persisted as `true`: the player is never standing at the book at the instant a save
+  loads, so every restored writ comes back paused, same state a real walk-away would
+  leave it in.
+- Not in scope for the prototype: a Contract Book UI/menu for reviewing writ history,
+  a demon-specific "who you're bartering with" identity/relationship (drawbacks pick
+  a uniformly random `Characters` id for `RELATIONSHIP_LOSS`, not a dedicated demon
+  NPC), and the mechanical shop-damage stat noted above.
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)
@@ -992,9 +1105,10 @@ Rng (autoload)
 
 ## Open Design Questions (not yet decided)
 
-- Shop reputation: `Shop.reputation` exists as a stat now (starts at 0, saved/loaded)
-  but nothing reads it yet — sale-chance is still flat/price-only. What should move
-  it, and how should it weight into sale-chance/pricing?
+- Shop reputation: `Shop.reputation` is now decremented by botched demonic writs
+  (system 17), but nothing reads it as an input yet — sale-chance is still
+  flat/price-only. What should move it upward, and how should it weight into
+  sale-chance/pricing?
 - Exact grade formula (attendance weight vs. exam performance vs. prep actions).
 - Resolve regen curve on sleep (full reset vs. partial) and whether any daytime rest
   action should exist in the prototype.

@@ -17,6 +17,8 @@ const INGREDIENT_PATHS := [
 	"res://data/ingredients/iron_filings.tres",
 	"res://data/ingredients/ghostcap_mushroom.tres",
 	"res://data/ingredients/grave_dust.tres",
+	"res://data/ingredients/imp_ash.tres",
+	"res://data/ingredients/brimstone_shard.tres",
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",
