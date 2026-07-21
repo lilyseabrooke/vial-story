@@ -20,6 +20,7 @@ var _starting_ingredients: Dictionary = {}
 
 var _calendar_label: Label
 var _time_label: Label
+var _speed_buttons: Array[Button] = []
 var _materials_label: Label
 var _resolve_bar: ProgressBar
 var _resolve_label: Label
@@ -70,6 +71,25 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_time_label = Label.new()
 	calendar_vbox.add_child(_time_label)
 
+	# Sims-style time speed buttons — 1x/1.5x/2x, radio-selected via a shared
+	# ButtonGroup so exactly one is ever pressed. Clock.set_speed_level()
+	# eases the actual tick rate toward the new target rather than snapping.
+	var speed_hbox := HBoxContainer.new()
+	calendar_vbox.add_child(speed_hbox)
+	var speed_group := ButtonGroup.new()
+	var speed_labels := ["1x", "1.5x", "2x"]
+	for i in speed_labels.size():
+		var speed_button := Button.new()
+		speed_button.text = speed_labels[i]
+		speed_button.toggle_mode = true
+		speed_button.button_group = speed_group
+		speed_button.button_pressed = (i == Clock.speed_level)
+		speed_button.pressed.connect(func() -> void:
+			Clock.set_speed_level(i)
+		)
+		_speed_buttons.append(speed_button)
+		speed_hbox.add_child(speed_button)
+
 	calendar_vbox.add_child(HSeparator.new())
 
 	_materials_label = Label.new()
@@ -86,7 +106,7 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	calendar_vbox.add_child(HSeparator.new())
 
 	var hint := Label.new()
-	hint.text = "WASD: move | E: interact | Esc: menu | Space: pause | R: drain Resolve (debug) | Up/Down: tick rate"
+	hint.text = "WASD: move | E: interact | Esc: menu | Space: pause | R: drain Resolve (debug) | 1/2/3: speed"
 	hint.modulate = Color(0.6, 0.6, 0.6)
 	hint.custom_minimum_size = Vector2(200, 0)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -168,6 +188,9 @@ func _connect_autoload_signals() -> void:
 	Clock.day_ended.connect(func(reason: int) -> void:
 		log_message("Day ended: %s" % END_REASON_NAMES[reason])
 		print("Day ended: %s" % END_REASON_NAMES[reason])
+	)
+	Clock.speed_level_changed.connect(func(level: int) -> void:
+		_speed_buttons[level].button_pressed = true
 	)
 	Brewing.brew_started.connect(func(station_id: String, recipe_id: String) -> void:
 		var recipe := ContentRegistry.get_recipe(recipe_id)

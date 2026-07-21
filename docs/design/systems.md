@@ -28,6 +28,11 @@ Clock
 
 - Day runs roughly 6:00 AM to a soft cap around 2:00 AM; nothing else is phase-gated,
   the player just moves around and acts freely in real time.
+- **Speed controls** (Sims-style): 1x/1.5x/2x buttons in the HUD (and 1/2/3 hotkeys)
+  call `Clock.set_speed_level()`, which multiplies the base tick rate. The actual
+  `tick_rate_minutes_per_second` eases toward the new target every frame
+  (`move_toward` in `_process`) instead of snapping, so speed changes read as a
+  smooth ramp rather than a jump cut.
 - **Ending a day** has three independent triggers, all routed through one
   `AdvanceToNextDay(reason)` resolution so there's a single source of truth for
   "day is over":

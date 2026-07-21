@@ -73,10 +73,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_interact_pressed()
 		KEY_R:
 			Resolve.spend(20, "debug key")
-		KEY_UP:
-			Clock.tick_rate_minutes_per_second += 5.0
-		KEY_DOWN:
-			Clock.tick_rate_minutes_per_second = max(1.0, Clock.tick_rate_minutes_per_second - 5.0)
+		KEY_1:
+			Clock.set_speed_level(0)
+		KEY_2:
+			Clock.set_speed_level(1)
+		KEY_3:
+			Clock.set_speed_level(2)
 
 
 func _on_interact_pressed() -> void:

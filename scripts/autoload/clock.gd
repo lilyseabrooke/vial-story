@@ -5,6 +5,7 @@ extends Node
 signal minute_tick(timestamp: int)
 signal day_started(day_number: int, day_type: int)
 signal day_ended(reason: EndReason)
+signal speed_level_changed(level: int)
 
 enum DayType { WEEKDAY, WEEKEND }
 enum EndReason { SLEEP, LATE_COLLAPSE, RESOLVE_COLLAPSE }
@@ -14,22 +15,52 @@ const DAY_LENGTH_MINUTES := 1200   # forced collapse 20 hours later, i.e. 2:00 A
 const MINUTES_PER_CALENDAR_DAY := 1440
 const WEEKEND_DAY_INDICES := [5, 6]
 
+# Sims-style speed buttons: index 0/1/2 = 1x/1.5x/2x, multiplying the base rate.
+const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.5, 2.0]
+# How fast tick_rate_minutes_per_second eases toward the target speed's rate —
+# higher = snappier. Tuned so a 1x<->2x swing takes a few hundred ms rather
+# than snapping instantly (jerky) or crawling (feels unresponsive).
+const SPEED_EASE_RATE := 6.0
+
 @export var tick_rate_minutes_per_second: float = 2.5
 var is_paused: bool = false
 
 var day_number: int = 0
 var minutes_into_day: int = 0
+var speed_level: int = 0
 
 var _accumulator: float = 0.0
+var _base_tick_rate: float = 2.5
+var _target_tick_rate: float = 2.5
+
+
+func _ready() -> void:
+	_base_tick_rate = tick_rate_minutes_per_second
+	_target_tick_rate = tick_rate_minutes_per_second
 
 
 func _process(delta: float) -> void:
+	tick_rate_minutes_per_second = move_toward(
+		tick_rate_minutes_per_second, _target_tick_rate, _target_tick_rate * SPEED_EASE_RATE * delta
+	)
 	if is_paused:
 		return
 	_accumulator += delta * tick_rate_minutes_per_second
 	while _accumulator >= 1.0:
 		_accumulator -= 1.0
 		_tick_one_minute()
+
+
+## Sims-style 1x/1.5x/2x speed buttons. Eases tick_rate_minutes_per_second
+## toward the new target over time (see _process) rather than snapping, so
+## time visibly speeds up/slows down instead of jerking between rates.
+func set_speed_level(level: int) -> void:
+	level = clampi(level, 0, SPEED_MULTIPLIERS.size() - 1)
+	if level == speed_level:
+		return
+	speed_level = level
+	_target_tick_rate = _base_tick_rate * SPEED_MULTIPLIERS[level]
+	speed_level_changed.emit(speed_level)
 
 
 func _tick_one_minute() -> void:
