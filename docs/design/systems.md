@@ -211,7 +211,7 @@ BrewJob
   success and sets `potion_count = 2` (no stacking if both dice show 10). A natural
   1+10 pair is an "inflection point" — shown distinctly in the popup, but has no
   mechanics attached yet.
-- Each `BREW_STATION` `Interactable` shows a bottom-to-top progress bar above it while
+- Each `BrewStationInteractable` shows a bottom-to-top progress bar above it while
   `Brewing`, swapping to a "Ready!" popup once the job's status flips to `Ready`
   (`RoomBuilder._sync_station_indicator()`, driven off `Brewing`'s signals plus
   `Clock.minute_tick` so it also restores correctly on a loaded save). A station with
@@ -457,26 +457,44 @@ CurseState
   (currently `scenes/rooms/Shop.tscn` and `Bedroom.tscn`), each a
   `Room`-scripted (`scripts/room.gd`) `Node2D` with `Floor`/`Walls`
   `TileMapLayer`s, `CameraCenter`/`SpawnPoint` `Marker2D`s, and an
-  `Interactables` container of pre-placed `Interactable` instances configured
+  `Interactables` container of pre-placed interactable instances configured
   entirely via the Inspector. `RoomBuilder.build_rooms()`
   (`scripts/room_builder.gd`) loads both scenes up front, reads each room's
-  markers, and wires every pre-placed `Interactable`'s signals; grow-plot
-  `Interactable`s are the one exception and stay code-instanced (into a
+  markers, and wires every pre-placed interactable's signals; grow-plot
+  interactables are the one exception and stay code-instanced (into a
   `Plots` container node) since they come from runtime `Herbalism` data. Only
   one room is active at a time — `switch_room()` toggles `visible`/
   `process_mode` on the room scenes (inactive rooms are
-  `PROCESS_MODE_DISABLED`, which also stops their `Interactable` areas from
+  `PROCESS_MODE_DISABLED`, which also stops their interactable areas from
   firing enter/exit signals while hidden) and repositions the single shared
   player + camera. The player and camera are scene-level nodes, not per-room,
   so they persist across a switch. Wall tiles carry real collision (physics
   layer 2, named "Walls" in `project.godot`'s `[layer_names]`; `Player`'s
   `collision_mask` includes it) — floor tiles don't.
-- **Room transitions** are just another `Interactable.Type` (`STAIRS`), configured
-  with a `target_room` id and a `spawn_position` in the destination room, the
-  same per-instance-config pattern as every other interactable type. The Bed
-  lives in the Bedroom; the Shop's brew station/stock box/supply shelf/class
-  door/grow plots stay in the Shop, connected by a stairs interactable in each
-  room pointing at the other.
+- **Interactables**: one base scene/script per behavior rather than a single
+  generic node configured by a type enum — `InteractableBase`
+  (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
+  owns the shared Area2D proximity signals and visual/label chrome, and each
+  concrete type (`BrewStationInteractable`, `StockBoxInteractable`,
+  `GrowPlotInteractable`, `SupplyShelfInteractable`, `BedInteractable`,
+  `ClassDoorInteractable`, `StairsInteractable`) is its own scene inheriting
+  that base scene, pairing a `class_name` script that overrides
+  `interact(main: MainScene)` with the actual action for that type (calling
+  Brewing/Shop/Herbalism/Economy/Clock/Academy directly, or reaching into
+  `main.hud`/`main.room_builder` for the systems that need HUD or room-level
+  state). `MainScene._on_interact_pressed()` just calls
+  `_current_interactable.interact(self)` — dispatch is polymorphism, not a
+  type match. `BrewStationInteractable` alone adds the brew progress
+  bar/ready-popup child nodes and their `set_brew_progress()`/
+  `show_brew_ready()`/`clear_brew_indicator()` methods, since no other type
+  needs an in-world progress indicator.
+- **Room transitions** are just another interactable type
+  (`StairsInteractable`), configured with a `target_room` id and a
+  `spawn_position` in the destination room, the same per-instance-config
+  pattern as every other interactable. The Bed lives in the Bedroom; the
+  Shop's brew station/stock box/supply shelf/class door/grow plots stay in
+  the Shop, connected by a stairs interactable in each room pointing at the
+  other.
 
 ---
 

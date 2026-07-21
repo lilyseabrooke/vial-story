@@ -1,3 +1,4 @@
+class_name MainScene
 extends Node2D
 ## Wires the autoload systems to the world (RoomBuilder) and the presentation
 ## layer (GameHud). Most signal handling lives in those two scripts now —
@@ -19,9 +20,9 @@ const STARTING_INGREDIENTS := {
 }
 const STARTING_QUESTS := ["first_brew", "stock_the_shelf"]
 
-var _room_builder: RoomBuilder
-var _hud: GameHud
-var _current_interactable: Interactable = null
+var room_builder: RoomBuilder
+var hud: GameHud
+var _current_interactable: InteractableBase = null
 
 
 func _ready() -> void:
@@ -34,16 +35,16 @@ func _ready() -> void:
 
 
 func _start_game(player_color: Color) -> void:
-	_room_builder = RoomBuilder.new()
-	add_child(_room_builder)
-	_room_builder.build_rooms()
-	_room_builder.player_entered_interactable.connect(_on_player_entered_interactable)
-	_room_builder.player_exited_interactable.connect(_on_player_exited_interactable)
-	_room_builder.player.get_node("Visual").color = player_color
+	room_builder = RoomBuilder.new()
+	add_child(room_builder)
+	room_builder.build_rooms()
+	room_builder.player_entered_interactable.connect(_on_player_entered_interactable)
+	room_builder.player_exited_interactable.connect(_on_player_exited_interactable)
+	room_builder.player.get_node("Visual").color = player_color
 
-	_hud = GameHud.new()
-	add_child(_hud)
-	_hud.build(STATION_ID, STARTING_INGREDIENTS)
+	hud = GameHud.new()
+	add_child(hud)
+	hud.build(STATION_ID, STARTING_INGREDIENTS)
 
 	Herbalism.ready_to_harvest.connect(_on_ready_to_harvest)
 	Herbalism.harvested.connect(_on_harvested)
@@ -64,10 +65,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match event.keycode:
 		KEY_SPACE:
-			if not _hud.is_menu_open():
+			if not hud.is_menu_open():
 				Clock.is_paused = not Clock.is_paused
 		KEY_ESCAPE:
-			_hud.toggle_game_menu()
+			hud.toggle_game_menu()
 		KEY_E:
 			_on_interact_pressed()
 		KEY_R:
@@ -81,92 +82,46 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_interact_pressed() -> void:
 	if _current_interactable == null:
 		return
-	match _current_interactable.interactable_type:
-		Interactable.Type.BREW_STATION:
-			_interact_brew_station(_current_interactable.target_id)
-		Interactable.Type.SUPPLY_SHELF:
-			_hud.toggle_menu(_hud.supply_panel, "Supplies")
-		Interactable.Type.STOCK_BOX:
-			_hud.on_stock_button_pressed()
-		Interactable.Type.BED:
-			Clock.sleep()
-		Interactable.Type.CLASS_DOOR:
-			_hud.attend_class()
-		Interactable.Type.GROW_PLOT:
-			_interact_grow_plot(_current_interactable.target_id)
-		Interactable.Type.STAIRS:
-			_switch_room(_current_interactable.target_room, _current_interactable.spawn_position)
-
-
-## A station with no job open the brew menu; a finished one auto-collects
-## (failing quietly if there's no potion room); a still-brewing one can't be
-## interacted with at all.
-func _interact_brew_station(station_id: String) -> void:
-	var station := Brewing.get_station(station_id)
-	var job := station.current_job if station else null
-	if job == null:
-		_hud.toggle_menu(_hud.brew_panel, "Brewing")
-	elif job.status == BrewJob.Status.READY:
-		if not Brewing.collect(station_id):
-			_hud.log_message("Inventory is full — couldn't collect the potion.")
-	else:
-		_hud.log_message("Still brewing — check back later.")
-
-
-func _interact_grow_plot(plot_id: String) -> void:
-	var plot := Herbalism.get_plot(plot_id)
-	if plot.status == GrowPlotInstance.Status.READY_TO_HARVEST:
-		if not Herbalism.harvest(plot_id):
-			_hud.log_message("Nothing to harvest at %s." % plot_id)
-		_room_builder.update_plot_label(plot_id)
-	elif plot.status == GrowPlotInstance.Status.EMPTY:
-		if ContentRegistry.seeds.size() > 0:
-			var seed_def: SeedDef = ContentRegistry.seeds[0]
-			var error := Herbalism.plant(plot_id, seed_def)
-			_hud.log_message("Couldn't plant in %s: %s" % [plot_id, error] if error != "" \
-				else "Planted %s in %s." % [seed_def.display_name, plot_id])
-			_room_builder.update_plot_label(plot_id)
-	else:
-		_hud.log_message("%s is still growing." % plot_id)
+	_current_interactable.interact(self)
 
 
 ## The one place rooms get switched: resets interaction/menu state left over
 ## from the room we're leaving, then hands off to RoomBuilder for the actual
-## room/camera/player move.
-func _switch_room(room_id: String, spawn_position: Vector2) -> void:
+## room/camera/player move. Called by StairsInteractable.interact().
+func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	_current_interactable = null
-	_hud.set_prompt("")
-	_hud.close_menu()
-	_room_builder.switch_room(room_id, spawn_position)
+	hud.set_prompt("")
+	hud.close_menu()
+	room_builder.switch_room(room_id, spawn_position)
 
 
-func _on_player_entered_interactable(interactable: Interactable) -> void:
+func _on_player_entered_interactable(interactable: InteractableBase) -> void:
 	if _current_interactable != interactable:
 		# Entering a different interactable always resets any menu left open
 		# by the previous one — exit/enter signal order isn't guaranteed when
 		# both fire on the same physics step (e.g. a large instantaneous move).
-		_hud.close_menu()
+		hud.close_menu()
 	_current_interactable = interactable
-	_hud.set_prompt("Press E: %s" % interactable.prompt_text)
+	hud.set_prompt("Press E: %s" % interactable.prompt_text)
 
 
-func _on_player_exited_interactable(interactable: Interactable) -> void:
+func _on_player_exited_interactable(interactable: InteractableBase) -> void:
 	if _current_interactable != interactable:
 		return
 	_current_interactable = null
-	_hud.set_prompt("")
-	_hud.close_menu()
+	hud.set_prompt("")
+	hud.close_menu()
 
 
 func _on_ready_to_harvest(plot_id: String, _seed_id: String) -> void:
-	_hud.log_message("%s is ready to harvest!" % plot_id)
+	hud.log_message("%s is ready to harvest!" % plot_id)
 	print("%s ready to harvest." % plot_id)
-	_room_builder.update_plot_label(plot_id)
+	room_builder.update_plot_label(plot_id)
 
 
 func _on_harvested(plot_id: String, ingredient_id: String, quantity: int) -> void:
-	_hud.log_message("Harvested %d %s from %s!" % [quantity, ingredient_id, plot_id])
+	hud.log_message("Harvested %d %s from %s!" % [quantity, ingredient_id, plot_id])
 	print("Harvested %d %s from %s." % [quantity, ingredient_id, plot_id])
-	_hud.update_ingredients_label()
-	_hud.update_skills_label()
-	_room_builder.update_plot_label(plot_id)
+	hud.update_ingredients_label()
+	hud.update_skills_label()
+	room_builder.update_plot_label(plot_id)

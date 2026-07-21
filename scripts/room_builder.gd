@@ -11,13 +11,13 @@ extends Node2D
 ## child of the player (see build_rooms()) so it follows automatically;
 ## switch_room() clamps it to each room's Room.room_size.
 
-signal player_entered_interactable(interactable: Interactable)
-signal player_exited_interactable(interactable: Interactable)
+signal player_entered_interactable(interactable: InteractableBase)
+signal player_exited_interactable(interactable: InteractableBase)
 
 const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const SHOP_SCENE := preload("res://scenes/rooms/Shop.tscn")
 const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
-const INTERACTABLE_SCENE := preload("res://scenes/Interactable.tscn")
+const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 
 const SHOP_ROOM_ID := "shop"
 const BEDROOM_ROOM_ID := "bedroom"
@@ -28,8 +28,8 @@ var current_room_id: String = ""
 var _camera: Camera2D
 var _rooms: Dictionary = {}             # room_id -> Room
 var _spawn_points: Dictionary = {}      # room_id -> Vector2
-var _plot_nodes: Dictionary = {}        # plot_id -> Interactable
-var _station_nodes: Dictionary = {}     # station_id -> Interactable
+var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
+var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -88,21 +88,19 @@ func _load_room(scene: PackedScene) -> void:
 
 	for interactable in room.get_node("Interactables").get_children():
 		_wire_interactable(interactable)
-		if interactable.interactable_type == Interactable.Type.STAIRS \
-				and _spawn_points.has(interactable.target_room):
+		if interactable is StairsInteractable and _spawn_points.has(interactable.target_room):
 			interactable.spawn_position = _spawn_points[interactable.target_room]
 
 
-func _wire_interactable(interactable: Interactable) -> void:
-	interactable.player_entered.connect(func(i: Interactable) -> void: player_entered_interactable.emit(i))
-	interactable.player_exited.connect(func(i: Interactable) -> void: player_exited_interactable.emit(i))
-	if interactable.interactable_type == Interactable.Type.BREW_STATION:
+func _wire_interactable(interactable: InteractableBase) -> void:
+	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
+	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
+	if interactable is BrewStationInteractable:
 		_station_nodes[interactable.target_id] = interactable
 
 
 func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
-	var interactable: Interactable = INTERACTABLE_SCENE.instantiate()
-	interactable.interactable_type = Interactable.Type.GROW_PLOT
+	var interactable: GrowPlotInteractable = GROW_PLOT_SCENE.instantiate()
 	interactable.target_id = plot_id
 	interactable.prompt_text = "plant/harvest"
 	interactable.display_name = plot_id
@@ -115,7 +113,7 @@ func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
 
 
 func update_plot_label(plot_id: String) -> void:
-	var interactable: Interactable = _plot_nodes.get(plot_id)
+	var interactable: GrowPlotInteractable = _plot_nodes.get(plot_id)
 	if interactable == null:
 		return
 	var plot := Herbalism.get_plot(plot_id)
@@ -158,7 +156,7 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 ## minute tick (to advance the fill) and once up front (to restore state on
 ## a loaded save with a brew already in progress).
 func _sync_station_indicator(station_id: String) -> void:
-	var node: Interactable = _station_nodes.get(station_id)
+	var node: BrewStationInteractable = _station_nodes.get(station_id)
 	if node == null:
 		return
 	var station := Brewing.get_station(station_id)
