@@ -284,6 +284,16 @@ func _connect_autoload_signals() -> void:
 		log_message(message)
 		print("Delayed demonic consequence: %s" % message)
 	)
+	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
+		_menu_scene.open(_dice_popup, "Transmutation Roll")
+		_dice_popup.show_roll(roll, "Transmutation")
+		var ingredient_summary: Array[String] = []
+		for id in ingredients:
+			ingredient_summary.append("%d %s" % [ingredients[id], id])
+		log_message("Broke down Scrap! Received: %s." % ", ".join(ingredient_summary))
+		print("Scrap broken down -- ingredients: %s" % [ingredient_summary])
+		update_ingredients_label()
+	)
 	Alchemy.recipe_learned.connect(func(recipe_id: String) -> void:
 		var recipe := ContentRegistry.get_recipe(recipe_id)
 		log_message("Learned recipe: %s!" % (recipe.display_name if recipe else recipe_id))

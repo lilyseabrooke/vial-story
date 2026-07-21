@@ -19,6 +19,8 @@ const STARTING_INGREDIENTS := {
 	"ghostcap_mushroom": 3,
 }
 const STARTING_QUESTS := ["first_brew", "stock_the_shelf"]
+const STARTING_SCRAP_COUNT := 3
+const STARTING_SCRAP_QUALITY_RANGE := Vector2(20.0, 100.0)
 
 var room_builder: RoomBuilder
 var hud: GameHud
@@ -30,6 +32,7 @@ func _ready() -> void:
 	if GameFlow.is_new_game:
 		Rng.seed_new_game()
 		_grant_starting_ingredients()
+		_grant_starting_scrap()
 		_grant_starting_quests()
 	_start_game(Color(PlayerProfile.player_color_hex))
 
@@ -53,6 +56,14 @@ func _start_game(player_color: Color) -> void:
 func _grant_starting_ingredients() -> void:
 	for id in STARTING_INGREDIENTS:
 		Inventory.add_ingredient(id, STARTING_INGREDIENTS[id])
+
+
+## Scrap has no other sourcing method yet (see docs/design/systems.md,
+## Transmutation / Workbench System) -- this is the only way to get any in
+## the prototype, same stopgap role STARTING_INGREDIENTS plays for ingredients.
+func _grant_starting_scrap() -> void:
+	for i in STARTING_SCRAP_COUNT:
+		Inventory.add_scrap(Rng.range_f(STARTING_SCRAP_QUALITY_RANGE.x, STARTING_SCRAP_QUALITY_RANGE.y))
 
 
 func _grant_starting_quests() -> void:

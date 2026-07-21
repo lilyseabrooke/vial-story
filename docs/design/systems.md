@@ -1092,6 +1092,57 @@ Demonology (autoload)
 
 ---
 
+## 18. Transmutation / Workbench System **[BUILD]**
+
+Breaking down Scrap into artificial ingredients at a Workbench interactable. Unlike the
+Contract Book (system 17), there's no multi-minute phase to sit through — one interaction
+resolves a whole piece of Scrap immediately, closer in shape to `StockBoxInteractable`'s
+instant action than to `BrewStationInteractable`'s job.
+
+```
+Scrap (Inventory.scrap: Array[Dictionary])
+  - quality: float          # per-unit, never surfaced to the player
+
+Transmutation (autoload)
+  - (no persistent state of its own -- see below)
+```
+
+- **Scrap is not a uniform stack.** `ingredient_counts` (id → int) can't represent it, since
+  every individual piece carries its own hidden `quality`. `Inventory.scrap` is instead an
+  `Array[Dictionary]` of `{quality}` entries — `add_scrap(quality)` appends one,
+  `take_scrap()` pops the oldest (FIFO; quality is hidden, so there's no meaningful ordering
+  choice for the player to make) and returns `{}` if there's none left. Quality is
+  deliberately never rendered anywhere in the UI.
+- **`break_down_scrap()` is one call, not a job.** It pops one piece via
+  `Inventory.take_scrap()`, rolls a visible `Rng.roll_2d10(Skills.get_bonus("transmute_ease"),
+  BREAKDOWN_DC)` (`BREAKDOWN_DC := 11.0`), and shifts the popped piece's quality by
+  `±CRIT_QUALITY_SWING` (15.0) on a crit — same "crit only nudges quality" rule
+  `Demonology.submit_writ()` uses. Final quality drives ingredient count:
+  `BASE_INGREDIENT_COUNT (1) + floor(quality / QUALITY_INGREDIENT_DIVISOR (20.0)) +
+  Skills.get_bonus("transmute_yield")`, granted from `ARTIFICIAL_INGREDIENT_IDS`
+  (`scrap_alloy`, `refined_component` — the first two `IngredientDef.Category.ARTIFICIAL`
+  resources; `source_methods = [SourceMethod.CRAFT]`, `buy_price = 0`, only obtainable this
+  way). Grants `XP_PER_BREAKDOWN` (15) Transmutation XP. Returns `{}` and does nothing else
+  if there was no Scrap to break down.
+- **No persistent state, no save contract.** Everything `break_down_scrap()` touches
+  (the Scrap consumed, the ingredients granted) already lives in `Inventory`'s own save
+  data — `Transmutation` itself owns nothing that needs restoring, so unlike Demonology it
+  is not registered in `SaveManager._SAVE_ORDER`, the same reasoning that keeps
+  `ContentRegistry`/`Characters` out of it.
+- **`WorkbenchInteractable`** (`scripts/workbench_interactable.gd` +
+  `scenes/interactables/WorkbenchInteractable.tscn`) calls `Transmutation.break_down_scrap()`
+  directly on `interact()` — no `MenuScene` panel, matching `StockBoxInteractable`'s
+  one-shot shape. Success feedback (dice popup + ingredient log) is driven off
+  `Transmutation.scrap_broken_down` in `hud.gd`, same pattern as
+  `Demonology.writ_submitted`; the interactable only has to handle the "nothing to break
+  down" case itself, since no signal fires for a no-op.
+- **Sourcing Scrap** has no dedicated mechanic yet in the prototype — `main.gd` grants
+  `STARTING_SCRAP_COUNT` (3) pieces at random quality on a new game, the same stopgap role
+  `STARTING_INGREDIENTS` plays for ingredients. A real acquisition path (buying, finding, a
+  quest reward) is future scope.
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)

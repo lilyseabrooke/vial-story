@@ -5,12 +5,18 @@ extends Node
 signal ingredient_changed(ingredient_id: String, quantity: int)
 signal potion_added(potion_id: String, potency: float, ease_value: float)
 signal materials_changed(amount: int)
+signal scrap_changed
 
 const MAX_POTIONS := 20
 
 var ingredient_counts: Dictionary = {}   # ingredient_id -> int
 var potions: Array[Dictionary] = []      # {potion_id, potency, ease}
 var materials: int = 100
+
+## Each unit of Scrap is its own {quality: float} entry rather than a stack
+## count like ingredient_counts -- quality varies per piece and is never
+## surfaced to the player (see Transmutation, docs/design/systems.md).
+var scrap: Array[Dictionary] = []
 
 
 func add_ingredient(id: String, quantity: int) -> void:
@@ -55,6 +61,26 @@ func has_room_for_potions(count: int) -> bool:
 	return potions.size() + count <= MAX_POTIONS
 
 
+func add_scrap(quality: float) -> void:
+	scrap.append({"quality": quality})
+	scrap_changed.emit()
+
+
+func scrap_count() -> int:
+	return scrap.size()
+
+
+## FIFO -- oldest piece first. Since quality is hidden from the player, there's
+## no meaningful ordering choice to expose here. Returns {} (no-op) if there's
+## no Scrap to take.
+func take_scrap() -> Dictionary:
+	if scrap.is_empty():
+		return {}
+	var taken: Dictionary = scrap.pop_front()
+	scrap_changed.emit()
+	return taken
+
+
 func add_materials(amount: int) -> void:
 	materials += amount
 	materials_changed.emit(materials)
@@ -73,6 +99,7 @@ func get_save_data() -> Dictionary:
 		"ingredient_counts": ingredient_counts.duplicate(),
 		"potions": potions.duplicate(true),
 		"materials": materials,
+		"scrap": scrap.duplicate(true),
 	}
 
 
@@ -82,3 +109,6 @@ func load_save_data(data: Dictionary) -> void:
 	for potion in (data.get("potions", []) as Array):
 		potions.append(potion)
 	materials = data.get("materials", 0)
+	scrap.clear()
+	for piece in (data.get("scrap", []) as Array):
+		scrap.append(piece)

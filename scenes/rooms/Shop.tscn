@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/ClassDoorInteractable.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -76,5 +77,12 @@ target_id = "contract_book_1"
 prompt_text = "open the Contract Book"
 display_name = "Contract Book"
 visual_color = Color(0.35, 0.15, 0.5, 1)
+
+[node name="Workbench" parent="Interactables" instance=ExtResource("8")]
+position = Vector2(150, 300)
+target_id = "workbench_1"
+prompt_text = "break down Scrap"
+display_name = "Workbench"
+visual_color = Color(0.55, 0.55, 0.6, 1)
 
 [node name="Plots" type="Node2D" parent="." unique_id=1672512134]
