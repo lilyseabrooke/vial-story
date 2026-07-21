@@ -6,3 +6,4 @@
 script = ExtResource("1")
 id = "dolphin"
 display_name = "Dolphin House"
+placeholder_color = Color(0, 0.501961, 0.501961, 1)

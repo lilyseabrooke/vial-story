@@ -11,6 +11,20 @@ enum Category { NATURAL, ARTIFICIAL, SPECTRAL, DEMONIC, DRACONIC, EXTRAPLANAR }
 enum SourceMethod { BUY, GROW, CRAFT, SUMMON, FORAGE }
 enum Role { BASE, BINDER, CATALYST }
 
+## Placeholder tint per category — used wherever a category needs a color
+## before real per-item/per-location art exists (e.g. CharacterCreator's
+## shop-location tiles). Hand-tuned rather than Godot's named Color constants:
+## PLUM read as pink and GOLD as canary yellow at this size, and forest is
+## nudged toward blue-green to read distinctly from teal.
+const CATEGORY_COLORS := {
+	Category.NATURAL: Color(0.1925, 0.55, 0.4309),      # blue-shifted forest
+	Category.ARTIFICIAL: Color(0.831, 0.686, 0.216),    # metallic gold, not canary
+	Category.SPECTRAL: Color(0.8157, 0.9412, 0.7529),   # tea green
+	Category.DEMONIC: Color(0.549, 0.353, 0.706),       # deep plum-purple, not pink
+	Category.DRACONIC: Color.CRIMSON,
+	Category.EXTRAPLANAR: Color.TEAL,
+}
+
 @export var id: String
 @export var display_name: String
 @export var icon: Texture2D

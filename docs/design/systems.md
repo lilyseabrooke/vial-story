@@ -767,8 +767,21 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   `house_id` are now real `ShopLocationDef`/`HouseDef` ids (loaded via `ContentRegistry.get_shop_location()`
   / `get_house()`) — `ShopLocationDef`'s favored `IngredientDef.Category` per location is now consumed:
   it drives the +2 shop-origin skill bonus (system 6). `scripts/character_creator.gd` is the
-  character-creation UI that collects these choices (plus a 5-point skill allocation and an HSV color
-  for the player's placeholder rectangle) and calls `SaveManager.create_new_game(character_name,
+  character-creation UI, a 3-step wizard (Back/Next/Confirm nav, `Next` disabled until the current
+  step is valid): (1) name, pronouns, House (a row of placeholder tiles, one per
+  `ContentRegistry.houses` entry, tinted via each House's own hand-authored `HouseDef.placeholder_color`
+  — Dragon plum, Eagle crimson, Boar forest green, Scorpion gold, Dolphin teal — since House has no
+  category to derive a tint from like shop locations do), and an HSV color for the player's placeholder
+  rectangle — deliberately sparse today, a stand-in for a future character-appearance step; (2) the
+  5-point skill allocation; (3) shop location, picked from a 3x2 `GridContainer` of toggle buttons (one
+  per `ContentRegistry.shop_locations` entry) instead of a dropdown, each with a placeholder
+  color-swatch icon tinted via `IngredientDef.CATEGORY_COLORS` by the location's `ingredient_category`
+  (Natural forest green, Artificial gold, Spectral tea green, Demonic plum, Draconic crimson,
+  Extraplanar teal — no real per-location art yet) and a live preview of the origin skill bonus it
+  grants. Plum/gold/forest are hand-tuned rather than Godot's named Color constants — stock PLUM read
+  as pink and GOLD as canary yellow at tile size, and forest is nudged blue-green to read distinctly
+  from teal. Confirming calls
+  `SaveManager.create_new_game(character_name,
   pronouns, house_id, shop_origin, player_color, skill_allocations)` — which also resets `Skills` (in
   case a prior playthrough left XP behind) and grants the allocated starting points.
 - **Title screen.** `res://scenes/MainMenu.tscn` (`scripts/main_menu.gd`, `MainMenu`) is now

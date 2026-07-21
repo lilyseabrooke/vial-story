@@ -6,3 +6,4 @@
 script = ExtResource("1")
 id = "eagle"
 display_name = "Eagle House"
+placeholder_color = Color(0.862745, 0.078431, 0.235294, 1)
