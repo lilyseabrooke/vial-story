@@ -18,10 +18,12 @@ signal stash_started(stash_id: String)
 signal stash_progress(stash_id: String)
 signal stash_cancelled(stash_id: String)
 signal stash_resolved(stash_id: String, roll: Dictionary, ingredients: Dictionary)
-## Fired after an overnight spawn roll adds one or more new stashes to the
-## Dragons' Ground. RoomBuilder is the only listener -- it owns the actual
-## Interactable geometry, so this just hands it the new ids to place.
-signal ground_stashes_spawned(stash_ids: Array)
+## Fired after an overnight spawn roll adds one or more new stashes to a
+## given spawner's population. Each DragonStashSpawnerNode listens for its
+## own spawner_id and hands the new ids to RoomBuilder to place -- Draconology
+## only tracks ids/counts so it can reason about population limits without
+## knowing anything about world geometry.
+signal ground_stashes_spawned(spawner_id: String, stash_ids: Array)
 
 const STASH_MINUTES := 5
 
@@ -42,25 +44,21 @@ const DRACONIC_INGREDIENT_IDS := ["dragon_scale", "ember_dust"]
 
 const XP_PER_STASH := 20
 
-## The Dragons' Ground never fills up outright -- each night's spawn roll
-## makes GROUND_SPAWN_ATTEMPTS_PER_NIGHT attempts, and each attempt's chance
-## is GROUND_SPAWN_BASE_CHANCE scaled down by how full the ground already is
-## (linearly to 0 at the limit), so the count approaches GROUND_STASH_LIMIT
-## asymptotically across many nights rather than the ground going from empty
-## to packed in one sleep.
-const GROUND_STASH_LIMIT := 6
-const GROUND_SPAWN_ATTEMPTS_PER_NIGHT := 4
-const GROUND_SPAWN_BASE_CHANCE := 0.5
-
 var _jobs: Dictionary = {}   # stash_id -> DragonStashJob, actively being dug only
 
-## Ids of stashes currently scattered on the Dragons' Ground, distinct from
-## any hand-placed stash a room might define directly. RoomBuilder mirrors
-## this into actual Interactable nodes; Draconology only tracks the ids so it
-## can reason about the population limit without knowing anything about
-## world geometry.
-var _ground_stash_ids: Array[String] = []
-var _ground_stash_counter: int = 0
+## One entry per DragonStashSpawnerNode that has called register_spawner(),
+## keyed by that node's spawner_id -- {"max": int, "avg_days_to_max": float}.
+## Config lives here only in memory (re-supplied by the spawner node's own
+## exported values every time its room loads), not in save data.
+var _spawner_configs: Dictionary = {}
+
+## Ids of stashes currently scattered per spawner, distinct from any
+## hand-placed stash a room might define directly. Spawner nodes mirror
+## their own share of this into actual Interactable nodes via RoomBuilder;
+## Draconology only tracks the ids so it can reason about each spawner's
+## population limit without knowing anything about world geometry.
+var _spawner_stash_ids: Dictionary = {}   # spawner_id -> Array[String]
+var _spawner_counters: Dictionary = {}    # spawner_id -> int, next id to hand out
 
 ## DragonStashInteractable nodes are hand-placed in room scenes, not
 ## runtime-instanced like grow plots -- so unlike a BrewStation/ContractBook
@@ -84,29 +82,49 @@ func is_collected(stash_id: String) -> bool:
 	return _collected_stash_ids.has(stash_id)
 
 
-func get_ground_stash_ids() -> Array[String]:
-	return _ground_stash_ids.duplicate()
+## Called once by each DragonStashSpawnerNode's _ready() to declare its
+## population/rate tuning and get back whichever of its ids are already
+## scattered (from a loaded save, or a prior room visit this session).
+## Safe to call again with updated config (e.g. a scene reload) -- only the
+## config dict is overwritten, the id list/counter are left alone.
+func register_spawner(spawner_id: String, max_stashes: int, avg_days_to_max: float) -> Array[String]:
+	_spawner_configs[spawner_id] = {"max": max_stashes, "avg_days_to_max": avg_days_to_max}
+	if not _spawner_stash_ids.has(spawner_id):
+		_spawner_stash_ids[spawner_id] = [] as Array[String]
+	if not _spawner_counters.has(spawner_id):
+		_spawner_counters[spawner_id] = 0
+	return (_spawner_stash_ids[spawner_id] as Array[String]).duplicate()
 
 
-## Rolls GROUND_SPAWN_ATTEMPTS_PER_NIGHT independent attempts to add a new
-## stash to the Dragons' Ground, each attempt's odds shrinking as the ground
-## fills up -- see the GROUND_STASH_LIMIT comment above. Emits
-## ground_stashes_spawned once with every id rolled this night (possibly
-## none), rather than once per id, so RoomBuilder only has to place them once.
+## For each registered spawner, rolls one attempt per empty-or-filled slot
+## up to its max_stashes, each attempt's odds shrinking as that spawner's
+## population fills (linearly to 0 at its cap) -- so the count approaches
+## max_stashes asymptotically across many nights, at a pace set by
+## avg_days_to_max, rather than the ground going from empty to packed in one
+## sleep. Emits ground_stashes_spawned once per spawner with every id rolled
+## this night (possibly none), rather than once per id, so the spawner node
+## only has to place them once.
 func _on_day_started(_day_number: int, _day_type: int) -> void:
-	var new_ids: Array[String] = []
-	for i in GROUND_SPAWN_ATTEMPTS_PER_NIGHT:
-		var current_count := _ground_stash_ids.size() + new_ids.size()
-		if current_count >= GROUND_STASH_LIMIT:
-			break
-		var fullness := float(current_count) / float(GROUND_STASH_LIMIT)
-		if Rng.range_f(0.0, 1.0) < GROUND_SPAWN_BASE_CHANCE * (1.0 - fullness):
-			_ground_stash_counter += 1
-			new_ids.append("ground_stash_%d" % _ground_stash_counter)
-	if new_ids.is_empty():
-		return
-	_ground_stash_ids.append_array(new_ids)
-	ground_stashes_spawned.emit(new_ids)
+	for spawner_id in _spawner_configs.keys():
+		var config: Dictionary = _spawner_configs[spawner_id]
+		var max_stashes: int = config["max"]
+		var avg_days_to_max: float = config["avg_days_to_max"]
+		var base_chance := 1.0 / maxf(avg_days_to_max, 0.01)
+		var existing_ids: Array[String] = _spawner_stash_ids[spawner_id]
+
+		var new_ids: Array[String] = []
+		for i in max_stashes:
+			var current_count := existing_ids.size() + new_ids.size()
+			if current_count >= max_stashes:
+				break
+			var fullness := float(current_count) / float(max_stashes)
+			if Rng.range_f(0.0, 1.0) < base_chance * (1.0 - fullness):
+				_spawner_counters[spawner_id] += 1
+				new_ids.append("%s_stash_%d" % [spawner_id, _spawner_counters[spawner_id]])
+		if new_ids.is_empty():
+			continue
+		existing_ids.append_array(new_ids)
+		ground_stashes_spawned.emit(spawner_id, new_ids)
 
 
 ## No-op if this stash already has a job running -- interact() only calls
@@ -166,9 +184,13 @@ func _resolve(stash_id: String, job: DragonStashJob) -> void:
 	_jobs.erase(stash_id)
 	_collected_stash_ids[stash_id] = true
 	# Freeing the slot back up (rather than leaving it permanently occupied)
-	# is what lets the ground's next overnight spawn roll approach the limit
+	# is what lets that spawner's next overnight spawn roll approach its cap
 	# again instead of the population only ever draining.
-	_ground_stash_ids.erase(stash_id)
+	for spawner_id in _spawner_stash_ids:
+		var ids: Array[String] = _spawner_stash_ids[spawner_id]
+		if ids.has(stash_id):
+			ids.erase(stash_id)
+			break
 	Skills.add_xp("draconology", XP_PER_STASH)
 	stash_resolved.emit(stash_id, roll, ingredients)
 
@@ -190,19 +212,35 @@ func _grant_ingredients(quality: float) -> Dictionary:
 ## paused state to restore into, so a save/load is just treated as another
 ## walk-away. Only which stashes are permanently collected needs to survive.
 func get_save_data() -> Dictionary:
+	var ground_stash_ids := {}
+	for spawner_id in _spawner_stash_ids:
+		ground_stash_ids[spawner_id] = _spawner_stash_ids[spawner_id]
 	return {
 		"collected_stash_ids": _collected_stash_ids.keys(),
-		"ground_stash_ids": _ground_stash_ids,
-		"ground_stash_counter": _ground_stash_counter,
+		"spawner_stash_ids": ground_stash_ids,
+		"spawner_counters": _spawner_counters,
 	}
 
 
+## Deliberately does not touch _spawner_configs -- that's re-supplied by each
+## DragonStashSpawnerNode's own register_spawner() call once its room loads,
+## same as every other exported-tunable-vs-persisted-state split in this
+## codebase (e.g. Rng never reseeds on load).
 func load_save_data(data: Dictionary) -> void:
 	_jobs.clear()
 	_collected_stash_ids.clear()
 	for stash_id in (data.get("collected_stash_ids", []) as Array):
 		_collected_stash_ids[stash_id] = true
-	_ground_stash_ids.clear()
-	for stash_id in (data.get("ground_stash_ids", []) as Array):
-		_ground_stash_ids.append(stash_id as String)
-	_ground_stash_counter = data.get("ground_stash_counter", 0)
+
+	_spawner_stash_ids.clear()
+	var saved_ids: Dictionary = data.get("spawner_stash_ids", {})
+	for spawner_id in saved_ids:
+		var ids: Array[String] = []
+		for stash_id in (saved_ids[spawner_id] as Array):
+			ids.append(stash_id as String)
+		_spawner_stash_ids[spawner_id] = ids
+
+	_spawner_counters.clear()
+	var saved_counters: Dictionary = data.get("spawner_counters", {})
+	for spawner_id in saved_counters:
+		_spawner_counters[spawner_id] = int(saved_counters[spawner_id])

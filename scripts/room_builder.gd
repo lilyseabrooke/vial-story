@@ -24,22 +24,10 @@ const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
 const DRAGONS_GROUND_SCENE := preload("res://scenes/rooms/DragonsGround.tscn")
 const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
-const DRAGON_SCENE := preload("res://scenes/Dragon.tscn")
 
 const SHOP_ROOM_ID := "shop"
 const BEDROOM_ROOM_ID := "bedroom"
 const DRAGONS_GROUND_ROOM_ID := "dragons_ground"
-
-## Two ground stashes placed the same night shouldn't visually overlap --
-## _random_ground_position() rejects a candidate this close to an already-
-## placed ground stash and rerolls.
-const GROUND_STASH_MIN_SEPARATION := 72.0
-
-## How many dragons roam the Dragons' Ground at once -- rerolled fresh (not
-## accumulated like the ground stashes) every morning, see _respawn_dragons().
-const DRAGON_COUNT_MIN := 3
-const DRAGON_COUNT_MAX := 5
-const DRAGON_MIN_SEPARATION := 90.0
 
 var player: CharacterBody2D
 var current_room_id: String = ""
@@ -51,7 +39,6 @@ var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
-var _dragon_nodes: Array[Dragon] = []
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -109,24 +96,8 @@ func build_rooms() -> void:
 	Draconology.stash_progress.connect(func(stash_id: String) -> void: _sync_stash_indicator(stash_id))
 	Draconology.stash_cancelled.connect(func(stash_id: String) -> void: _sync_stash_indicator(stash_id))
 	Draconology.stash_resolved.connect(_on_stash_resolved)
-	# Dragon's Stashes on the Dragons' Ground are runtime-instanced, the same
-	# "not hand-placed like Contract Book/Workbench" exception grow plots are
-	# -- on a fresh game there's nothing to restore yet; on a loaded save,
-	# Draconology already knows which ground stash ids are still uncollected,
-	# so re-place all of them now the same way a fresh overnight spawn would.
-	for stash_id in Draconology.get_ground_stash_ids():
-		add_dragon_stash_interactable(stash_id, _random_ground_position(stash_id))
-	Draconology.ground_stashes_spawned.connect(_on_ground_stashes_spawned)
 	for stash_id in _stash_nodes:
 		_sync_stash_indicator(stash_id)
-
-	# Dragons are pure roaming hazards, not persisted state -- an initial
-	# spawn now covers the very first visit, then a full clear-and-respawn
-	# every morning (unlike the ground stashes, which accumulate toward a
-	# cap instead of resetting) keeps the Dragons' Ground feeling different
-	# night to night.
-	_respawn_dragons()
-	Clock.day_started.connect(func(_day_number: int, _day_type: int) -> void: _respawn_dragons())
 
 
 ## Instantiates a room scene, registers its spawn marker, connects
@@ -135,6 +106,15 @@ func build_rooms() -> void:
 ## loaded — build_rooms() loads both up front, so order doesn't matter here).
 func _load_room(scene: PackedScene) -> void:
 	var room: Room = scene.instantiate()
+
+	# Connected before add_child(room) below, which is what actually triggers
+	# _ready() (and therefore each spawner's initial spawn_requested burst,
+	# e.g. re-placing a loaded save's uncollected stashes) for the whole
+	# subtree -- connecting after add_child() would miss that initial burst.
+	for spawner in room.get_children():
+		if spawner is DragonStashSpawnerNode:
+			spawner.spawn_requested.connect(_on_stash_spawn_requested.bind(spawner))
+
 	add_child(room)
 	room.visible = false
 	room.process_mode = Node.PROCESS_MODE_DISABLED
@@ -201,154 +181,22 @@ func update_plot_label(plot_id: String) -> void:
 	interactable.set_status_text("%s\n%s" % [plot_id, status_text])
 
 
-## Runtime-instances a Dragon's Stash on the Dragons' Ground, the same
-## "code-instanced, not hand-placed" exception add_grow_plot_interactable()
-## is for grow plots. _wire_interactable() already handles everything a
-## DragonStashInteractable needs (registering it into _stash_nodes, wiring
-## player_exited to Draconology.cancel_stash(), and the is_collected() reload
-## guard), so this only has to build the node and place it.
-func add_dragon_stash_interactable(stash_id: String, pos: Vector2) -> void:
+## Instances a Dragon's Stash Interactable in response to a
+## DragonStashSpawnerNode's spawn_requested signal (connected in _load_room())
+## and parents it under that same spawner node -- the spawner already knows
+## where (spawn_zone) and how often (max_stashes/avg_days_to_max), so this is
+## purely "build the node and wire it the same way every other Interactable
+## is," the same "code-instanced, not hand-placed" exception
+## add_grow_plot_interactable() is for grow plots.
+func _on_stash_spawn_requested(stash_id: String, pos: Vector2, spawner: DragonStashSpawnerNode) -> void:
 	var interactable: DragonStashInteractable = DRAGON_STASH_SCENE.instantiate()
 	interactable.target_id = stash_id
 	interactable.prompt_text = "dig through the Dragon's Stash"
 	interactable.display_name = "Dragon's Stash"
 	interactable.visual_color = Color(0.5, 0.08, 0.2, 1)
 	interactable.position = pos
-	_rooms[DRAGONS_GROUND_ROOM_ID].get_node("GroundStashes").add_child(interactable)
+	spawner.add_child(interactable)
 	_wire_interactable(interactable)
-
-
-## Picks a spawn point for a ground stash from the Dragons' Ground room's
-## SpawnZones -- a designer-drawn set of Polygon2D shapes (edit their points
-## directly in the 2D editor to reshape or add spawn areas, the same way a
-## CollisionPolygon2D is authored) rather than a tileset terrain parameter,
-## since a Polygon2D is both simpler to author by hand and lets a ground have
-## multiple disjoint dig zones. The position is derived deterministically from
-## stash_id (seeded RNG) rather than stored anywhere, so a stash lands in the
-## same spot whether it was just spawned this session or is being re-placed
-## after a save load -- same "position is derived, not persisted" shape
-## add_grow_plot_interactable()'s index-based formula uses.
-func _random_ground_position(stash_id: String) -> Vector2:
-	var polygons: Array[Polygon2D] = []
-	for zone in _rooms[DRAGONS_GROUND_ROOM_ID].get_node("SpawnZones").get_children():
-		if zone is Polygon2D:
-			polygons.append(zone)
-	if polygons.is_empty():
-		return Vector2.ZERO
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(stash_id)
-	var fallback := polygons[0]
-	for attempt in 64:
-		var polygon: Polygon2D = polygons[rng.randi() % polygons.size()]
-		var bounds := _polygon_bounds(polygon.polygon)
-		var candidate_local := Vector2(
-			rng.randf_range(bounds.position.x, bounds.end.x),
-			rng.randf_range(bounds.position.y, bounds.end.y)
-		)
-		if not Geometry2D.is_point_in_polygon(candidate_local, polygon.polygon):
-			continue
-		var candidate_world := polygon.position + candidate_local
-		if _far_enough_from_ground_stashes(candidate_world):
-			return candidate_world
-
-	# 64 rejection samples all missing (an unusually thin polygon, or the
-	# ground is nearly full) -- fall back to the first zone's bounds center
-	# rather than leaving the stash at the origin.
-	return fallback.position + _polygon_bounds(fallback.polygon).get_center()
-
-
-func _polygon_bounds(points: PackedVector2Array) -> Rect2:
-	var bounds := Rect2(points[0], Vector2.ZERO)
-	for point in points:
-		bounds = bounds.expand(point)
-	return bounds
-
-
-func _far_enough_from_ground_stashes(candidate: Vector2) -> bool:
-	var container: Node = _rooms[DRAGONS_GROUND_ROOM_ID].get_node("GroundStashes")
-	for node in _stash_nodes.values():
-		if node.get_parent() == container and node.position.distance_to(candidate) < GROUND_STASH_MIN_SEPARATION:
-			return false
-	return true
-
-
-func _on_ground_stashes_spawned(stash_ids: Array) -> void:
-	for stash_id in stash_ids:
-		add_dragon_stash_interactable(stash_id, _random_ground_position(stash_id))
-
-
-## Clears every roaming dragon and scatters a fresh batch -- unlike the
-## Dragon's Stashes (which persist/accumulate), dragons are pure ambient
-## hazards with no state worth keeping across a night, so this is a hard
-## reset rather than an incremental top-up.
-func _respawn_dragons() -> void:
-	for dragon in _dragon_nodes:
-		dragon.queue_free()
-	_dragon_nodes.clear()
-
-	if ContentRegistry.dragons.is_empty():
-		return
-
-	var count := Rng.range_i(DRAGON_COUNT_MIN, DRAGON_COUNT_MAX)
-	for i in count:
-		var def := _pick_weighted_dragon_def()
-		var pos := _random_dragon_position()
-		var dragon: Dragon = DRAGON_SCENE.instantiate()
-		_rooms[DRAGONS_GROUND_ROOM_ID].get_node("Dragons").add_child(dragon)
-		dragon.setup(def, pos)
-		_dragon_nodes.append(dragon)
-
-
-## Weighted pick across ContentRegistry.dragons by DragonDef.spawn_weight --
-## small/common dragons roll far more often than the extra-large/rare one.
-func _pick_weighted_dragon_def() -> DragonDef:
-	var defs := ContentRegistry.dragons
-	var total_weight := 0.0
-	for def in defs:
-		total_weight += def.spawn_weight
-	var roll := Rng.range_f(0.0, total_weight)
-	var cumulative := 0.0
-	for def in defs:
-		cumulative += def.spawn_weight
-		if roll <= cumulative:
-			return def
-	return defs[defs.size() - 1]
-
-
-## Same rejection-sampling shape as _random_ground_position(), but positions
-## are freshly rolled every call (not seeded by id) since dragons don't need
-## to land in the same spot across a save/load the way a stash does.
-func _random_dragon_position() -> Vector2:
-	var polygons: Array[Polygon2D] = []
-	for zone in _rooms[DRAGONS_GROUND_ROOM_ID].get_node("SpawnZones").get_children():
-		if zone is Polygon2D:
-			polygons.append(zone)
-	if polygons.is_empty():
-		return Vector2.ZERO
-
-	var fallback := polygons[0]
-	for attempt in 64:
-		var polygon: Polygon2D = polygons[Rng.range_i(0, polygons.size() - 1)]
-		var bounds := _polygon_bounds(polygon.polygon)
-		var candidate_local := Vector2(
-			Rng.range_f(bounds.position.x, bounds.end.x),
-			Rng.range_f(bounds.position.y, bounds.end.y)
-		)
-		if not Geometry2D.is_point_in_polygon(candidate_local, polygon.polygon):
-			continue
-		var candidate_world := polygon.position + candidate_local
-		if _far_enough_from_dragons(candidate_world):
-			return candidate_world
-
-	return fallback.position + _polygon_bounds(fallback.polygon).get_center()
-
-
-func _far_enough_from_dragons(candidate: Vector2) -> bool:
-	for dragon in _dragon_nodes:
-		if dragon.global_position.distance_to(candidate) < DRAGON_MIN_SEPARATION:
-			return false
-	return true
 
 
 ## The one place rooms get (de)activated: toggles visibility + processing on
