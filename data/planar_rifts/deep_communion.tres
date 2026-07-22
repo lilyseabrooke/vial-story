@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="RiftBundleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/rift_bundle_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "deep_communion"
+display_name = "A Deep Communion"
+sequence = Array[String](["gate", "coil", "root", "thorn", "star", "eye"])
+weight = 0.5
+duration_minutes = 4320
+ingredient_ids = Array[String](["warped_ichor", "rift_glass"])
+ingredient_quantities = Array[int]([4, 2])
+material_delta = 20
+resolve_delta = -20
+scaled_ingredient_ids = Array[String](["warped_ichor"])
+scaled_ingredient_quantities = Array[int]([3])
+scaled_material_bonus = 15
+gated_ingredient_ids = Array[String](["warped_ichor"])
+gated_ingredient_quantities = Array[int]([2])
+gated_ingredient_min_quality = Array[float]([0.9])
+flavor_text = "Days pressed against the seam of another world -- what comes back is rare, and so is the toll."

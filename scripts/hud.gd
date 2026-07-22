@@ -12,6 +12,7 @@ const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
+const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
 
 var brew_panel: VBoxContainer
 var supply_panel: VBoxContainer
@@ -32,6 +33,7 @@ var _menu_scene: MenuScene
 var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
+var _rift_panel: PlanarRiftMinigamePanel
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
@@ -140,6 +142,12 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_ley_line_panel = LEY_LINE_MINIGAME_PANEL_SCENE.instantiate()
 	_ley_line_panel.build()
 
+	# Instanced from a scene (not .new()) so its portal-timer tunables are
+	# editable in the inspector on PlanarRiftMinigamePanel.tscn, same as the
+	# ley line panel above.
+	_rift_panel = PLANAR_RIFT_MINIGAME_PANEL_SCENE.instantiate()
+	_rift_panel.build()
+
 	brew_panel = VBoxContainer.new()
 	_rebuild_brew_panel()
 
@@ -171,6 +179,12 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_menu_scene.closed.connect(func() -> void:
 		if LeyLines.is_active():
 			LeyLines.abort_minigame()
+		# Same walk-away guard for the Planar Rift minigame: closing the menu
+		# by any route while a session is still open (i.e. the player hadn't
+		# matched a sequence or timed out yet) counts as leaving it.
+		if Summoning.is_minigame_active():
+			Summoning.abort_rift_minigame()
+			log_message("You step back from the rift — the portal fades without a summoning.")
 	)
 
 	_message_wall = MESSAGE_WALL_SCENE.instantiate()
@@ -318,6 +332,52 @@ func _connect_autoload_signals() -> void:
 	)
 	LeyLines.minigame_aborted.connect(func(_node_id: String) -> void:
 		log_message("You break away from the ley line -- no ingredients gathered.")
+	)
+	Summoning.rift_minigame_requested.connect(func(rift_id: String) -> void:
+		_rift_panel.show_for(rift_id)
+		open_menu(_rift_panel, "Planar Rift")
+		log_message("The rift yawns open — trace a summoning sequence before it closes.")
+	)
+	Summoning.rift_quality_rolled.connect(func(_rift_id: String, _bundle_id: String, quality: float, roll: Dictionary) -> void:
+		_message_wall.add_dice_result(roll, "Summoning")
+		log_message("The summoning steadies at %s quality (%d%%)." % [Summoning.quality_word(quality), int(round(quality * 100.0))])
+	)
+	Summoning.rift_started.connect(func(rift_id: String, bundle_id: String) -> void:
+		# start_rift() only fires from the minigame's success path now, so the
+		# rift panel is what's open -- close it as the summon takes hold.
+		if has_menu_content(_rift_panel):
+			close_menu()
+		var bundle := ContentRegistry.get_rift_bundle(bundle_id)
+		log_message("The rift begins drawing something through: %s." % (bundle.display_name if bundle else bundle_id))
+		print("Rift started at %s: %s" % [rift_id, bundle_id])
+	)
+	Summoning.rift_failed.connect(func(rift_id: String, resolve_cost: int) -> void:
+		if has_menu_content(_rift_panel):
+			close_menu()
+		log_message("The Planar Rift collapses shut before the summoning takes — you lose %d Resolve." % resolve_cost)
+		update_resolve_meter()
+		print("Rift minigame failed at %s -- Resolve cost %d" % [rift_id, resolve_cost])
+	)
+	Summoning.rift_ready.connect(func(rift_id: String, bundle_id: String) -> void:
+		log_message("The Planar Rift is ready to collect.")
+		print("Rift ready at %s: %s" % [rift_id, bundle_id])
+	)
+	Summoning.rift_collected.connect(func(_rift_id: String, bundle_id: String, ingredients: Dictionary, material_delta: int, resolve_delta: int, quality: float) -> void:
+		var bundle := ContentRegistry.get_rift_bundle(bundle_id)
+		var ingredient_summary: Array[String] = []
+		for id in ingredients:
+			ingredient_summary.append("%d %s" % [ingredients[id], id])
+		var outcome_parts: Array[String] = []
+		if not ingredient_summary.is_empty():
+			outcome_parts.append("received %s" % ", ".join(ingredient_summary))
+		if material_delta != 0:
+			outcome_parts.append("%s%d Materials" % ["+" if material_delta > 0 else "", material_delta])
+		if resolve_delta != 0:
+			outcome_parts.append("%s%d Resolve" % ["+" if resolve_delta > 0 else "", resolve_delta])
+		log_message("%s [%s summon] %s" % [bundle.flavor_text if bundle else "", Summoning.quality_word(quality), "; ".join(outcome_parts)])
+		print("Rift collected: %s (quality %.2f) -- %s" % [bundle_id, quality, outcome_parts])
+		update_ingredients_label()
+		update_materials_label()
 	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
 		_message_wall.add_dice_result(roll, "Transmutation")

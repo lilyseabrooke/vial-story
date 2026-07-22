@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Vial Story"
 run/main_scene="res://scenes/MainMenu.tscn"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
@@ -34,6 +34,7 @@ Academy="*res://scripts/autoload/academy.gd"
 Demonology="*res://scripts/autoload/demonology.gd"
 Draconology="*res://scripts/autoload/draconology.gd"
 LeyLines="*res://scripts/autoload/ley_lines.gd"
+Summoning="*res://scripts/autoload/summoning.gd"
 Transmutation="*res://scripts/autoload/transmutation.gd"
 Story="*res://scripts/autoload/story.gd"
 LoveInterests="*res://scripts/autoload/love_interests.gd"

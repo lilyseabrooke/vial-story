@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RiftBundleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/rift_bundle_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "modest_exchange"
+display_name = "A Modest Exchange"
+sequence = Array[String](["flame", "thorn", "coil", "gate"])
+weight = 3.0
+duration_minutes = 240
+ingredient_ids = Array[String](["rift_glass", "warped_ichor"])
+ingredient_quantities = Array[int]([2, 1])
+material_delta = -5
+resolve_delta = -5
+scaled_ingredient_ids = Array[String](["warped_ichor"])
+scaled_ingredient_quantities = Array[int]([1])
+gated_ingredient_ids = Array[String](["warped_ichor"])
+gated_ingredient_quantities = Array[int]([1])
+gated_ingredient_min_quality = Array[float]([0.75])
+flavor_text = "Something on the other side drives a hard bargain -- it takes its due before letting go."

@@ -281,8 +281,9 @@ Skill
   2. **Herbalism** — better-quality plants, easier harvest/care, learns natural ingredients faster.
      `grow_yield`, `grow_speed`, `learn_speed_natural`.
   3. **Summoning** — wider range/control of extraplanar phenomena, learns extraplanar ingredients
-     faster. `summon_range`, `summon_control`, `learn_speed_extraplanar` **[STUB — no summoning path
-     yet]**.
+     faster. The rift/collection loop itself is built (system 22), but `summon_range`,
+     `summon_control`, and `learn_speed_extraplanar` all tune the choosing-a-bundle minigame, which is
+     still a random stand-in — **[STUB — no minigame to tune yet]**.
   4. **Arcane History** — easier ley-line interactions returning more spectral ingredients, learns
      spectral ingredients faster. `leyline_ease`, `leyline_yield`, `learn_speed_spectral` **[STUB]**.
   5. **Draconology** — safer in draconic areas, more ingredients from draconic nodes, learns draconic
@@ -1576,6 +1577,128 @@ DragonSpawnerNode (scripts/dragon_spawner_node.gd, Node2D; scenes/spawners/Drago
   `Rng.range_i(count_min, count_max)` batch is spawned via the weighted pick above. No save
   contract: `Dragon`/`DragonSpawnerNode` carry no `get_save_data()`, since a loaded save just gets
   a fresh morning-equivalent spawn from each spawner's own `_ready()`.
+
+---
+
+## 22. Summoning / Planar Rift System **[BUILT]**
+
+Gathering extraplanar ingredients (and other outcomes) by reaching through a Planar Rift interactable.
+Deadline-based like Brewing/Herbalism, not tethered like the Contract Book or Dragon's Stash — a summon
+can run anywhere from minutes to multiple days, so it has to keep advancing while the player is off
+doing something else entirely, not just while they stand at the rift.
+
+```
+RiftBundleDef (scripts/data/rift_bundle_def.gd, Resource; data/planar_rifts/*.tres)
+  - id, display_name
+  - sequence                      # Array[String] of symbol ids the minigame must build, see below
+  - weight                       # legacy odds from the old random stand-in; unused by the live path
+  - duration_minutes
+  - ingredient_ids, ingredient_quantities   # BASE reward: always granted, quality-independent
+  - material_delta                # base Materials on collection, +/-
+  - resolve_delta                 # applied via Resolve.spend()/restore() on collection, +/-
+  - scaled_ingredient_ids/_quantities    # quality-SCALED: round(qty * quality) granted on top
+  - scaled_material_bonus         # quality-scaled Materials bonus: round(bonus * quality)
+  - gated_ingredient_ids/_quantities/_min_quality   # quality-GATED: full qty iff quality >= threshold
+  - flavor_text                   # shown in the collection log message
+
+PlanarRiftJob (scripts/data/planar_rift_job.gd, RefCounted)
+  - rift_id: String
+  - bundle_id: String
+  - start_timestamp, ready_timestamp: int
+  - status: Status(SUMMONING, READY)
+  - quality: float                # 0..1, locked in at sequence completion, scales/gates rewards
+
+Summoning (autoload)
+  - _jobs: Dictionary            # rift_id -> PlanarRiftJob
+  - _known_bundles: Dictionary   # learned-sequence set (bundle_id -> true), persisted
+  - _active_minigame_rift: String  # rift whose minigame is open, "" when none (transient)
+  - SUMMONING_SYMBOLS            # const: the 12 symbols (id/name/color), canonical glyph order
+```
+
+- **The minigame is "a complex but learnable system of choosing a bundle": a symbol-sequence puzzle.**
+  `PlanarRiftMinigamePanel` (`scripts/ui/planar_rift_minigame_panel.gd`, instanced from
+  `scenes/ui/PlanarRiftMinigamePanel.tscn` so its portal-timer tunables are inspector-editable, same
+  as the ley line panel) is hosted in `MenuScene`. The portal is open and **slowly closing** (a
+  countdown, drawn as a depleting rim arc + a dark iris swelling from the center); four symbol options
+  sit on the portal rim, and the player picks one with a **movement key** (W/A/S/D or arrows →
+  up/right/down/left) to append it to the sequence queue, which then deals four fresh options. Building
+  a queue that exactly matches a `RiftBundleDef.sequence` summons that bundle — the panel calls
+  `Summoning.complete_rift_minigame(rift_id, bundle_id, time_fraction)`, which rolls the summon's
+  quality (see below) and starts the same background job the old random pick did. Pressing **E wipes the queue** but takes `wipe_time` (~0.75s) while the portal keeps
+  closing. If the portal shuts first, `Summoning.fail_rift_minigame()` charges `FAIL_RESOLVE_COST` (8)
+  Resolve (a mishap event, same shape as a botched brew) and the run ends with nothing. Which bundle
+  gets built already fully determines the outcome, so — unlike Demonology/Draconology — there's no
+  further roll at collection time; choosing the sequence *is* the whole mechanic.
+- **The four options only *sometimes* include a valid continuation.** Each deal has a
+  `continuation_chance` (~0.7, inspector export) of seeding one symbol that continues a bundle's
+  sequence from the current queue (`_valid_next_symbols()`); the other slots — and the whole deal, the
+  rest of the time — are random filler. So knowing a sequence isn't enough: the needed symbol also has
+  to come up, or the player wipes (E) and re-deals against the closing portal. That gamble is
+  deliberate — it forces guesswork, makes wiping a real decision, and rewards trying unknown symbols to
+  discover new combinations. Filler is random, so a continuation can still surface by chance even on a
+  deal that didn't seed one (effective odds run a bit above the raw chance); longer sequences
+  (`deep_communion`, 6 symbols) are correspondingly much harder to land. **Sequences must be authored
+  prefix-free** (no bundle's sequence a prefix of another's, or the shorter always matches first) —
+  giving each a distinct *first* symbol satisfies this; the four starting bundles do.
+- **Learned-sequence knowledge.** `Summoning._known_bundles` is the set of sequences the player knows,
+  listed in the minigame's right-hand **"Known Sequences" reference panel** (each row a bundle's name +
+  its sequence as mini-glyphs) which lights up the row the current queue is tracking. A fresh game
+  knows only `faint_echo` (seeded in `main.gd._grant_starting_summoning_knowledge()` as a tutorial);
+  **successfully building a bundle's sequence blind teaches it** (`complete_rift_minigame` →
+  `learn_bundle`), so the known set grows through play. (Dedicated in-game teaching methods beyond
+  experimentation stay out of scope.)
+- **`PlanarRiftInteractable`** (`scripts/planar_rift_interactable.gd`) is a permanent, hand-placed
+  fixture (`scenes/rooms/Shop.tscn`), same as the Brew Station and Contract Book, not a spawner-driven
+  one-shot like a Dragon's Stash. `interact()` **opens the minigame** if no rift is running (via
+  `Summoning.open_rift_minigame()` → the `rift_minigame_requested` signal → hud.gd opens the panel,
+  the same "autoload signal → HUD opens a panel" shape LeyLines uses), collects a ready one, or just
+  logs "still summoning" otherwise — the same three-way shape `BrewStationInteractable` uses.
+  Its progress bar/ready-popup pair (`set_rift_progress()`/`show_rift_ready()`/`clear_rift_indicator()`)
+  is a direct copy of `BrewStationInteractable`'s, since both are Clock-timestamp-deadline jobs;
+  `RoomBuilder._sync_rift_indicator()` drives it the same way `_sync_station_indicator()` drives a
+  brew station, including the `Clock.minute_tick` hook needed to advance the fill while nothing else
+  is happening.
+- **The summon has a 0..1 quality, rolled when the sequence completes** and locked onto the job
+  (`PlanarRiftJob.quality`, persisted). It's `QUALITY_TIME_WEIGHT`·(portal time still remaining) +
+  `QUALITY_ROLL_WEIGHT`·(a Summoning roll), each half, with a small `QUALITY_CRIT_SWING` nudge on a
+  natural crit — the same "crit only shifts quality" rule Draconology/Demonology use. The roll is
+  `Rng.roll_2d10(Skills.level("summoning"), QUALITY_ROLL_DC)` normalised over the 2d10 span, so
+  finishing *fast* and *skilled* both raise quality. `complete_rift_minigame(rift_id, bundle_id,
+  time_fraction)` computes it, emits `rift_quality_rolled` (hud.gd renders the dice via the message
+  wall, same as Draconology/Transmutation), then starts the job. `Summoning.quality_word()` bands it
+  Faint/Fair/Strong/Pristine for log/UI text.
+- **Collection applies the bundle's reward scaled and gated by that quality.** Base
+  `ingredient_ids`/`material_delta`/`resolve_delta` are the always-granted floor (never blocked by
+  insufficient funds — the exchange already happened out on the plane — mirroring Demonology's
+  drawbacks always landing). On top: **scaled** rewards grant `round(qty * quality)` (the authored
+  number is the quality-1.0 figure) via `scaled_ingredient_*` and `scaled_material_bonus`, and
+  **gated** rewards (`gated_ingredient_*` + `gated_ingredient_min_quality`) grant their full quantity
+  only once quality clears the paired threshold — the "only a flawless summon brings this through"
+  payoffs. The four starting bundles scale up in this respect with their duration/risk: `faint_echo`
+  just adds a scaled `rift_glass`, while `deep_communion` (3 days) scales up to +3 `warped_ichor` and
+  +15 Materials and gates 2 more `warped_ichor` behind a 0.9 quality.
+- **Two new `IngredientDef.Category.EXTRAPLANAR` ingredients** back the initial bundle set:
+  `rift_glass` (tier 2) and `warped_ichor` (tier 3), both `source_methods = [SourceMethod.SUMMON]`,
+  `buy_price = 0` — only obtainable this way, same as the Ley Line System's spectral ingredients.
+  Four starting bundles (`data/planar_rifts/*.tres`) span the design's "5 minutes to multiple days"
+  range and a risk/reward spread: `faint_echo` (5 min, small free gain, 4-symbol sequence),
+  `modest_exchange` (4h, small Materials/Resolve cost), `generous_tide` (1 day, bigger reward and
+  cost), `deep_communion` (3 days, rare and steep, a longer 6-symbol sequence). All four have distinct
+  first symbols (prefix-free).
+- **Grants `XP_PER_RIFT` (25) Summoning XP on collection.** Of the Summoning skill's
+  `summon_range`/`summon_control`/`learn_speed_extraplanar` triplet, **`summon_control` is now live**:
+  the minigame adds `seconds_per_control` (~4s) of portal time per point of
+  `Skills.get_bonus("summon_control")`, so a steadier summoner holds the portal open longer. The other
+  two stay **[STUB]** — `summon_range` (which/how many bundles are reachable) and
+  `learn_speed_extraplanar` (ingredient-learning speed) have no consumer yet.
+- **Save contract.** Registered in `SaveManager._SAVE_ORDER` right after Draconology. Like
+  Brewing/Herbalism, an active job is itself persisted (its deadline is a `Clock.get_timestamp()`
+  comparison, valid across a save/load with no special catch-up logic — an already-elapsed rift just
+  resolves on the next `minute_tick`), unlike Demonology/Draconology's tethered jobs which are
+  deliberately dropped on save. The learned-sequence set (`_known_bundles`) is persisted alongside
+  the jobs; the transient minigame session (`_active_minigame_rift`) is not, same as LeyLines.
+- **Not in scope for the prototype**: `summon_range`/`learn_speed_extraplanar` effects, dedicated
+  in-game sequence-teaching methods beyond blind experimentation, and more than one hand-placed rift.
 
 ---
 
