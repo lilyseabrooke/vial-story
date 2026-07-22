@@ -18,6 +18,10 @@ signal stash_started(stash_id: String)
 signal stash_progress(stash_id: String)
 signal stash_cancelled(stash_id: String)
 signal stash_resolved(stash_id: String, roll: Dictionary, ingredients: Dictionary)
+## Fired after an overnight spawn roll adds one or more new stashes to the
+## Dragons' Ground. RoomBuilder is the only listener -- it owns the actual
+## Interactable geometry, so this just hands it the new ids to place.
+signal ground_stashes_spawned(stash_ids: Array)
 
 const STASH_MINUTES := 5
 
@@ -38,7 +42,25 @@ const DRACONIC_INGREDIENT_IDS := ["dragon_scale", "ember_dust"]
 
 const XP_PER_STASH := 20
 
+## The Dragons' Ground never fills up outright -- each night's spawn roll
+## makes GROUND_SPAWN_ATTEMPTS_PER_NIGHT attempts, and each attempt's chance
+## is GROUND_SPAWN_BASE_CHANCE scaled down by how full the ground already is
+## (linearly to 0 at the limit), so the count approaches GROUND_STASH_LIMIT
+## asymptotically across many nights rather than the ground going from empty
+## to packed in one sleep.
+const GROUND_STASH_LIMIT := 6
+const GROUND_SPAWN_ATTEMPTS_PER_NIGHT := 4
+const GROUND_SPAWN_BASE_CHANCE := 0.5
+
 var _jobs: Dictionary = {}   # stash_id -> DragonStashJob, actively being dug only
+
+## Ids of stashes currently scattered on the Dragons' Ground, distinct from
+## any hand-placed stash a room might define directly. RoomBuilder mirrors
+## this into actual Interactable nodes; Draconology only tracks the ids so it
+## can reason about the population limit without knowing anything about
+## world geometry.
+var _ground_stash_ids: Array[String] = []
+var _ground_stash_counter: int = 0
 
 ## DragonStashInteractable nodes are hand-placed in room scenes, not
 ## runtime-instanced like grow plots -- so unlike a BrewStation/ContractBook
@@ -51,6 +73,7 @@ var _collected_stash_ids: Dictionary = {}   # stash_id -> true
 
 func _ready() -> void:
 	Clock.minute_tick.connect(_on_minute_tick)
+	Clock.day_started.connect(_on_day_started)
 
 
 func get_job(stash_id: String) -> DragonStashJob:
@@ -59,6 +82,31 @@ func get_job(stash_id: String) -> DragonStashJob:
 
 func is_collected(stash_id: String) -> bool:
 	return _collected_stash_ids.has(stash_id)
+
+
+func get_ground_stash_ids() -> Array[String]:
+	return _ground_stash_ids.duplicate()
+
+
+## Rolls GROUND_SPAWN_ATTEMPTS_PER_NIGHT independent attempts to add a new
+## stash to the Dragons' Ground, each attempt's odds shrinking as the ground
+## fills up -- see the GROUND_STASH_LIMIT comment above. Emits
+## ground_stashes_spawned once with every id rolled this night (possibly
+## none), rather than once per id, so RoomBuilder only has to place them once.
+func _on_day_started(_day_number: int, _day_type: int) -> void:
+	var new_ids: Array[String] = []
+	for i in GROUND_SPAWN_ATTEMPTS_PER_NIGHT:
+		var current_count := _ground_stash_ids.size() + new_ids.size()
+		if current_count >= GROUND_STASH_LIMIT:
+			break
+		var fullness := float(current_count) / float(GROUND_STASH_LIMIT)
+		if Rng.range_f(0.0, 1.0) < GROUND_SPAWN_BASE_CHANCE * (1.0 - fullness):
+			_ground_stash_counter += 1
+			new_ids.append("ground_stash_%d" % _ground_stash_counter)
+	if new_ids.is_empty():
+		return
+	_ground_stash_ids.append_array(new_ids)
+	ground_stashes_spawned.emit(new_ids)
 
 
 ## No-op if this stash already has a job running -- interact() only calls
@@ -117,6 +165,10 @@ func _resolve(stash_id: String, job: DragonStashJob) -> void:
 	var ingredients := _grant_ingredients(final_quality)
 	_jobs.erase(stash_id)
 	_collected_stash_ids[stash_id] = true
+	# Freeing the slot back up (rather than leaving it permanently occupied)
+	# is what lets the ground's next overnight spawn roll approach the limit
+	# again instead of the population only ever draining.
+	_ground_stash_ids.erase(stash_id)
 	Skills.add_xp("draconology", XP_PER_STASH)
 	stash_resolved.emit(stash_id, roll, ingredients)
 
@@ -138,7 +190,11 @@ func _grant_ingredients(quality: float) -> Dictionary:
 ## paused state to restore into, so a save/load is just treated as another
 ## walk-away. Only which stashes are permanently collected needs to survive.
 func get_save_data() -> Dictionary:
-	return {"collected_stash_ids": _collected_stash_ids.keys()}
+	return {
+		"collected_stash_ids": _collected_stash_ids.keys(),
+		"ground_stash_ids": _ground_stash_ids,
+		"ground_stash_counter": _ground_stash_counter,
+	}
 
 
 func load_save_data(data: Dictionary) -> void:
@@ -146,3 +202,7 @@ func load_save_data(data: Dictionary) -> void:
 	_collected_stash_ids.clear()
 	for stash_id in (data.get("collected_stash_ids", []) as Array):
 		_collected_stash_ids[stash_id] = true
+	_ground_stash_ids.clear()
+	for stash_id in (data.get("ground_stash_ids", []) as Array):
+		_ground_stash_ids.append(stash_id as String)
+	_ground_stash_counter = data.get("ground_stash_counter", 0)

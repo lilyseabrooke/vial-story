@@ -464,23 +464,27 @@ CurseState
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
 - **Rooms**: the interior is split into separate hand-authored room scenes
-  (currently `scenes/rooms/Shop.tscn` and `Bedroom.tscn`), each a
-  `Room`-scripted (`scripts/room.gd`) `Node2D` with `Floor`/`Walls`
-  `TileMapLayer`s, `CameraCenter`/`SpawnPoint` `Marker2D`s, and an
+  (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, and
+  `DragonsGround.tscn`), each a `Room`-scripted (`scripts/room.gd`) `Node2D`
+  with `Floor`/`Walls` `TileMapLayer`s, a `SpawnPoint` `Marker2D`, and an
   `Interactables` container of pre-placed interactable instances configured
   entirely via the Inspector. `RoomBuilder.build_rooms()`
-  (`scripts/room_builder.gd`) loads both scenes up front, reads each room's
-  markers, and wires every pre-placed interactable's signals; grow-plot
-  interactables are the one exception and stay code-instanced (into a
-  `Plots` container node) since they come from runtime `Herbalism` data. Only
-  one room is active at a time — `switch_room()` toggles `visible`/
-  `process_mode` on the room scenes (inactive rooms are
+  (`scripts/room_builder.gd`) loads all three scenes up front, reads each
+  room's markers, and wires every pre-placed interactable's signals; grow-plot
+  interactables and Dragons' Ground stashes are the exceptions and stay
+  code-instanced (into a `Plots`/`GroundStashes` container node respectively)
+  since they come from runtime `Herbalism`/`Draconology` data rather than
+  being hand-placed — see system 19 for how the Dragons' Ground spawns and
+  places its stashes. Only one room is active at a time — `switch_room()`
+  toggles `visible`/`process_mode` on the room scenes (inactive rooms are
   `PROCESS_MODE_DISABLED`, which also stops their interactable areas from
   firing enter/exit signals while hidden) and repositions the single shared
   player + camera. The player and camera are scene-level nodes, not per-room,
   so they persist across a switch. Wall tiles carry real collision (physics
   layer 2, named "Walls" in `project.godot`'s `[layer_names]`; `Player`'s
-  `collision_mask` includes it) — floor tiles don't.
+  `collision_mask` includes it) — floor tiles don't; `Bedroom`/`DragonsGround`
+  currently leave `Floor`/`Walls` empty placeholders with no tileset assigned
+  yet, same as `Shop.tscn` did before its interior was painted.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
@@ -503,8 +507,15 @@ CurseState
   `spawn_position` in the destination room, the same per-instance-config
   pattern as every other interactable. The Bed lives in the Bedroom; the
   Shop's brew station/stock box/supply shelf/class door/grow plots stay in
-  the Shop, connected by a stairs interactable in each room pointing at the
-  other.
+  the Shop; the Dragons' Ground has nothing but its stashes and a stairs back
+  — each pair of rooms is connected by a stairs interactable in each room
+  pointing at the other. One quirk of `_load_room()`'s spawn-position
+  resolution: it only auto-fills a stairs' `spawn_position` from the target
+  room's `SpawnPoint` if the target room was *already* loaded when the
+  stairs gets wired, so a stairs pointing at a room that loads later
+  (`Shop`'s stairs to `Bedroom`/`DragonsGround`, both of which load after
+  `Shop`) needs its `spawn_position` hand-set in the `.tscn` to match that
+  room's `SpawnPoint` instead of relying on auto-resolution.
 
 ---
 
@@ -1154,28 +1165,30 @@ Transmutation (autoload)
 
 ---
 
-## 19. Draconology / Dragon's Stash System **[BUILD]**
+## 19. Draconology / Dragon's Stash System **[BUILT]**
 
-Digging draconic ingredients out of a Dragon's Stash interactable. Player-tethered like the
-Contract Book (system 17) — progress only advances while the player stands at it — but with no
-pause/resume: walking away doesn't freeze a writ's progress in place, it throws the whole dig
-away, forcing a full restart (and a freshly rolled hidden quality) next time. It's also
-single-use: once resolved, the stash Interactable is destroyed and never comes back.
+Digging draconic ingredients out of a Dragon's Stash interactable, scattered through the Dragons'
+Ground. Player-tethered like the Contract Book (system 17) — progress only advances while the
+player stands at it — but with no pause/resume: walking away doesn't freeze a writ's progress in
+place, it throws the whole dig away, forcing a full restart (and a freshly rolled hidden quality)
+next time. It's also single-use: once resolved, the stash Interactable is destroyed and doesn't
+come back until a future overnight roll happens to refill its slot.
 
 **Fictional framing (why this system looks the way it does):** a Dragon's Stash isn't a shop
-fixture like the Contract Book or Workbench — it's meant to be procedurally scattered through a
-future exploration layer's "dragons' grounds," dangerous territory the player has no business
-lingering in. Digging one out is a commitment made under threat, not a safe errand: the player
+fixture like the Contract Book or Workbench — it's procedurally scattered through the Dragons'
+Ground, a large exploration-layer room (system 12) the player has no business lingering in.
+Digging one out is a commitment made under threat, not a safe errand: the player
 should feel the same tension a Contract Book gives them (a meter climbing, deciding whether to
 keep watching it) but sharpened by the possibility of a dragon showing up mid-dig. That's the
 whole reason walking away *cancels* instead of *pausing* — the Contract Book lets the player
 step away and pick a writ back up later because nothing in a shop punishes hesitation, but a
 stash is meant to force a real decision in the moment: commit to finishing the dig, or cut
 losses and flee, knowing that bailing costs everything gathered so far. It's also why a stash is
-destroyed on collection rather than reset to idle like a brew station or grow plot: the design
-intent is that dragons' grounds will later regenerate their stashes gradually over a period of
-days once collected (not in scope yet — see below), so "gone until the ground itself
-replenishes it" is the intended read, not "gone forever." Both of these are departures from
+destroyed on collection rather than reset to idle like a brew station or grow plot: the ground's
+overnight spawn roll gradually backfills the population a collected stash vacated (see below), so
+"gone until the ground itself replenishes it" is the intended read, not "gone forever" — even
+though it's a fresh id refilling the slot rather than that exact stash respawning (see the
+per-stash regeneration note below). Both of these are departures from
 every other interactable in the prototype, and only make sense in that light — see the "Walking
 away cancels" and "Single-use, and actually destroyed" notes below for the mechanical
 consequences.
@@ -1190,6 +1203,8 @@ DragonStashJob (scripts/data/dragon_stash_job.gd, RefCounted)
 Draconology (autoload)
   - _jobs: Dictionary                # stash_id -> DragonStashJob, actively being dug only
   - _collected_stash_ids: Dictionary # stash_id -> true, forever
+  - _ground_stash_ids: Array[String] # ids currently scattered on the Dragons' Ground
+  - _ground_stash_counter: int       # next ground_stash_N id to hand out
 ```
 
 - **`interact()` only ever starts the dig.** `DragonStashInteractable.interact()` calls
@@ -1252,12 +1267,12 @@ Draconology (autoload)
   idle state, a resolved Dragon's Stash is just gone. This is the other departure the fictional
   framing above explains: a permanent fixture like a brew station makes sense in a shop, but a
   stash is a one-time find in the wild, and "gone" here specifically means gone-until-the-ground-
-  regenerates-it, not gone-forever — the regeneration itself just isn't built yet (see below).
-  Because `DragonStashInteractable` nodes are hand-placed in room scenes (like
-  `ContractBook`/`Workbench`, not runtime-instanced like grow plots), `_wire_interactable()` has to
-  guard the reload path too: on room load it checks `Draconology.is_collected(stash_id)` and
-  immediately `queue_free()`s the node instead of registering it, so a stash collected before a
-  save doesn't reappear when its room is loaded again.
+  regenerates-it, not gone-forever. `DragonStashInteractable` nodes on the Dragons' Ground are
+  runtime-instanced (see below), so there's no hand-placed node for a collected id to leave
+  behind — but `_wire_interactable()` still guards the reload path the same way it would for a
+  hand-placed one: on load, `RoomBuilder` re-places every id `Draconology.get_ground_stash_ids()`
+  still reports (uncollected by definition, since a collected id is dropped from that list),
+  which is what keeps a collected stash from reappearing after a save/load.
 - **Destroying the node while the player is standing on it needed one extra guard.** Because the
   tether guarantees the player is still overlapping the stash's `Area2D` at the exact moment it's
   freed, Godot's physics-server cleanup fires a `body_exited` for it — which would otherwise
@@ -1284,19 +1299,46 @@ Draconology (autoload)
   jobs are deliberately *not* persisted — the player is never standing at the stash the instant a
   save loads, and unlike a writ there's no paused state to restore into, so a save/load is simply
   treated as another walk-away (any in-progress dig is just gone on reload, same as it would be if
-  the player had stepped away). Only `_collected_stash_ids` is persisted, so a finished stash
-  stays gone.
+  the player had stepped away). `_collected_stash_ids` is persisted so a finished stash stays
+  gone, alongside `_ground_stash_ids`/`_ground_stash_counter` so the Dragons' Ground's current
+  population and next id both survive a save/load intact — `RoomBuilder` re-places every id in
+  `_ground_stash_ids` on load (see below), so without persisting it every uncollected ground
+  stash would vanish on reload instead of just the in-progress digs.
+- **The Dragons' Ground** (`scenes/rooms/DragonsGround.tscn`, `room_id = "dragons_ground"`) is
+  the actual place the fictional framing above describes — a large room reached from the Shop via
+  a `StairsInteractable` doorway (`StairsToDragonsGround`, where the single hand-placed
+  `dragon_stash_1` used to stand) with a `StairsBack` returning the favor. Unlike every other
+  Dragon's Stash before it, ground stashes are **runtime-instanced**, the same exception grow
+  plots are to hand-placed Interactables: `RoomBuilder.add_dragon_stash_interactable()` builds and
+  places the node, and `_wire_interactable()` handles the rest (registration, the
+  `player_exited` → `cancel_stash()` wiring, the `is_collected()` reload guard) exactly as it
+  already did for the hand-placed stash, with no special-casing needed for the runtime ones.
+- **Where a stash can land is drawn, not painted.** The Dragons' Ground has a `SpawnZones`
+  container of one or more `Polygon2D` nodes — reshape or add a dig zone by dragging its points in
+  the 2D editor, the same way a `CollisionPolygon2D` is authored, rather than a tileset terrain
+  parameter. `RoomBuilder._random_ground_position(stash_id)` rejection-samples a point inside a
+  randomly chosen zone's polygon (`Geometry2D.is_point_in_polygon`), rerolling if it lands too
+  close to an already-placed ground stash (`GROUND_STASH_MIN_SEPARATION`). The position is seeded
+  from `hash(stash_id)` rather than stored anywhere, so a stash lands in the same spot whether
+  it's being freshly placed this session or re-placed after a save load — the same "derived, not
+  persisted" shape `add_grow_plot_interactable()`'s index-based formula uses for plots.
+- **The ground approaches its stash limit instead of filling up outright.**
+  `Draconology._on_day_started()` (wired to `Clock.day_started`, i.e. every sleep/collapse) makes
+  `GROUND_SPAWN_ATTEMPTS_PER_NIGHT` (4) independent rolls, each attempt's chance
+  (`GROUND_SPAWN_BASE_CHANCE`, 0.5) scaled down linearly by how full the ground already is —
+  `chance * (1.0 - current_count / GROUND_STASH_LIMIT)` — so the population climbs quickly while
+  the ground is empty and asymptotically slows as it nears `GROUND_STASH_LIMIT` (6) rather than
+  jumping from empty to packed in one night. All ids rolled in a night are batched into one
+  `ground_stashes_spawned(stash_ids)` emission so `RoomBuilder` only has to place them once.
+  Collecting a stash (`_resolve()`) erases its id from `_ground_stash_ids` as well as marking it
+  collected, freeing its slot back up for a future night's roll — the ground drains as stashes are
+  dug and refills gradually over subsequent nights, rather than only ever emptying.
 - Not in scope for the prototype, but load-bearing for the fictional framing above and worth
-  keeping in mind when touching this system: **dragons' grounds** as an actual place — a
-  dangerous zone in the future exploration layer (system 12, still `[STUB]`) that procedurally
-  scatters Dragon's Stash instances through it instead of the single hand-placed
-  `dragon_stash_1` that stands in for one today; a **regeneration mechanic** that slowly
-  restocks a ground's stashes over a period of days once collected, which is the piece that
-  turns `Draconology.is_collected()`'s permanence into something temporary — when that lands,
-  collected-ness likely needs a timestamp instead of a bare bool, and `_wire_interactable()`'s
-  reload guard will need to check "collected and not yet due to respawn" rather than "collected,
-  full stop"; and `learn_speed_draconic` (no ingredient-learning system exists yet for any
-  category).
+  keeping in mind when touching this system: a **per-stash regeneration timer**, so a specific
+  collected stash can respawn (possibly in a new spot) after a period of days rather than the
+  ground's overall population just being backfilled by unrelated fresh ids — this is the piece
+  that would turn `Draconology.is_collected()`'s permanence into something temporary; and
+  `learn_speed_draconic` (no ingredient-learning system exists yet for any category).
 
 ---
 
@@ -1389,6 +1431,91 @@ LeyLines (autoload)
 - **No save contract.** Same as Transmutation, there's no state that outlives a single synchronous
   interaction — `LeyLines` has no `get_save_data()`/`load_save_data()` and isn't in
   `SaveManager._SAVE_ORDER`.
+
+---
+
+## 21. Dragons / Roaming Threats **[BUILT]**
+
+Ambient hazards roaming the Dragons' Ground's spawn zones (system 19's `SpawnZones` polygons).
+Not enemies to be defeated — the player has no attack of any kind — purely obstacles to be
+avoided while digging Dragon's Stashes or just passing through. A dragon wanders near its spawn
+point until the player gets too close, chases until it either lands a hit or the player breaks
+away, and — unlike a Dragon's Stash — is never persisted: the whole population is cleared and
+rerolled fresh every morning rather than accumulating or surviving a save/load.
+
+```
+DragonDef (scripts/data/dragon_def.gd, Resource; data/dragons/*.tres)
+  - id, display_name
+  - spawn_weight              # relative rarity -- small/common dragons roll far more often
+  - visual_color, visual_radius
+  - provoke_range             # base distance at which the dragon notices the player
+  - never_provoke_draconology_level  # 0 = always provokable; >0 = never provokes at/above this level
+  - roam_speed, roam_radius, chase_speed
+  - attack_range, resolve_damage, knockback_force, attack_pause_seconds
+```
+
+- **Four size tiers, small to extra-large, common to rare** (`data/dragons/wyrmling.tres` →
+  `drake.tres` → `wyvern.tres` → `ancient_wyrm.tres`, registered in `ContentRegistry.DRAGON_PATHS`
+  /`get_dragon()`, same load-a-path-list-at-`_ready()` shape as every other def collection there).
+  `spawn_weight` runs 10/5/2/1 respectively — a weighted pick (`RoomBuilder._pick_weighted_dragon_def()`)
+  is what actually turns that into "small dragons everywhere, an Ancient Wyrm is a rare, dangerous
+  find." Bigger tiers scale up both `provoke_range` and `resolve_damage` together, per design: a
+  larger dragon is dangerous from further away *and* hits harder, not just tougher up close.
+- **`Dragon`** (`scripts/dragon.gd`, `scenes/Dragon.tscn`, a `CharacterBody2D` on physics layer 3
+  "Enemies", mask `Walls` only — no physical collision with the player, every player-facing
+  interaction is a plain distance check, not a hitbox) is a small state machine —
+  `ROAMING` / `CHASING` / `ATTACK_PAUSE` — driven entirely in `_physics_process`, the same
+  "no autoload owns this, the node owns its own behavior" shape `player.gd` uses for movement.
+  `RoomBuilder.setup(def, spawn_position)` configures the placeholder `Visual`/`CollisionShape2D`
+  size and color from the def and anchors `home_position` for roaming, the same runtime-instancing
+  shape `add_grow_plot_interactable()`/`add_dragon_stash_interactable()` use for their own types.
+- **Roaming**: picks a random point within `roam_radius` of `home_position`, walks to it at
+  `roam_speed`, waits a random 1–3s, repeats. Every roaming tick also checks whether the player has
+  wandered inside the dragon's *effective* provoke range — see below — and provokes into `CHASING`
+  if so and the dragon is willing to (`never_provoke_draconology_level`).
+- **Draconology skill shrinks how close a dragon senses the player from, and can shut some off
+  entirely.** `_effective_provoke_range()` subtracts `PROVOKE_RANGE_PER_DRACONOLOGY_LEVEL` (6.0)
+  per player Draconology level from `provoke_range`, floored at `MIN_PROVOKE_RANGE_FRACTION` (25%)
+  of the base — a skilled player can walk closer before anything notices. Separately,
+  `never_provoke_draconology_level` (only set on the Wyrmling, at 4) means a sufficiently skilled
+  player stops provoking that tier *at all*, regardless of distance — "smaller, lower-level dragons
+  might not even bother with a skilled player," per design, while every other tier stays provokable
+  no matter how skilled the player gets.
+- **Chasing and losing sight.** While `CHASING`, the dragon closes at `chase_speed` until either it's
+  within `attack_range` (attacks — see below) or the player gets outside an *expanded* range —
+  `provoke_range * LOSE_SIGHT_MULTIPLIER` (1.5×, and deliberately the dragon's *base* provoke_range,
+  not the skill-shrunk effective one) — at which point it gives up and returns to `ROAMING` from
+  wherever it currently is.
+- **Landing a hit.** `Dragon._attack()` (only reachable from `CHASING`, once within `attack_range`)
+  calls `Player.apply_knockback(global_position, knockback_force)` — pushes the player directly away
+  from the dragon and starts their invincibility window — and `Resolve.spend(resolve_damage, ...)`,
+  the same failure-event shape Brewing's botched-brew roll uses (system 8). The dragon then enters
+  `ATTACK_PAUSE` for `attack_pause_seconds`, standing still — this is the deliberate window that lets
+  a hit player actually get away rather than eating repeated hits, not just a cosmetic recovery
+  beat. On expiry it resumes `CHASING` if the player's still within the lose-sight range, or drops
+  back to `ROAMING` otherwise. `_attack()` also no-ops (dragon just stands still) if the player is
+  already invincible, so a dragon that catches up mid-flinch doesn't re-trigger anything.
+- **`Player` (`scripts/player.gd`) owns its own knockback/invincibility state**, not `Dragon` — it's
+  player state that has to persist independent of which dragon (if any) caused it.
+  `apply_knockback()` shoves the player away from the attacker's position with a velocity that
+  decays via `move_toward` (`KNOCKBACK_DECAY`) each physics frame, overriding WASD input for as long
+  as it's still nonzero, and starts a flat `INVINCIBILITY_SECONDS` (1.2) window during which the
+  `Visual` `ColorRect` flashes on/off every `FLASH_INTERVAL` (0.1s) and `apply_knockback()` itself is
+  a no-op — both the visual tell and the actual protection, so nothing needs to check
+  `is_invincible()` twice. `player.gd` gained a `class_name Player` for this since `Dragon` needs a
+  concrete type to call `apply_knockback()`/`is_invincible()` on.
+- **Cleared and rerolled every morning, never persisted.** `RoomBuilder._respawn_dragons()` is
+  wired to `Clock.day_started` (every sleep/collapse, same trigger as system 19's ground-stash
+  spawn roll) and also called once up front in `build_rooms()` so the Ground isn't empty on the very
+  first visit. Unlike `Draconology`'s ground stashes, which persist and only asymptotically approach
+  a population cap, this is a hard reset: every existing `Dragon` node is `queue_free()`'d and a
+  fresh `Rng.range_i(DRAGON_COUNT_MIN, DRAGON_COUNT_MAX)` (3–5) batch is spawned via the weighted
+  pick above. Positions reuse system 19's `SpawnZones` polygon rejection-sampling
+  (`RoomBuilder._random_dragon_position()`, `DRAGON_MIN_SEPARATION` between dragons) but — unlike
+  `_random_ground_position(stash_id)` — are *not* seeded from any id, since dragons have nothing
+  that needs to land in the same spot across a save/load; a plain `Rng` roll every call is enough.
+  No save contract: `Dragon`/`RoomBuilder`'s dragon list carries no `get_save_data()`, since a
+  loaded save just gets a fresh morning-equivalent spawn from `build_rooms()`'s initial call.
 
 ---
 

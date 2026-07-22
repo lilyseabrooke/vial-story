@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="DragonDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/dragon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "wyvern"
+display_name = "Wyvern"
+spawn_weight = 2.0
+visual_color = Color(0.35, 0.15, 0.5, 1)
+visual_radius = 28.0
+provoke_range = 170.0
+never_provoke_draconology_level = 0
+roam_speed = 40.0
+roam_radius = 180.0
+chase_speed = 110.0
+attack_range = 40.0
+resolve_damage = 24
+knockback_force = 340.0
+attack_pause_seconds = 1.8
