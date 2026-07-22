@@ -21,10 +21,13 @@ signal interactable_destroyed(interactable: InteractableBase)
 const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const SHOP_SCENE := preload("res://scenes/rooms/Shop.tscn")
 const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
+const DRAGONS_GROUND_SCENE := preload("res://scenes/rooms/DragonsGround.tscn")
 const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
+const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
 
 const SHOP_ROOM_ID := "shop"
 const BEDROOM_ROOM_ID := "bedroom"
+const DRAGONS_GROUND_ROOM_ID := "dragons_ground"
 
 var player: CharacterBody2D
 var current_room_id: String = ""
@@ -43,6 +46,7 @@ var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 func build_rooms() -> void:
 	_load_room(SHOP_SCENE)
 	_load_room(BEDROOM_SCENE)
+	_load_room(DRAGONS_GROUND_SCENE)
 
 	# Added after the rooms so they draw on top of each room's floor — 2D draw
 	# order follows tree order, and rooms are siblings of the player/camera.
@@ -102,6 +106,15 @@ func build_rooms() -> void:
 ## loaded — build_rooms() loads both up front, so order doesn't matter here).
 func _load_room(scene: PackedScene) -> void:
 	var room: Room = scene.instantiate()
+
+	# Connected before add_child(room) below, which is what actually triggers
+	# _ready() (and therefore each spawner's initial spawn_requested burst,
+	# e.g. re-placing a loaded save's uncollected stashes) for the whole
+	# subtree -- connecting after add_child() would miss that initial burst.
+	for spawner in room.get_children():
+		if spawner is DragonStashSpawnerNode:
+			spawner.spawn_requested.connect(_on_stash_spawn_requested.bind(spawner))
+
 	add_child(room)
 	room.visible = false
 	room.process_mode = Node.PROCESS_MODE_DISABLED
@@ -166,6 +179,24 @@ func update_plot_label(plot_id: String) -> void:
 		GrowPlotInstance.Status.READY_TO_HARVEST:
 			status_text = "ready to harvest (%s)" % plot.planted_seed.display_name
 	interactable.set_status_text("%s\n%s" % [plot_id, status_text])
+
+
+## Instances a Dragon's Stash Interactable in response to a
+## DragonStashSpawnerNode's spawn_requested signal (connected in _load_room())
+## and parents it under that same spawner node -- the spawner already knows
+## where (spawn_zone) and how often (max_stashes/avg_days_to_max), so this is
+## purely "build the node and wire it the same way every other Interactable
+## is," the same "code-instanced, not hand-placed" exception
+## add_grow_plot_interactable() is for grow plots.
+func _on_stash_spawn_requested(stash_id: String, pos: Vector2, spawner: DragonStashSpawnerNode) -> void:
+	var interactable: DragonStashInteractable = DRAGON_STASH_SCENE.instantiate()
+	interactable.target_id = stash_id
+	interactable.prompt_text = "dig through the Dragon's Stash"
+	interactable.display_name = "Dragon's Stash"
+	interactable.visual_color = Color(0.5, 0.08, 0.2, 1)
+	interactable.position = pos
+	spawner.add_child(interactable)
+	_wire_interactable(interactable)
 
 
 ## The one place rooms get (de)activated: toggles visibility + processing on

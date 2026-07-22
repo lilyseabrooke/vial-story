@@ -9,7 +9,6 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/DragonStashInteractable.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/LeyLineNodeInteractable.tscn" id="10"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
@@ -88,12 +87,13 @@ prompt_text = "break down Scrap"
 display_name = "Workbench"
 visual_color = Color(0.55, 0.55, 0.6, 1)
 
-[node name="DragonStash" parent="Interactables" unique_id=1919002959 instance=ExtResource("9")]
+[node name="StairsToDragonsGround" parent="Interactables" unique_id=1919002959 instance=ExtResource("6")]
 position = Vector2(300, 250)
-target_id = "dragon_stash_1"
-prompt_text = "dig through the Dragon's Stash"
-display_name = "Dragon's Stash"
-visual_color = Color(0.5, 0.08, 0.2, 1)
+target_room = "dragons_ground"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out to the Dragons' Ground"
+display_name = "Dragons' Ground Doorway"
+visual_color = Color(0.45, 0.3, 0.2, 1)
 
 [node name="LeyLineNode" parent="Interactables" unique_id=1932554392 instance=ExtResource("10")]
 position = Vector2(600, 400)

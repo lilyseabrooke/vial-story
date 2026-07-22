@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="DragonDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/dragon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "wyrmling"
+display_name = "Wyrmling"
+spawn_weight = 10.0
+visual_color = Color(0.85, 0.55, 0.25, 1)
+visual_radius = 14.0
+provoke_range = 90.0
+never_provoke_draconology_level = 4
+roam_speed = 50.0
+roam_radius = 140.0
+chase_speed = 85.0
+attack_range = 26.0
+resolve_damage = 6
+knockback_force = 220.0
+attack_pause_seconds = 1.2

@@ -464,23 +464,27 @@ CurseState
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
 - **Rooms**: the interior is split into separate hand-authored room scenes
-  (currently `scenes/rooms/Shop.tscn` and `Bedroom.tscn`), each a
-  `Room`-scripted (`scripts/room.gd`) `Node2D` with `Floor`/`Walls`
-  `TileMapLayer`s, `CameraCenter`/`SpawnPoint` `Marker2D`s, and an
+  (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, and
+  `DragonsGround.tscn`), each a `Room`-scripted (`scripts/room.gd`) `Node2D`
+  with `Floor`/`Walls` `TileMapLayer`s, a `SpawnPoint` `Marker2D`, and an
   `Interactables` container of pre-placed interactable instances configured
   entirely via the Inspector. `RoomBuilder.build_rooms()`
-  (`scripts/room_builder.gd`) loads both scenes up front, reads each room's
-  markers, and wires every pre-placed interactable's signals; grow-plot
-  interactables are the one exception and stay code-instanced (into a
-  `Plots` container node) since they come from runtime `Herbalism` data. Only
-  one room is active at a time — `switch_room()` toggles `visible`/
-  `process_mode` on the room scenes (inactive rooms are
+  (`scripts/room_builder.gd`) loads all three scenes up front, reads each
+  room's markers, and wires every pre-placed interactable's signals; grow-plot
+  interactables and Dragons' Ground stashes are the exceptions and stay
+  code-instanced (into a `Plots`/`GroundStashes` container node respectively)
+  since they come from runtime `Herbalism`/`Draconology` data rather than
+  being hand-placed — see system 19 for how the Dragons' Ground spawns and
+  places its stashes. Only one room is active at a time — `switch_room()`
+  toggles `visible`/`process_mode` on the room scenes (inactive rooms are
   `PROCESS_MODE_DISABLED`, which also stops their interactable areas from
   firing enter/exit signals while hidden) and repositions the single shared
   player + camera. The player and camera are scene-level nodes, not per-room,
   so they persist across a switch. Wall tiles carry real collision (physics
   layer 2, named "Walls" in `project.godot`'s `[layer_names]`; `Player`'s
-  `collision_mask` includes it) — floor tiles don't.
+  `collision_mask` includes it) — floor tiles don't; `Bedroom`/`DragonsGround`
+  currently leave `Floor`/`Walls` empty placeholders with no tileset assigned
+  yet, same as `Shop.tscn` did before its interior was painted.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
@@ -503,8 +507,15 @@ CurseState
   `spawn_position` in the destination room, the same per-instance-config
   pattern as every other interactable. The Bed lives in the Bedroom; the
   Shop's brew station/stock box/supply shelf/class door/grow plots stay in
-  the Shop, connected by a stairs interactable in each room pointing at the
-  other.
+  the Shop; the Dragons' Ground has nothing but its stashes and a stairs back
+  — each pair of rooms is connected by a stairs interactable in each room
+  pointing at the other. One quirk of `_load_room()`'s spawn-position
+  resolution: it only auto-fills a stairs' `spawn_position` from the target
+  room's `SpawnPoint` if the target room was *already* loaded when the
+  stairs gets wired, so a stairs pointing at a room that loads later
+  (`Shop`'s stairs to `Bedroom`/`DragonsGround`, both of which load after
+  `Shop`) needs its `spawn_position` hand-set in the `.tscn` to match that
+  room's `SpawnPoint` instead of relying on auto-resolution.
 
 ---
 
@@ -1154,28 +1165,30 @@ Transmutation (autoload)
 
 ---
 
-## 19. Draconology / Dragon's Stash System **[BUILD]**
+## 19. Draconology / Dragon's Stash System **[BUILT]**
 
-Digging draconic ingredients out of a Dragon's Stash interactable. Player-tethered like the
-Contract Book (system 17) — progress only advances while the player stands at it — but with no
-pause/resume: walking away doesn't freeze a writ's progress in place, it throws the whole dig
-away, forcing a full restart (and a freshly rolled hidden quality) next time. It's also
-single-use: once resolved, the stash Interactable is destroyed and never comes back.
+Digging draconic ingredients out of a Dragon's Stash interactable, scattered through the Dragons'
+Ground. Player-tethered like the Contract Book (system 17) — progress only advances while the
+player stands at it — but with no pause/resume: walking away doesn't freeze a writ's progress in
+place, it throws the whole dig away, forcing a full restart (and a freshly rolled hidden quality)
+next time. It's also single-use: once resolved, the stash Interactable is destroyed and doesn't
+come back until a future overnight roll happens to refill its slot.
 
 **Fictional framing (why this system looks the way it does):** a Dragon's Stash isn't a shop
-fixture like the Contract Book or Workbench — it's meant to be procedurally scattered through a
-future exploration layer's "dragons' grounds," dangerous territory the player has no business
-lingering in. Digging one out is a commitment made under threat, not a safe errand: the player
+fixture like the Contract Book or Workbench — it's procedurally scattered through the Dragons'
+Ground, a large exploration-layer room (system 12) the player has no business lingering in.
+Digging one out is a commitment made under threat, not a safe errand: the player
 should feel the same tension a Contract Book gives them (a meter climbing, deciding whether to
 keep watching it) but sharpened by the possibility of a dragon showing up mid-dig. That's the
 whole reason walking away *cancels* instead of *pausing* — the Contract Book lets the player
 step away and pick a writ back up later because nothing in a shop punishes hesitation, but a
 stash is meant to force a real decision in the moment: commit to finishing the dig, or cut
 losses and flee, knowing that bailing costs everything gathered so far. It's also why a stash is
-destroyed on collection rather than reset to idle like a brew station or grow plot: the design
-intent is that dragons' grounds will later regenerate their stashes gradually over a period of
-days once collected (not in scope yet — see below), so "gone until the ground itself
-replenishes it" is the intended read, not "gone forever." Both of these are departures from
+destroyed on collection rather than reset to idle like a brew station or grow plot: the ground's
+overnight spawn roll gradually backfills the population a collected stash vacated (see below), so
+"gone until the ground itself replenishes it" is the intended read, not "gone forever" — even
+though it's a fresh id refilling the slot rather than that exact stash respawning (see the
+per-stash regeneration note below). Both of these are departures from
 every other interactable in the prototype, and only make sense in that light — see the "Walking
 away cancels" and "Single-use, and actually destroyed" notes below for the mechanical
 consequences.
@@ -1188,8 +1201,19 @@ DragonStashJob (scripts/data/dragon_stash_job.gd, RefCounted)
   - quality: float          # hidden, rerolled fresh every start_stash()
 
 Draconology (autoload)
-  - _jobs: Dictionary                # stash_id -> DragonStashJob, actively being dug only
-  - _collected_stash_ids: Dictionary # stash_id -> true, forever
+  - _jobs: Dictionary            # stash_id -> DragonStashJob, actively being dug only
+  - _collected_stash_ids: Dictionary  # stash_id -> true, forever
+  - _spawner_configs: Dictionary      # spawner_id -> {max, avg_days_to_max}, in-memory only
+  - _spawner_stash_ids: Dictionary    # spawner_id -> Array[String], ids currently scattered
+  - _spawner_counters: Dictionary     # spawner_id -> int, next <spawner_id>_stash_N to hand out
+
+DragonStashSpawnerNode (scripts/dragon_stash_spawner_node.gd, Node2D;
+scenes/spawners/DragonStashSpawner.tscn)
+  - spawner_id: String       # unique key into Draconology's spawner dicts above
+  - spawn_zone_path: NodePath  # resolved node's Polygon2D children mark the zone -- see note below
+  - max_stashes: int
+  - avg_days_to_max: float   # ~average in-game days for this spawner's population to fill
+  - min_separation: float
 ```
 
 - **`interact()` only ever starts the dig.** `DragonStashInteractable.interact()` calls
@@ -1252,12 +1276,12 @@ Draconology (autoload)
   idle state, a resolved Dragon's Stash is just gone. This is the other departure the fictional
   framing above explains: a permanent fixture like a brew station makes sense in a shop, but a
   stash is a one-time find in the wild, and "gone" here specifically means gone-until-the-ground-
-  regenerates-it, not gone-forever — the regeneration itself just isn't built yet (see below).
-  Because `DragonStashInteractable` nodes are hand-placed in room scenes (like
-  `ContractBook`/`Workbench`, not runtime-instanced like grow plots), `_wire_interactable()` has to
-  guard the reload path too: on room load it checks `Draconology.is_collected(stash_id)` and
-  immediately `queue_free()`s the node instead of registering it, so a stash collected before a
-  save doesn't reappear when its room is loaded again.
+  regenerates-it, not gone-forever. `DragonStashInteractable` nodes are runtime-instanced (see
+  below), so there's no hand-placed node for a collected id to leave behind — but
+  `_wire_interactable()` still guards the reload path the same way it would for a hand-placed one:
+  on load, each `DragonStashSpawnerNode` re-requests every id `Draconology.register_spawner()`
+  still reports for it (uncollected by definition, since a collected id is dropped from that
+  spawner's list), which is what keeps a collected stash from reappearing after a save/load.
 - **Destroying the node while the player is standing on it needed one extra guard.** Because the
   tether guarantees the player is still overlapping the stash's `Area2D` at the exact moment it's
   freed, Godot's physics-server cleanup fires a `body_exited` for it — which would otherwise
@@ -1284,19 +1308,70 @@ Draconology (autoload)
   jobs are deliberately *not* persisted — the player is never standing at the stash the instant a
   save loads, and unlike a writ there's no paused state to restore into, so a save/load is simply
   treated as another walk-away (any in-progress dig is just gone on reload, same as it would be if
-  the player had stepped away). Only `_collected_stash_ids` is persisted, so a finished stash
-  stays gone.
+  the player had stepped away). `_collected_stash_ids` is persisted so a finished stash stays
+  gone, alongside `_spawner_stash_ids`/`_spawner_counters` (both keyed by `spawner_id`) so every
+  spawner's current population and next id both survive a save/load intact — each
+  `DragonStashSpawnerNode` re-requests every id it's still owed on load (see below), so without
+  persisting this every uncollected stash would vanish on reload instead of just the in-progress
+  digs. `_spawner_configs` (max/rate) is deliberately *not* persisted — it's re-supplied by each
+  spawner node's own exported values every time its room loads, the same "exported tunable, not
+  save data" split `Rng` uses for never reseeding on load.
+- **Spawning is owned by `DragonStashSpawnerNode`, not the room or `Draconology`.** Drop a
+  `scenes/spawners/DragonStashSpawner.tscn` instance into any room scene, link `spawn_zone_path`
+  (the inspector's "Assign..." button gives a node picker restricted to that scene, same as it
+  would for a typed `Node2D` export) to a `Node2D` whose `Polygon2D` children mark the diggable
+  area, and set `max_stashes`/`avg_days_to_max`/`min_separation`/a unique `spawner_id`. This is
+  deliberately a plain `NodePath` export, resolved with `get_node_or_null()` in script, rather than
+  a typed `@export var spawn_zone: Node2D` — Godot's typed Node export only auto-resolves paths
+  that stay inside the exporting node's own instanced sub-scene, so a path reaching out to a
+  sibling in the parent room scene (as `spawn_zone_path` always does, since the linked zone lives
+  in the room, not inside `DragonStashSpawner.tscn`) silently resolves to `null` and every stash
+  lands at the room's origin instead of its zone — this bit a first pass at this system and is
+  worth remembering before "fixing" it back to a typed export. The
+  Dragons' Ground (`scenes/rooms/DragonsGround.tscn`, `room_id = "dragons_ground"` — a large room
+  reached from the Shop via a `StairsInteractable` doorway, with a `StairsBack` returning the
+  favor) carries one such spawner (`spawner_id = "dragons_ground_stashes"`) linked to its
+  `SpawnZones` container, but nothing stops a future room from having its own with different
+  tuning. `DragonStashSpawnerNode` doesn't instance the `DragonStashInteractable` itself, though —
+  stashes need the same proximity wiring (HUD prompts, `player_exited` → `cancel_stash()`, the
+  `is_collected()` reload guard) every other Interactable gets from `RoomBuilder._wire_interactable()`,
+  and duplicating that wiring in a second place isn't worth it. Instead the spawner node only owns
+  *where* and *how often*: it calls `Draconology.register_spawner(spawner_id, max_stashes,
+  avg_days_to_max)` once in `_ready()` (getting back whichever of its ids are already scattered,
+  from a loaded save or an earlier visit this session) and emits `spawn_requested(stash_id,
+  world_position)` for each one to place; `RoomBuilder._load_room()` connects to that signal
+  *before* `add_child(room)` triggers the room's `_ready()` (connecting after would miss the
+  initial re-placement burst) and `_on_stash_spawn_requested()` does the actual
+  instantiate-and-wire, parenting the new Interactable under the spawner node itself — the same
+  "code-instanced, not hand-placed" exception `add_grow_plot_interactable()` is for grow plots.
+- **Where a stash can land is drawn, not painted.** A spawner's `spawn_zone_path` points at a
+  container of one or more `Polygon2D` nodes — reshape or add a dig zone by dragging its points in the 2D
+  editor, the same way a `CollisionPolygon2D` is authored, rather than a tileset terrain parameter.
+  `SpawnZoneUtils.random_point()` (`scripts/spawn_zone_utils.gd`, shared with system 21's dragon
+  spawner) rejection-samples a point inside a randomly chosen zone polygon
+  (`Geometry2D.is_point_in_polygon`), rerolling if it lands too close to an already-placed stash
+  from the same spawner (`min_separation`). The position is seeded from `hash(stash_id)` rather
+  than stored anywhere, so a stash lands in the same spot whether it's being freshly placed this
+  session or re-placed after a save load — the same "derived, not persisted" shape
+  `add_grow_plot_interactable()`'s index-based formula uses for plots.
+- **Each spawner approaches its own stash limit instead of filling up outright.**
+  `Draconology._on_day_started()` (wired to `Clock.day_started`, i.e. every sleep/collapse) loops
+  every registered spawner and makes up to `max_stashes` independent rolls, each attempt's chance
+  (`1.0 / avg_days_to_max`) scaled down linearly by how full that spawner's population already is —
+  `chance * (1.0 - current_count / max_stashes)` — so the population climbs quickly while empty and
+  asymptotically slows as it nears `max_stashes` rather than jumping from empty to packed in one
+  night; `avg_days_to_max` is therefore an approximate target, not a hard deadline. All ids rolled
+  for a spawner in a night are batched into one `ground_stashes_spawned(spawner_id, stash_ids)`
+  emission, which only that `spawner_id`'s `DragonStashSpawnerNode` acts on. Collecting a stash
+  (`_resolve()`) erases its id from whichever spawner's list holds it as well as marking it
+  collected, freeing that spawner's slot back up for a future night's roll — its population drains
+  as stashes are dug and refills gradually over subsequent nights, rather than only ever emptying.
 - Not in scope for the prototype, but load-bearing for the fictional framing above and worth
-  keeping in mind when touching this system: **dragons' grounds** as an actual place — a
-  dangerous zone in the future exploration layer (system 12, still `[STUB]`) that procedurally
-  scatters Dragon's Stash instances through it instead of the single hand-placed
-  `dragon_stash_1` that stands in for one today; a **regeneration mechanic** that slowly
-  restocks a ground's stashes over a period of days once collected, which is the piece that
-  turns `Draconology.is_collected()`'s permanence into something temporary — when that lands,
-  collected-ness likely needs a timestamp instead of a bare bool, and `_wire_interactable()`'s
-  reload guard will need to check "collected and not yet due to respawn" rather than "collected,
-  full stop"; and `learn_speed_draconic` (no ingredient-learning system exists yet for any
-  category).
+  keeping in mind when touching this system: a **per-stash regeneration timer**, so a specific
+  collected stash can respawn (possibly in a new spot) after a period of days rather than the
+  ground's overall population just being backfilled by unrelated fresh ids — this is the piece
+  that would turn `Draconology.is_collected()`'s permanence into something temporary; and
+  `learn_speed_draconic` (no ingredient-learning system exists yet for any category).
 
 ---
 
@@ -1389,6 +1464,118 @@ LeyLines (autoload)
 - **No save contract.** Same as Transmutation, there's no state that outlives a single synchronous
   interaction — `LeyLines` has no `get_save_data()`/`load_save_data()` and isn't in
   `SaveManager._SAVE_ORDER`.
+
+---
+
+## 21. Dragons / Roaming Threats **[BUILT]**
+
+Ambient hazards roaming a room's dragon spawn zones. Not enemies to be defeated — the player has
+no attack of any kind — purely obstacles to be avoided while digging Dragon's Stashes (system 19)
+or just passing through. A dragon wanders near its spawn point until the player gets too close,
+chases until it either lands a hit or the player breaks away, and — unlike a Dragon's Stash — is
+never persisted: the whole population is cleared and rerolled fresh every morning rather than
+accumulating or surviving a save/load.
+
+```
+DragonDef (scripts/data/dragon_def.gd, Resource; data/dragons/*.tres)
+  - id, display_name
+  - spawn_weight              # this tier's own global rarity, see DragonSpawnEntry below
+  - visual_color, visual_radius
+  - provoke_range             # base distance at which the dragon notices the player
+  - never_provoke_draconology_level  # 0 = always provokable; >0 = never provokes at/above this level
+  - roam_speed, roam_radius, chase_speed
+  - attack_range, resolve_damage, knockback_force, attack_pause_seconds
+
+DragonSpawnEntry (scripts/data/dragon_spawn_entry.gd, Resource)
+  - dragon: DragonDef
+  - weight: float             # spawn weight local to one DragonSpawnerNode's roster
+
+DragonSpawnerNode (scripts/dragon_spawner_node.gd, Node2D; scenes/spawners/DragonSpawner.tscn)
+  - spawn_zone_path: NodePath  # resolved node's Polygon2D children mark the zone -- see system 19's note on why this is a plain NodePath, not a typed Node export
+  - roster: Array[DragonSpawnEntry]
+  - count_min, count_max: int
+  - min_separation: float
+```
+
+- **Four size tiers, small to extra-large, common to rare** (`data/dragons/wyrmling.tres` →
+  `drake.tres` → `wyvern.tres` → `ancient_wyrm.tres`). `DragonDef.spawn_weight` runs 10/5/2/1
+  respectively — dragged straight onto a `DragonSpawnerNode`'s `roster` array (each entry pairing
+  a `DragonDef` with its own local `weight`, defaulted to that global rarity but overridable per
+  spawner — a room that wants "70% drakes, 30% wyrmlings" just sets those two entries' weights
+  directly), a weighted pick (`DragonSpawnerNode._pick_weighted_entry()`) is what actually turns
+  that into "small dragons everywhere, an Ancient Wyrm is a rare, dangerous find." Bigger tiers
+  scale up both `provoke_range` and `resolve_damage` together, per design: a larger dragon is
+  dangerous from further away *and* hits harder, not just tougher up close.
+- **`Dragon`** (`scripts/dragon.gd`, `scenes/Dragon.tscn`, a `CharacterBody2D` on physics layer 3
+  "Enemies", mask `Walls` only — no physical collision with the player, every player-facing
+  interaction is a plain distance check, not a hitbox) is a small state machine —
+  `ROAMING` / `CHASING` / `ATTACK_PAUSE` — driven entirely in `_physics_process`, the same
+  "no autoload owns this, the node owns its own behavior" shape `player.gd` uses for movement.
+  `DragonSpawnerNode.setup(def, spawn_position)` configures the placeholder `Visual`/
+  `CollisionShape2D` size and color from the def and anchors `home_position` for roaming, the same
+  runtime-instancing shape `add_grow_plot_interactable()` uses for grow plots.
+- **Spawning is owned by `DragonSpawnerNode`, one per zone.** Drop a
+  `scenes/spawners/DragonSpawner.tscn` instance into any room scene, link `spawn_zone_path` to a
+  `Node2D` whose `Polygon2D` children mark the roaming area, populate `roster`, and set
+  `count_min`/`count_max`/`min_separation` — see system 19's note on why this is a plain `NodePath`
+  export rather than a typed `Node2D` one. Unlike
+  `DragonStashSpawnerNode` (system 19), this node is fully self-contained: dragons are ambient
+  hazards with no persisted state and aren't Interactables, so it instances/frees its own `Dragon`
+  children directly in `_ready()`/`_respawn()` rather than asking `RoomBuilder` to own the
+  lifecycle — no signal round-trip, no wiring step in `RoomBuilder._load_room()`. The Dragons'
+  Ground (`scenes/rooms/DragonsGround.tscn`) carries one such spawner linked to the same
+  `SpawnZones` container its `DragonStashSpawnerNode` uses, but a future room could have its own
+  with a different roster or zone.
+- **Position sampling is shared with system 19.** `SpawnZoneUtils.random_point()`
+  (`scripts/spawn_zone_utils.gd`) rejection-samples a point inside a randomly chosen zone polygon
+  (`Geometry2D.is_point_in_polygon`), rerolling if it lands too close to an already-placed dragon
+  from the same spawner this batch (`min_separation`) — the same rejection-sampling shape
+  `DragonStashSpawnerNode` uses, but called with no seed (`seed_value` left `null`), so positions
+  are freshly rolled from the shared `Rng` autoload every call rather than seeded from an id —
+  dragons have nothing that needs to land in the same spot across a save/load the way a stash does.
+- **Roaming**: picks a random point within `roam_radius` of `home_position`, walks to it at
+  `roam_speed`, waits a random 1–3s, repeats. Every roaming tick also checks whether the player has
+  wandered inside the dragon's *effective* provoke range — see below — and provokes into `CHASING`
+  if so and the dragon is willing to (`never_provoke_draconology_level`).
+- **Draconology skill shrinks how close a dragon senses the player from, and can shut some off
+  entirely.** `_effective_provoke_range()` subtracts `PROVOKE_RANGE_PER_DRACONOLOGY_LEVEL` (6.0)
+  per player Draconology level from `provoke_range`, floored at `MIN_PROVOKE_RANGE_FRACTION` (25%)
+  of the base — a skilled player can walk closer before anything notices. Separately,
+  `never_provoke_draconology_level` (only set on the Wyrmling, at 4) means a sufficiently skilled
+  player stops provoking that tier *at all*, regardless of distance — "smaller, lower-level dragons
+  might not even bother with a skilled player," per design, while every other tier stays provokable
+  no matter how skilled the player gets.
+- **Chasing and losing sight.** While `CHASING`, the dragon closes at `chase_speed` until either it's
+  within `attack_range` (attacks — see below) or the player gets outside an *expanded* range —
+  `provoke_range * LOSE_SIGHT_MULTIPLIER` (1.5×, and deliberately the dragon's *base* provoke_range,
+  not the skill-shrunk effective one) — at which point it gives up and returns to `ROAMING` from
+  wherever it currently is.
+- **Landing a hit.** `Dragon._attack()` (only reachable from `CHASING`, once within `attack_range`)
+  calls `Player.apply_knockback(global_position, knockback_force)` — pushes the player directly away
+  from the dragon and starts their invincibility window — and `Resolve.spend(resolve_damage, ...)`,
+  the same failure-event shape Brewing's botched-brew roll uses (system 8). The dragon then enters
+  `ATTACK_PAUSE` for `attack_pause_seconds`, standing still — this is the deliberate window that lets
+  a hit player actually get away rather than eating repeated hits, not just a cosmetic recovery
+  beat. On expiry it resumes `CHASING` if the player's still within the lose-sight range, or drops
+  back to `ROAMING` otherwise. `_attack()` also no-ops (dragon just stands still) if the player is
+  already invincible, so a dragon that catches up mid-flinch doesn't re-trigger anything.
+- **`Player` (`scripts/player.gd`) owns its own knockback/invincibility state**, not `Dragon` — it's
+  player state that has to persist independent of which dragon (if any) caused it.
+  `apply_knockback()` shoves the player away from the attacker's position with a velocity that
+  decays via `move_toward` (`KNOCKBACK_DECAY`) each physics frame, overriding WASD input for as long
+  as it's still nonzero, and starts a flat `INVINCIBILITY_SECONDS` (1.2) window during which the
+  `Visual` `ColorRect` flashes on/off every `FLASH_INTERVAL` (0.1s) and `apply_knockback()` itself is
+  a no-op — both the visual tell and the actual protection, so nothing needs to check
+  `is_invincible()` twice. `player.gd` gained a `class_name Player` for this since `Dragon` needs a
+  concrete type to call `apply_knockback()`/`is_invincible()` on.
+- **Cleared and rerolled every morning, never persisted.** `DragonSpawnerNode._respawn()` is called
+  once from `_ready()` (so the zone isn't empty on the very first visit) and wired to
+  `Clock.day_started` (every sleep/collapse, same trigger as system 19's stash spawn roll). Unlike
+  `Draconology`'s stashes, which persist and only asymptotically approach a population cap, this is
+  a hard reset: every existing `Dragon` node this spawner owns is `queue_free()`'d and a fresh
+  `Rng.range_i(count_min, count_max)` batch is spawned via the weighted pick above. No save
+  contract: `Dragon`/`DragonSpawnerNode` carry no `get_save_data()`, since a loaded save just gets
+  a fresh morning-equivalent spawn from each spawner's own `_ready()`.
 
 ---
 

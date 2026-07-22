@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="DragonDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/dragon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "drake"
+display_name = "Drake"
+spawn_weight = 5.0
+visual_color = Color(0.75, 0.25, 0.2, 1)
+visual_radius = 20.0
+provoke_range = 130.0
+never_provoke_draconology_level = 0
+roam_speed = 45.0
+roam_radius = 160.0
+chase_speed = 100.0
+attack_range = 32.0
+resolve_damage = 14
+knockback_force = 280.0
+attack_pause_seconds = 1.5
