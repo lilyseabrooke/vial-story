@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="RiftBundleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/rift_bundle_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "faint_echo"
+display_name = "A Faint Echo"
+sequence = Array[String](["moon", "star", "eye", "wave"])
+weight = 3.0
+duration_minutes = 5
+ingredient_ids = Array[String](["rift_glass"])
+ingredient_quantities = Array[int]([1])
+material_delta = 0
+resolve_delta = 0
+scaled_ingredient_ids = Array[String](["rift_glass"])
+scaled_ingredient_quantities = Array[int]([1])
+flavor_text = "A brief flicker across the veil -- barely worth the candlelight, but harmless."

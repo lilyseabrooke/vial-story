@@ -39,6 +39,7 @@ var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
+var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -99,6 +100,16 @@ func build_rooms() -> void:
 	for stash_id in _stash_nodes:
 		_sync_stash_indicator(stash_id)
 
+	Summoning.rift_started.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
+	Summoning.rift_ready.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
+	Summoning.rift_collected.connect(func(rift_id: String, _bundle_id: String, _ingredients: Dictionary, _material_delta: int, _resolve_delta: int, _quality: float) -> void: _sync_rift_indicator(rift_id))
+	Clock.minute_tick.connect(func(_timestamp: int) -> void:
+		for rift_id in _rift_nodes:
+			_sync_rift_indicator(rift_id)
+	)
+	for rift_id in _rift_nodes:
+		_sync_rift_indicator(rift_id)
+
 
 ## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -139,6 +150,8 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 		# progress); resuming is deliberately only done from interact()
 		# (an E-press), not just from re-entering the proximity area.
 		interactable.player_exited.connect(func(_i: InteractableBase) -> void: Demonology.pause_writ(interactable.target_id))
+	elif interactable is PlanarRiftInteractable:
+		_rift_nodes[interactable.target_id] = interactable
 	elif interactable is DragonStashInteractable:
 		# A stash already collected on a prior save doesn't get re-registered
 		# -- its hand-placed node is just discarded, so it stays gone across
@@ -275,6 +288,23 @@ func _sync_stash_indicator(stash_id: String) -> void:
 		node.clear_stash_indicator()
 	else:
 		node.set_stash_progress(job.progress_fraction())
+
+
+## Drives a Planar Rift Interactable's progress bar/ready popup from
+## Summoning's current state -- same shape as _sync_station_indicator since
+## a rift job is a Clock.get_timestamp() deadline too, just possibly a much
+## longer one.
+func _sync_rift_indicator(rift_id: String) -> void:
+	var node: PlanarRiftInteractable = _rift_nodes.get(rift_id)
+	if node == null:
+		return
+	var job := Summoning.get_job(rift_id)
+	if job == null:
+		node.clear_rift_indicator()
+	elif job.status == PlanarRiftJob.Status.READY:
+		node.show_rift_ready()
+	else:
+		node.set_rift_progress(job.progress_fraction(Clock.get_timestamp()))
 
 
 ## A stash is single-use -- once Draconology resolves it, its Interactable

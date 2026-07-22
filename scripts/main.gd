@@ -34,6 +34,7 @@ func _ready() -> void:
 		_grant_starting_ingredients()
 		_grant_starting_scrap()
 		_grant_starting_quests()
+		_grant_starting_summoning_knowledge()
 	_start_game(Color(PlayerProfile.player_color_hex))
 
 
@@ -70,6 +71,14 @@ func _grant_starting_scrap() -> void:
 func _grant_starting_quests() -> void:
 	for id in STARTING_QUESTS:
 		QuestManager.start_quest(id)
+
+
+## Seed one known summoning sequence so the Planar Rift minigame's reference
+## panel isn't empty on a fresh game -- the simplest bundle (faint_echo) works
+## as a tutorial. The rest are discovered by building them blind, which teaches
+## them (Summoning.complete_rift_minigame -> learn_bundle).
+func _grant_starting_summoning_knowledge() -> void:
+	Summoning.learn_bundle("faint_echo")
 
 
 func _unhandled_input(event: InputEvent) -> void:

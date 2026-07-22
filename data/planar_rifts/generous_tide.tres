@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="RiftBundleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/rift_bundle_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "generous_tide"
+display_name = "A Generous Tide"
+sequence = Array[String](["tide", "wave", "sun", "key"])
+weight = 1.5
+duration_minutes = 1440
+ingredient_ids = Array[String](["rift_glass", "warped_ichor"])
+ingredient_quantities = Array[int]([3, 2])
+material_delta = 10
+resolve_delta = -10
+scaled_ingredient_ids = Array[String](["warped_ichor"])
+scaled_ingredient_quantities = Array[int]([2])
+scaled_material_bonus = 10
+gated_ingredient_ids = Array[String](["warped_ichor"])
+gated_ingredient_quantities = Array[int]([1])
+gated_ingredient_min_quality = Array[float]([0.85])
+flavor_text = "The rift pours out more than expected -- exhilarating, but it leaves you rattled."

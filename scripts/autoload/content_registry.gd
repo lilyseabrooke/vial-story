@@ -25,6 +25,8 @@ const INGREDIENT_PATHS := [
 	"res://data/ingredients/ember_dust.tres",
 	"res://data/ingredients/glimmer_dust.tres",
 	"res://data/ingredients/echo_shard.tres",
+	"res://data/ingredients/rift_glass.tres",
+	"res://data/ingredients/warped_ichor.tres",
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",
@@ -54,6 +56,12 @@ const QUEST_PATHS := [
 	"res://data/quests/first_brew.tres",
 	"res://data/quests/stock_the_shelf.tres",
 ]
+const RIFT_BUNDLE_PATHS := [
+	"res://data/planar_rifts/faint_echo.tres",
+	"res://data/planar_rifts/modest_exchange.tres",
+	"res://data/planar_rifts/generous_tide.tres",
+	"res://data/planar_rifts/deep_communion.tres",
+]
 
 var recipes: Array[RecipeDef] = []
 var ingredients: Array[IngredientDef] = []
@@ -62,6 +70,7 @@ var seeds: Array[SeedDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
 var quests: Array[QuestDef] = []
+var rift_bundles: Array[RiftBundleDef] = []
 
 var _recipes_by_id: Dictionary = {}        # id -> RecipeDef
 var _ingredients_by_id: Dictionary = {}    # id -> IngredientDef
@@ -70,6 +79,7 @@ var _seeds_by_id: Dictionary = {}          # id -> SeedDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
 var _quests_by_id: Dictionary = {}         # id -> QuestDef
+var _rift_bundles_by_id: Dictionary = {}   # id -> RiftBundleDef
 
 
 func _ready() -> void:
@@ -101,6 +111,10 @@ func _ready() -> void:
 		var def := load(path) as QuestDef
 		quests.append(def)
 		_quests_by_id[def.id] = def
+	for path in RIFT_BUNDLE_PATHS:
+		var def := load(path) as RiftBundleDef
+		rift_bundles.append(def)
+		_rift_bundles_by_id[def.id] = def
 
 
 func get_recipe(id: String) -> RecipeDef:
@@ -129,3 +143,7 @@ func get_shop_location(id: String) -> ShopLocationDef:
 
 func get_quest(id: String) -> QuestDef:
 	return _quests_by_id.get(id)
+
+
+func get_rift_bundle(id: String) -> RiftBundleDef:
+	return _rift_bundles_by_id.get(id)

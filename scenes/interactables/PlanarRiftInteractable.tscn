@@ -1,0 +1,68 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/planar_rift_interactable.gd" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rift_bg"]
+bg_color = Color(0.1, 0.1, 0.13, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.85, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rift_bg"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rift_fill"]
+bg_color = Color(0.15, 0.65, 0.65, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_left = 2
+corner_radius_bottom_right = 2
+
+[node name="PlanarRiftInteractable" instance=ExtResource("1")]
+script = ExtResource("2")
+
+[node name="RiftProgressContainer" type="Panel" parent="."]
+visible = false
+offset_left = -8.0
+offset_top = -92.0
+offset_right = 8.0
+offset_bottom = -46.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_rift_bg")
+
+[node name="RiftProgress" type="ProgressBar" parent="RiftProgressContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 3.0
+offset_top = 3.0
+offset_right = -3.0
+offset_bottom = -3.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/background = SubResource("StyleBoxEmpty_rift_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_rift_fill")
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+value = 0.0
+fill_mode = 3
+show_percentage = false
+
+[node name="RiftReadyPopup" type="Label" parent="."]
+visible = false
+offset_left = -50.0
+offset_top = -80.0
+offset_right = 50.0
+offset_bottom = -48.0
+theme_override_colors/font_color = Color(0.7, 0.5, 1, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+text = "Ready!"
