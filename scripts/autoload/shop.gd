@@ -5,6 +5,7 @@ extends Node
 signal potion_stocked(potion_id: String, price: int)
 signal potion_sold(potion_id: String, price: int)
 signal coffers_collected(amount: int)
+signal reputation_changed(reputation: int)
 
 const OPEN_MINUTE_OF_DAY := 9 * 60    # 9:00 AM
 const CLOSE_MINUTE_OF_DAY := 20 * 60  # 8:00 PM
@@ -100,6 +101,11 @@ func _roll_sales() -> void:
 			coffers += slot.price
 			potion_sold.emit(slot.potion_id, slot.price)
 		i -= 1
+
+
+func add_reputation(amount: int) -> void:
+	reputation += amount
+	reputation_changed.emit(reputation)
 
 
 func get_save_data() -> Dictionary:

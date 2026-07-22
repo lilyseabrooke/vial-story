@@ -394,6 +394,30 @@ GradeRecord
   1) contributes a small continuous bonus to `running_score` plus skill XP / item
   drops. Not attending contributes nothing and counts toward absence tracking, but
   costs the player no time relative to staying out and doing something else.
+- **Effort level.** `ClassDoorInteractable` opens a `MenuScene` panel (`hud.class_panel`)
+  offering three `Academy.Effort` choices — Coast (`LOW`), Regular Effort (`NORMAL`),
+  Burn It / 110% (`HIGH`) — before `Academy.attend_class(effort)` fires. Every level
+  costs Resolve (`Academy.EFFORT_RESOLVE_COST`, spent via `Resolve.spend()` same as a
+  Brewing botch): very little at Coast, a real bite at Burn It. Effort does not change
+  the base attendance/class-performance flow above — it only scales the reward roll
+  below, via `Academy.EFFORT_REWARD_MULTIPLIER` (magnitude) and
+  `Academy.EFFORT_REWARD_ROLLS` (Burn It gets a second independent roll rather than a
+  guaranteed double reward, so it stays a gamble rather than strictly-better-and-
+  predictable).
+- **Class rewards.** Each reward roll (`Academy._roll_class_reward()`) is a visible
+  2d10 Focus check (`Rng.roll_2d10`, modifier `Skills.level("focus")`, flat
+  `REWARD_ROLL_DC := 11.0`) that scales the reward's magnitude on top of effort — a
+  critical success multiplies it further (`REWARD_CRIT_MULTIPLIER`), a failed roll
+  shrinks it (`REWARD_FAIL_MULTIPLIER`) — then a reward type is chosen uniformly from
+  `Academy.REWARD_TYPES`: a new ingredient, a Materials grant, a new potion recipe
+  (`Alchemy.learn_recipe`), a new Planar Rift summoning sequence
+  (`Summoning.learn_bundle`), a relationship bump with a random `Characters` entry
+  (`LoveInterests.add_affection`), XP in a random skill (`Skills.add_xp`), or shop
+  reputation (`Shop.add_reputation`, new — reputation was previously write-only, seeded
+  to 0 and never incremented). A type whose pool is momentarily empty (e.g. every
+  recipe already learned) falls back to a Materials grant rather than a dead roll. No
+  `AcademyRewardDef` resource introduced — kept as flat consts on `Academy`, matching
+  the existing `ATTENDANCE_BONUS`/`PASSING_SCORE` style.
 - Exams are scripted periodic events that roll a grade from `running_score` (+ any
   prep actions taken, if/when those exist).
 - Passing a grade decays `strikes`; failing increments it.
