@@ -466,7 +466,9 @@ GrowPlot
 - Growth resolves by absolute timestamp comparison, same as brew jobs — checked on
   any relevant tick and swept during `TimeSkip` (overnight, or across a skipped
   class window).
-- Number of plots is an upgrade lever (e.g. terrace stations).
+- Plots live in the Garden map, not the Shop (see system 12) — there is no
+  Materials-purchasable way to add more in the prototype; the plot count is
+  fixed at `STARTING_PLOT_COUNT`.
 
 ---
 
@@ -605,37 +607,38 @@ CurseState
 
 - Top-down movement within the shop interior and a small surrounding neighborhood.
 - Scope is deliberately limited: a handful of interactable nodes (shop counter,
-  stock box, brew stations, grow plots, a couple of NPC/scene triggers outside),
-  not an open world.
+  stock box, brew stations, grow plots in the Garden, a couple of NPC/scene
+  triggers outside), not an open world.
 - Anything outside this small area (classes, most love-interest content) resolves
   as a VN scene rather than being walked to — see system #13.
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
 - **Rooms**: the interior is split into separate hand-authored room scenes
   (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, `DragonsGround.tscn`,
-  and `ScrapYard.tscn`), each a `Room`-scripted (`scripts/room.gd`) `Node2D`
-  with `Floor`/`Walls` `TileMapLayer`s, a `SpawnPoint` `Marker2D`, and an
-  `Interactables` container of pre-placed interactable instances configured
-  entirely via the Inspector. `RoomBuilder.build_rooms()`
-  (`scripts/room_builder.gd`) loads all four scenes up front, reads each
-  room's markers, and wires every pre-placed interactable's signals; grow-plot
-  interactables, Dragons' Ground stashes, and Scrap Yard heaps are the
-  exceptions and stay code-instanced (each parented under its own spawner
-  node rather than a room's `Interactables` container) since they come from
-  runtime `Herbalism`/`Draconology`/`Transmutation` data rather than being
-  hand-placed — see system 19 for how the Dragons' Ground spawns and places
-  its stashes, and system 18's Scrap Heap subsection for the Scrap Yard's
-  identically-shaped `ScrapHeapSpawnerNode`. Only one room is active at a
-  time — `switch_room()` toggles `visible`/`process_mode` on the room scenes
-  (inactive rooms are `PROCESS_MODE_DISABLED`, which also stops their
-  interactable areas from firing enter/exit signals while hidden) and
-  repositions the single shared player + camera. The player and camera are
-  scene-level nodes, not per-room, so they persist across a switch. Wall
-  tiles carry real collision (physics layer 2, named "Walls" in
+  `ScrapYard.tscn`, and `Garden.tscn`), each a `Room`-scripted
+  (`scripts/room.gd`) `Node2D` with `Floor`/`Walls` `TileMapLayer`s, a
+  `SpawnPoint` `Marker2D`, and an `Interactables` container of pre-placed
+  interactable instances configured entirely via the Inspector.
+  `RoomBuilder.build_rooms()` (`scripts/room_builder.gd`) loads all five
+  scenes up front, reads each room's markers, and wires every pre-placed
+  interactable's signals; grow-plot interactables, Dragons' Ground stashes,
+  and Scrap Yard heaps are the exceptions and stay code-instanced (each
+  parented under its own spawner node, or — for grow plots — the Garden's
+  `Plots` container, rather than a room's `Interactables` container) since
+  they come from runtime `Herbalism`/`Draconology`/`Transmutation` data
+  rather than being hand-placed — see system 19 for how the Dragons' Ground
+  spawns and places its stashes, and system 18's Scrap Heap subsection for
+  the Scrap Yard's identically-shaped `ScrapHeapSpawnerNode`. Only one room
+  is active at a time — `switch_room()` toggles `visible`/`process_mode` on
+  the room scenes (inactive rooms are `PROCESS_MODE_DISABLED`, which also
+  stops their interactable areas from firing enter/exit signals while
+  hidden) and repositions the single shared player + camera. The player and
+  camera are scene-level nodes, not per-room, so they persist across a
+  switch. Wall tiles carry real collision (physics layer 2, named "Walls" in
   `project.godot`'s `[layer_names]`; `Player`'s `collision_mask` includes
-  it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard` currently
-  leave `Floor`/`Walls` empty placeholders with no tileset assigned yet, same
-  as `Shop.tscn` did before its interior was painted.
+  it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard`/`Garden`
+  currently leave `Floor`/`Walls` empty placeholders with no tileset assigned
+  yet, same as `Shop.tscn` did before its interior was painted.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
@@ -657,9 +660,10 @@ CurseState
   (`StairsInteractable`), configured with a `target_room` id and a
   `spawn_position` in the destination room, the same per-instance-config
   pattern as every other interactable. The Bed lives in the Bedroom; the
-  Shop's brew station/stock box/supply shelf/class door/grow plots stay in
-  the Shop; the Dragons' Ground has nothing but its stashes and a stairs
-  back; the Scrap Yard is the same shape as the Dragons' Ground but with a
+  Shop's brew station/stock box/supply shelf/class door stay in the Shop;
+  the grow plots live in the Garden (its only other content is the stairs
+  back); the Dragons' Ground has nothing but its stashes and a stairs back;
+  the Scrap Yard is the same shape as the Dragons' Ground but with a
   `ScrapHeapSpawner` in place of the `DragonSpawner`/`DragonStashSpawner`
   pair — each pair of rooms is connected by a stairs interactable in each
   room pointing at the other. One quirk of `_load_room()`'s spawn-position

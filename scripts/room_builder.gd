@@ -23,6 +23,7 @@ const SHOP_SCENE := preload("res://scenes/rooms/Shop.tscn")
 const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
 const DRAGONS_GROUND_SCENE := preload("res://scenes/rooms/DragonsGround.tscn")
 const SCRAP_YARD_SCENE := preload("res://scenes/rooms/ScrapYard.tscn")
+const GARDEN_SCENE := preload("res://scenes/rooms/Garden.tscn")
 const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
 const SCRAP_HEAP_SCENE := preload("res://scenes/interactables/ScrapHeapInteractable.tscn")
@@ -31,6 +32,7 @@ const SHOP_ROOM_ID := "shop"
 const BEDROOM_ROOM_ID := "bedroom"
 const DRAGONS_GROUND_ROOM_ID := "dragons_ground"
 const SCRAP_YARD_ROOM_ID := "scrap_yard"
+const GARDEN_ROOM_ID := "garden"
 
 var player: CharacterBody2D
 var current_room_id: String = ""
@@ -53,6 +55,7 @@ func build_rooms() -> void:
 	_load_room(BEDROOM_SCENE)
 	_load_room(DRAGONS_GROUND_SCENE)
 	_load_room(SCRAP_YARD_SCENE)
+	_load_room(GARDEN_SCENE)
 
 	# Added after the rooms so they draw on top of each room's floor — 2D draw
 	# order follows tree order, and rooms are siblings of the player/camera.
@@ -202,7 +205,7 @@ func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
 	interactable.display_name = plot_id
 	interactable.visual_color = Color(0.3, 0.6, 0.3)
 	interactable.position = pos
-	_rooms[SHOP_ROOM_ID].get_node("Plots").add_child(interactable)
+	_rooms[GARDEN_ROOM_ID].get_node("Plots").add_child(interactable)
 	_wire_interactable(interactable)
 	_plot_nodes[plot_id] = interactable
 	update_plot_label(plot_id)

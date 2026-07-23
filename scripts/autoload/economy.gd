@@ -58,8 +58,6 @@ func _apply_effect(upgrade: UpgradeDef) -> void:
 			Brewing.get_station(STATION_ID).ease_modifier += upgrade.effect_amount
 		"station_speed":
 			Brewing.get_station(STATION_ID).speed_modifier += upgrade.effect_amount
-		"grow_plot_count":
-			Herbalism.add_plots(int(upgrade.effect_amount))
 		_:
 			push_warning("Unknown upgrade effect_target: %s" % upgrade.effect_target)
 

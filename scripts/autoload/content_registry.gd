@@ -36,7 +36,6 @@ const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",
 	"res://data/upgrades/alembic_tune_up.tres",
 	"res://data/upgrades/quick_brew_coil.tres",
-	"res://data/upgrades/extra_grow_plot.tres",
 ]
 const SEED_PATHS := [
 	"res://data/seeds/moonpetal_seed.tres",
