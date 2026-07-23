@@ -4,4 +4,4 @@ extends InteractableBase
 
 
 func interact(main: MainScene) -> void:
-	main.hud.attend_class()
+	main.hud.open_class_menu()

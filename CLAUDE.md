@@ -99,8 +99,9 @@ event bus or game-state object.
   `MenuScene` doesn't need to know the player exists. Menus are single-purpose per interactable (no
   tabs) and close on `Esc`, on re-pressing `E` at the same interactable, or on entering/exiting a
   different interactable (`main.gd`'s `_on_player_entered_interactable`/`_on_player_exited_interactable`
-  call `hud.close_menu()`); `StockBoxInteractable`, `BedInteractable`, and `ClassDoorInteractable` stay
-  instant one-shot actions and never go through `MenuScene`. `_panel` (the root `PanelContainer`
+  call `hud.close_menu()`); `StockBoxInteractable` and `BedInteractable` stay instant one-shot actions
+  and never go through `MenuScene`. `ClassDoorInteractable` opens a `MenuScene` panel (`hud.class_panel`)
+  to pick an effort level before `Academy.attend_class()` fires — see system 9. `_panel` (the root `PanelContainer`
   everything above gets reparented into) has
   `theme/ui_theme.tres` assigned to it, so panel/button/font styling for every menu is centralized there —
   swapping in illustrated art later is a theme/asset change, not a script change. `GameMenu`'s tab

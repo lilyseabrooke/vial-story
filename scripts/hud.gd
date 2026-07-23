@@ -17,6 +17,7 @@ const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMin
 var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
+var class_panel: VBoxContainer
 
 var _station_id: String = ""
 var _starting_ingredients: Dictionary = {}
@@ -189,6 +190,15 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 		_upgrade_buttons[upgrade.id] = upgrade_button
 		supply_panel.add_child(upgrade_button)
 
+	class_panel = VBoxContainer.new()
+	for effort in [Academy.Effort.LOW, Academy.Effort.NORMAL, Academy.Effort.HIGH]:
+		var effort_button := Button.new()
+		effort_button.text = "%s (-%d Resolve)" % [
+			Academy.EFFORT_NAMES[effort], Academy.EFFORT_RESOLVE_COST[effort]
+		]
+		effort_button.pressed.connect(on_attend_class_button_pressed.bind(effort))
+		class_panel.add_child(effort_button)
+
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
 	# LeyLines has no walk-away tether (MenuScene already freezes the player
@@ -296,6 +306,12 @@ func _connect_autoload_signals() -> void:
 	)
 	Academy.class_performance_rolled.connect(func(result: Dictionary) -> void:
 		_message_wall.add_dice_result(result, "Class Performance")
+	)
+	Academy.class_reward_rolled.connect(func(result: Dictionary) -> void:
+		_message_wall.add_dice_result(result, "Class Focus")
+	)
+	Academy.class_reward_granted.connect(func(_reward_type: String, description: String) -> void:
+		log_message("Class reward: %s" % description)
 	)
 	Academy.game_over.connect(func() -> void:
 		_game_over_label.text = "GAME OVER — The Academy has revoked your selling privileges."
@@ -623,10 +639,17 @@ func on_buy_seed_button_pressed(seed_def: SeedDef) -> void:
 		else "Bought 1 %s." % seed_def.display_name)
 
 
-func attend_class() -> void:
-	var error := Academy.attend_class()
-	log_message("Couldn't attend class: %s" % error if error != "" \
-		else "Attended class — running score up, Herbalism XP gained.")
+func open_class_menu() -> void:
+	toggle_menu(class_panel, "Attend Class")
+
+
+func on_attend_class_button_pressed(effort: Academy.Effort) -> void:
+	var error := Academy.attend_class(effort)
+	if error != "":
+		log_message("Couldn't attend class: %s" % error)
+		return
+	close_menu()
+	log_message("Attended class (%s) — running score up, Focus XP gained." % Academy.EFFORT_NAMES[effort])
 	update_clock_label()
 
 
