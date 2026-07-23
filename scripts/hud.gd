@@ -429,6 +429,15 @@ func _connect_autoload_signals() -> void:
 		print("Scrap broken down -- ingredients: %s" % [ingredient_summary])
 		update_ingredients_label()
 	)
+	Transmutation.heap_resolved.connect(func(heap_id: String, roll: Dictionary, scrap_granted: int, ingredients: Dictionary) -> void:
+		_message_wall.add_dice_result(roll, "Transmutation: %s" % heap_id)
+		var outcome_parts: Array[String] = ["%d Scrap" % scrap_granted]
+		for id in ingredients:
+			outcome_parts.append("%d %s" % [ingredients[id], id])
+		log_message("The Scrap Heap gives up its haul! Received: %s." % ", ".join(outcome_parts))
+		print("Scrap Heap resolved at %s -- %s" % [heap_id, outcome_parts])
+		update_ingredients_label()
+	)
 	Alchemy.recipe_learned.connect(func(recipe_id: String) -> void:
 		var recipe := Alchemy.get_learned_recipe(recipe_id)
 		if recipe != null:

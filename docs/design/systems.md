@@ -1271,17 +1271,27 @@ Demonology (autoload)
 
 ## 18. Transmutation / Workbench System **[BUILD]**
 
-Breaking down Scrap into artificial ingredients at a Workbench interactable. Unlike the
-Contract Book (system 17), there's no multi-minute phase to sit through — one interaction
-resolves a whole piece of Scrap immediately, closer in shape to `StockBoxInteractable`'s
-instant action than to `BrewStationInteractable`'s job.
+Breaking down Scrap into artificial ingredients at a Workbench interactable, and digging raw
+Scrap (plus, occasionally, an artificial ingredient outright) out of a Scrap Heap interactable.
+The Workbench half has no multi-minute phase to sit through — one interaction resolves a whole
+piece of Scrap immediately, closer in shape to `StockBoxInteractable`'s instant action than to
+`BrewStationInteractable`'s job. The Scrap Heap half is the opposite: a player-tethered dig job
+shaped exactly like Draconology's Dragon's Stash (system 19) — see the dedicated subsection
+below.
 
 ```
 Scrap (Inventory.scrap: Array[Dictionary])
   - quality: float          # per-unit, never surfaced to the player
 
+ScrapHeapJob (scripts/data/scrap_heap_job.gd, RefCounted)
+  - heap_id: String
+  - minutes_elapsed: int
+  - minutes_required: int
+  - quality: float          # hidden, rerolled fresh every start_heap()
+
 Transmutation (autoload)
-  - (no persistent state of its own -- see below)
+  - _heap_jobs: Dictionary           # heap_id -> ScrapHeapJob, actively being dug only
+  - _collected_heap_ids: Dictionary  # heap_id -> true, forever
 ```
 
 - **Scrap is not a uniform stack.** `ingredient_counts` (id → int) can't represent it, since
@@ -1314,10 +1324,63 @@ Transmutation (autoload)
   `Transmutation.scrap_broken_down` in `hud.gd`, same pattern as
   `Demonology.writ_submitted`; the interactable only has to handle the "nothing to break
   down" case itself, since no signal fires for a no-op.
-- **Sourcing Scrap** has no dedicated mechanic yet in the prototype — `main.gd` grants
-  `STARTING_SCRAP_COUNT` (3) pieces at random quality on a new game, the same stopgap role
-  `STARTING_INGREDIENTS` plays for ingredients. A real acquisition path (buying, finding, a
-  quest reward) is future scope.
+- **`main.gd` still grants `STARTING_SCRAP_COUNT` (3) pieces** at random quality on a new game,
+  the same stopgap role `STARTING_INGREDIENTS` plays for ingredients — a real starting stock, not
+  the only acquisition path now that the Scrap Heap exists (see below).
+
+### Scrap Heap
+
+A hand-placed, single-use Interactable (`ScrapHeapInteractable`,
+`scripts/scrap_heap_interactable.gd` + `scenes/interactables/ScrapHeapInteractable.tscn`) that
+digs up raw Scrap, and occasionally an artificial ingredient outright. Mechanically it is
+Draconology's Dragon's Stash (system 19) with the serial numbers filed off — same tether, same
+cancel-on-walk-away, same single-use destroy-on-resolve — so read that system's write-up for the
+full reasoning; only what differs is called out here.
+
+- **Same job shape, `Transmutation`-owned instead of a dedicated autoload.** `start_heap()`/
+  `cancel_heap()`/`_on_minute_tick()`/`_resolve_heap()` mirror `Draconology.start_stash()`/
+  `cancel_stash()`/`_on_minute_tick()`/`_resolve()` exactly, including the constant shapes
+  (`HEAP_MINUTES` (5) vs. `STASH_MINUTES`, `HEAP_QUALITY_MIN/MAX` (20–120) vs. `QUALITY_MIN/MAX`,
+  `HEAP_ROLL_DC`/`HEAP_CRIT_QUALITY_SWING` vs. `ROLL_DC`/`CRIT_QUALITY_SWING`). It lives on
+  `Transmutation` rather than a new autoload because the roll it makes is a Transmutation check
+  (modifier = `transmute_ease`, same as `break_down_scrap()`'s roll) and the loot it grants sits
+  squarely in Transmutation's existing domain (raw/artificial Scrap-adjacent materials) — there
+  was no `Draconology`-shaped reason to split it out.
+- **Resolution grants Scrap, not ingredients.** `_resolve_heap()` rolls
+  `Rng.roll_2d10(Skills.get_bonus("transmute_ease"), HEAP_ROLL_DC)`, shifts quality by
+  `±HEAP_CRIT_QUALITY_SWING` on a crit (same "crit only nudges quality" rule every other roll in
+  the prototype uses), then grants `HEAP_BASE_SCRAP_COUNT (1) + floor(quality /
+  HEAP_QUALITY_SCRAP_DIVISOR (20.0)) + Skills.get_bonus("transmute_yield")` pieces of Scrap via
+  `Inventory.add_scrap(final_quality)` — every piece from one dig shares that dig's final quality,
+  the same "one roll seeds every unit granted" shape `Draconology._grant_ingredients()` uses.
+  Additionally, a flat `HEAP_ARTIFICIAL_CHANCE` (0.2) roll can hand over one artificial ingredient
+  (from `ARTIFICIAL_INGREDIENT_IDS`) directly, on top of the Scrap — the fictional read is that the
+  heap occasionally turns up something already refined instead of raw material, without needing a
+  trip to the Workbench. Grants `XP_PER_HEAP` (20) Transmutation XP, then erases the job and
+  records the heap as collected.
+- **Hand-placed, not spawner-scattered.** Unlike the Dragon's Stash, which is procedurally
+  scattered through the Dragons' Ground by `DragonStashSpawnerNode`, a Scrap Heap is a fixed
+  fixture placed directly in a room scene (currently one, `scrap_heap_1` in `Shop.tscn`) — no
+  spawner/population/regeneration machinery, since there's no fictional "dangerous territory that
+  restocks overnight" framing to justify one here. `RoomBuilder._wire_interactable()` still guards
+  the reload path the same way it would for a runtime-instanced stash: on load, a heap whose id is
+  already in `Transmutation._collected_heap_ids` has its hand-placed node discarded on sight
+  (`interactable.queue_free()`) instead of being registered, so a collected heap stays gone across
+  a save/load even though its node would otherwise just reappear from the room scene every time.
+  This is also why, unlike `Draconology`, `Transmutation` now needs a save contract at all —
+  `get_save_data()`/`load_save_data()` persist only `_collected_heap_ids` (active jobs are dropped
+  on load/walk-away, same reasoning as every other tethered job) — and is registered in
+  `SaveManager._SAVE_ORDER` right after `Summoning`.
+- **The bar fills deep brown → bright gold**, `ScrapHeapInteractable`'s cosmetic answer to the
+  Dragon's Stash's pale-green → maroon — "raw material giving way to something valuable" instead
+  of "danger climbing." Otherwise the bar follows `DragonStashInteractable`'s geometry/tween
+  pattern exactly (see system 19's "bar fills" note for why the tween exists at all).
+  `RoomBuilder._sync_heap_indicator()`/`_on_heap_resolved()` mirror `_sync_stash_indicator()`/
+  `_on_stash_resolved()` line for line, including the `player_exited` disconnect-before-`queue_free`
+  guard against a stale `body_exited` reaching `main.gd`'s menu-closing logic.
+- **Placeholder color is brass** (`Color(0.72, 0.55, 0.22, 1)`) rather than the Dragon's Stash's
+  red, consistent with every other Interactable's `visual_color` being a rough color-code for what
+  it is before real art lands.
 
 ---
 

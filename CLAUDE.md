@@ -80,8 +80,8 @@ event bus or game-state object.
   `display_name`, `visual_color`). One subclass per behavior (`BrewStationInteractable`,
   `ContractBookInteractable`, `DragonStashInteractable`, `GrowPlotInteractable`,
   `LeyLineNodeInteractable`, `StockBoxInteractable`, `SupplyShelfInteractable`,
-  `WorkbenchInteractable`, `BedInteractable`, `ClassDoorInteractable`, `StairsInteractable`,
-  `PotionBookInteractable`) overrides
+  `WorkbenchInteractable`, `ScrapHeapInteractable`, `BedInteractable`, `ClassDoorInteractable`,
+  `StairsInteractable`, `PotionBookInteractable`) overrides
   `interact(main: MainScene) -> void` with that type's actual action — calling straight into whichever
   autoload owns it, opening a `MenuScene` panel, or both — rather than a type match living in
   `main.gd`; `_on_interact_pressed()` just calls `_current_interactable.interact(self)`. Each subclass

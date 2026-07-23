@@ -40,6 +40,7 @@ var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
+var _heap_nodes: Dictionary = {}        # heap_id -> ScrapHeapInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -110,6 +111,13 @@ func build_rooms() -> void:
 	for rift_id in _rift_nodes:
 		_sync_rift_indicator(rift_id)
 
+	Transmutation.heap_started.connect(func(heap_id: String) -> void: _sync_heap_indicator(heap_id))
+	Transmutation.heap_progress.connect(func(heap_id: String) -> void: _sync_heap_indicator(heap_id))
+	Transmutation.heap_cancelled.connect(func(heap_id: String) -> void: _sync_heap_indicator(heap_id))
+	Transmutation.heap_resolved.connect(_on_heap_resolved)
+	for heap_id in _heap_nodes:
+		_sync_heap_indicator(heap_id)
+
 
 ## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -165,6 +173,20 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 			# wandering off) -- Draconology.cancel_stash() erases the job
 			# outright rather than freezing it for a later resume.
 			interactable.player_exited.connect(func(_i: InteractableBase) -> void: Draconology.cancel_stash(interactable.target_id))
+	elif interactable is ScrapHeapInteractable:
+		# A heap already collected on a prior save doesn't get re-registered
+		# -- its hand-placed node is just discarded, so it stays gone across
+		# a save/load the same as a live queue_free() would leave it. Same
+		# pattern as the DragonStashInteractable branch above.
+		if Transmutation.is_heap_collected(interactable.target_id):
+			interactable.queue_free()
+		else:
+			_heap_nodes[interactable.target_id] = interactable
+			# Unlike the Contract Book's pause-on-exit, walking away from a
+			# Scrap Heap throws the whole dig away (design: same as the
+			# Dragon's Stash) -- Transmutation.cancel_heap() erases the job
+			# outright rather than freezing it for a later resume.
+			interactable.player_exited.connect(func(_i: InteractableBase) -> void: Transmutation.cancel_heap(interactable.target_id))
 
 
 func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
@@ -324,6 +346,38 @@ func _on_stash_resolved(stash_id: String, _roll: Dictionary, _ingredients: Dicti
 	if node == null:
 		return
 	_stash_nodes.erase(stash_id)
+	for connection in node.player_exited.get_connections():
+		node.player_exited.disconnect(connection.callable)
+	interactable_destroyed.emit(node)
+	node.queue_free()
+
+
+## Drives a Scrap Heap Interactable's progress bar from Transmutation's
+## current state -- called on heap_started/heap_progress/heap_cancelled.
+## Same "no Clock.minute_tick polling needed" shape as _sync_stash_indicator().
+func _sync_heap_indicator(heap_id: String) -> void:
+	var node: ScrapHeapInteractable = _heap_nodes.get(heap_id)
+	if node == null:
+		return
+	var job := Transmutation.get_heap_job(heap_id)
+	if job == null:
+		node.clear_heap_indicator()
+	else:
+		node.set_heap_progress(job.progress_fraction())
+
+
+## A heap is single-use -- once Transmutation resolves it, its Interactable
+## node is gone for good, not just cleared like a brew station's indicator.
+## Same "disconnect player_exited before queue_free" reasoning as
+## _on_stash_resolved() -- the player is guaranteed to be standing right on
+## top of it when this fires, so freeing an Area2D still overlapping them
+## would otherwise forward a body_exited cleanup signal into main.gd's
+## close_menu() logic meant for an actual walk-away.
+func _on_heap_resolved(heap_id: String, _roll: Dictionary, _scrap_granted: int, _ingredients: Dictionary) -> void:
+	var node: ScrapHeapInteractable = _heap_nodes.get(heap_id)
+	if node == null:
+		return
+	_heap_nodes.erase(heap_id)
 	for connection in node.player_exited.get_connections():
 		node.player_exited.disconnect(connection.callable)
 	interactable_destroyed.emit(node)

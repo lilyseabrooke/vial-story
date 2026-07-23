@@ -60,9 +60,9 @@ func _grant_starting_ingredients() -> void:
 		Inventory.add_ingredient(id, STARTING_INGREDIENTS[id])
 
 
-## Scrap has no other sourcing method yet (see docs/design/systems.md,
-## Transmutation / Workbench System) -- this is the only way to get any in
-## the prototype, same stopgap role STARTING_INGREDIENTS plays for ingredients.
+## A starting stock, not the only way to get Scrap now that the Scrap Heap
+## exists (see docs/design/systems.md, Transmutation / Workbench System) --
+## same stopgap role STARTING_INGREDIENTS plays for ingredients.
 func _grant_starting_scrap() -> void:
 	for i in STARTING_SCRAP_COUNT:
 		Inventory.add_scrap(Rng.range_f(STARTING_SCRAP_QUALITY_RANGE.x, STARTING_SCRAP_QUALITY_RANGE.y))

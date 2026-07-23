@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/LeyLineNodeInteractable.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PlanarRiftInteractable.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PotionBookInteractable.tscn" id="12"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/ScrapHeapInteractable.tscn" id="13"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -95,6 +96,13 @@ target_id = "potion_book_1"
 prompt_text = "browse the Potion Book"
 display_name = "Potion Book"
 visual_color = Color(0.3, 0.45, 0.75, 1)
+
+[node name="ScrapHeap" parent="Interactables" instance=ExtResource("13")]
+position = Vector2(150, 460)
+target_id = "scrap_heap_1"
+prompt_text = "dig through the Scrap Heap"
+display_name = "Scrap Heap"
+visual_color = Color(0.72, 0.55, 0.22, 1)
 
 [node name="StairsToDragonsGround" parent="Interactables" unique_id=1919002959 instance=ExtResource("6")]
 position = Vector2(300, 250)
