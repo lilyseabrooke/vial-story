@@ -24,6 +24,15 @@ const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
 const DRAGONS_GROUND_SCENE := preload("res://scenes/rooms/DragonsGround.tscn")
 const SCRAP_YARD_SCENE := preload("res://scenes/rooms/ScrapYard.tscn")
 const GARDEN_SCENE := preload("res://scenes/rooms/Garden.tscn")
+const COMMON_GARDEN_SCENE := preload("res://scenes/rooms/CommonGarden.tscn")
+const ALTAR_SCENE := preload("res://scenes/rooms/Altar.tscn")
+const LEY_LINE_OUTCROPPING_SCENE := preload("res://scenes/rooms/LeyLineOutcropping.tscn")
+const ORRERY_SCENE := preload("res://scenes/rooms/Orrery.tscn")
+const RAVEN_CANOPY_SCENE := preload("res://scenes/rooms/RavenCanopy.tscn")
+const LEY_LINE_FISSURE_SCENE := preload("res://scenes/rooms/LeyLineFissure.tscn")
+const CONFLUENCE_ZONE_SCENE := preload("res://scenes/rooms/ConfluenceZone.tscn")
+const FORMER_RELIQUARY_SCENE := preload("res://scenes/rooms/FormerReliquary.tscn")
+const UNDERBELLY_SCENE := preload("res://scenes/rooms/Underbelly.tscn")
 const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
 const SCRAP_HEAP_SCENE := preload("res://scenes/interactables/ScrapHeapInteractable.tscn")
@@ -33,6 +42,34 @@ const BEDROOM_ROOM_ID := "bedroom"
 const DRAGONS_GROUND_ROOM_ID := "dragons_ground"
 const SCRAP_YARD_ROOM_ID := "scrap_yard"
 const GARDEN_ROOM_ID := "garden"
+const COMMON_GARDEN_ROOM_ID := "common_garden"
+const ALTAR_ROOM_ID := "altar"
+const LEY_LINE_OUTCROPPING_ROOM_ID := "ley_line_outcropping"
+const ORRERY_ROOM_ID := "orrery"
+
+## Shop Back: one door in the Shop (StairsToShopBack) whose target_room is
+## resolved at build time from PlayerProfile.shop_origin rather than fixed in
+## the .tscn -- see _wire_shop_back_door(). Six scenes exist (one per
+## ShopLocationDef) rather than one reskinned scene, matching every other
+## room's "hand-authored scene per place" shape, and each is exclusive to its
+## matching origin -- the same symmetry as the other five categories, where
+## an always-reachable room (Altar/LeyLineOutcropping/Orrery/ScrapYard/
+## DragonsGround) is distinct from its Shop-Back-only counterpart
+## (RavenCanopy/LeyLineFissure/ConfluenceZone/FormerReliquary/Underbelly).
+## Garden is the same shape: GARDEN_SCENE is the magic_garden-exclusive Shop
+## Back room, and COMMON_GARDEN_SCENE (below) is the always-reachable
+## counterpart every other origin uses instead -- see
+## _active_garden_room_id() for how grow-plot instancing picks between them,
+## since Herbalism's plot list is one global pool that has to land in
+## whichever of the two rooms is actually reachable for this playthrough.
+const SHOP_BACK_ROOM_BY_ORIGIN := {
+	"magic_garden": GARDEN_ROOM_ID,
+	"raven_canopy": "raven_canopy",
+	"former_reliquary": "former_reliquary",
+	"ley_line_fissure": "ley_line_fissure",
+	"underbelly": "underbelly",
+	"confluence_zone": "confluence_zone",
+}
 
 var player: CharacterBody2D
 var current_room_id: String = ""
@@ -56,6 +93,16 @@ func build_rooms() -> void:
 	_load_room(DRAGONS_GROUND_SCENE)
 	_load_room(SCRAP_YARD_SCENE)
 	_load_room(GARDEN_SCENE)
+	_load_room(COMMON_GARDEN_SCENE)
+	_load_room(ALTAR_SCENE)
+	_load_room(LEY_LINE_OUTCROPPING_SCENE)
+	_load_room(ORRERY_SCENE)
+	_load_room(RAVEN_CANOPY_SCENE)
+	_load_room(LEY_LINE_FISSURE_SCENE)
+	_load_room(CONFLUENCE_ZONE_SCENE)
+	_load_room(FORMER_RELIQUARY_SCENE)
+	_load_room(UNDERBELLY_SCENE)
+	_wire_shop_back_door()
 
 	# Added after the rooms so they draw on top of each room's floor — 2D draw
 	# order follows tree order, and rooms are siblings of the player/camera.
@@ -156,6 +203,29 @@ func _load_room(scene: PackedScene) -> void:
 			interactable.spawn_position = _spawn_points[interactable.target_room]
 
 
+## Resolves the Shop's StairsToShopBack door to whichever room matches the
+## player's chosen origin (SHOP_BACK_ROOM_BY_ORIGIN), the same
+## target_room/spawn_position pair a hand-authored stairs gets, just picked
+## at runtime instead of baked into the .tscn. Falls back to the Garden if
+## shop_origin is empty/unrecognized (e.g. a test scene run without going
+## through character creation) rather than leaving the door pointed at
+## whatever placeholder target_room the .tscn happens to have.
+## Grow plots are one global Herbalism-driven pool, so they can only live in
+## one room's Plots container -- this picks which of the two Garden rooms
+## that is, the same magic_garden check _wire_shop_back_door() uses, so a
+## magic_garden playthrough finds its plots behind the Shop and every other
+## playthrough finds them in the always-reachable CommonGarden instead.
+func _active_garden_room_id() -> String:
+	return GARDEN_ROOM_ID if PlayerProfile.shop_origin == "magic_garden" else COMMON_GARDEN_ROOM_ID
+
+
+func _wire_shop_back_door() -> void:
+	var target_room_id: String = SHOP_BACK_ROOM_BY_ORIGIN.get(PlayerProfile.shop_origin, GARDEN_ROOM_ID)
+	var door: StairsInteractable = _rooms[SHOP_ROOM_ID].get_node("Interactables/StairsToShopBack")
+	door.target_room = target_room_id
+	door.spawn_position = _spawn_points[target_room_id]
+
+
 func _wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
@@ -205,7 +275,7 @@ func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
 	interactable.display_name = plot_id
 	interactable.visual_color = Color(0.3, 0.6, 0.3)
 	interactable.position = pos
-	_rooms[GARDEN_ROOM_ID].get_node("Plots").add_child(interactable)
+	_rooms[_active_garden_room_id()].get_node("Plots").add_child(interactable)
 	_wire_interactable(interactable)
 	_plot_nodes[plot_id] = interactable
 	update_plot_label(plot_id)

@@ -1,0 +1,34 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="3"]
+
+[node name="Altar" type="Node2D"]
+script = ExtResource("1")
+room_id = "altar"
+room_size = Vector2(704, 576)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Walls" type="TileMapLayer" parent="."]
+
+[node name="SpawnPoint" type="Marker2D" parent="."]
+position = Vector2(120, 100)
+
+[node name="Interactables" type="Node2D" parent="."]
+
+[node name="StairsBack" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(120, 60)
+target_room = "shop"
+spawn_position = Vector2(0, 0)
+prompt_text = "head back to the Shop"
+display_name = "Shop Doorway"
+visual_color = Color(0.5, 0.5, 0.55, 1)
+
+[node name="ContractBook" parent="Interactables" instance=ExtResource("3")]
+position = Vector2(350, 300)
+target_id = "contract_book_1"
+prompt_text = "open the Contract Book"
+display_name = "Contract Book"
+visual_color = Color(0.35, 0.15, 0.5, 1)

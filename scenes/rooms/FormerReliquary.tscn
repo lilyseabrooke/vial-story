@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/spawners/ScrapHeapSpawner.tscn" id="3"]
+
+[node name="FormerReliquary" type="Node2D"]
+script = ExtResource("1")
+room_id = "former_reliquary"
+room_size = Vector2(1400, 1000)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Walls" type="TileMapLayer" parent="."]
+
+[node name="SpawnPoint" type="Marker2D" parent="."]
+position = Vector2(120, 100)
+
+[node name="Interactables" type="Node2D" parent="."]
+
+[node name="StairsBack" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(120, 60)
+target_room = "shop"
+spawn_position = Vector2(0, 0)
+prompt_text = "head back to the Shop"
+display_name = "Trail Back"
+visual_color = Color(0.5, 0.5, 0.55, 1)
+
+[node name="SpawnZones" type="Node2D" parent="."]
+
+[node name="Zone1" type="Polygon2D" parent="SpawnZones"]
+color = Color(0.55, 0.45, 0.2, 0.18)
+polygon = PackedVector2Array(250, 150, 1300, 150, 1300, 900, 250, 900)
+
+[node name="ScrapHeapSpawner" parent="." instance=ExtResource("3")]
+spawner_id = "former_reliquary_heaps"
+spawn_zone_path = NodePath("../SpawnZones")

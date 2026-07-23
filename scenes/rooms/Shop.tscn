@@ -7,10 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/SupplyShelfInteractable.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ClassDoorInteractable.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="6"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/LeyLineNodeInteractable.tscn" id="10"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/PlanarRiftInteractable.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PotionBookInteractable.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ScrapHeapInteractable.tscn" id="13"]
 
@@ -76,13 +73,6 @@ prompt_text = "go upstairs to the Bedroom"
 display_name = "Stairs Up"
 visual_color = Color(0.5, 0.5, 0.55, 1)
 
-[node name="ContractBook" parent="Interactables" unique_id=581705282 instance=ExtResource("7")]
-position = Vector2(520, 300)
-target_id = "contract_book_1"
-prompt_text = "open the Contract Book"
-display_name = "Contract Book"
-visual_color = Color(0.35, 0.15, 0.5, 1)
-
 [node name="Workbench" parent="Interactables" unique_id=170532065 instance=ExtResource("8")]
 position = Vector2(150, 300)
 target_id = "workbench_1"
@@ -120,26 +110,42 @@ prompt_text = "head out to the Scrap Yard"
 display_name = "Scrap Yard Doorway"
 visual_color = Color(0.6, 0.55, 0.35, 1)
 
-[node name="LeyLineNode" parent="Interactables" unique_id=1932554392 instance=ExtResource("10")]
-position = Vector2(600, 400)
-difficulty = 2.0
-rounds = 3
-target_id = "ley_line_node_1"
-prompt_text = "commune with the ley line"
-display_name = "Ley Line Node"
-visual_color = Color(0.6, 0.85, 0.95, 1)
-
-[node name="PlanarRift" parent="Interactables" instance=ExtResource("11")]
-position = Vector2(680, 250)
-target_id = "planar_rift_1"
-prompt_text = "reach through the Planar Rift"
-display_name = "Planar Rift"
-visual_color = Color(0.15, 0.65, 0.65, 1)
-
-[node name="StairsToGarden" parent="Interactables" instance=ExtResource("6")]
+[node name="StairsToCommonGarden" parent="Interactables" instance=ExtResource("6")]
 position = Vector2(600, 486)
-target_room = "garden"
+target_room = "common_garden"
 spawn_position = Vector2(120, 100)
 prompt_text = "head out to the Garden"
 display_name = "Garden Doorway"
 visual_color = Color(0.3, 0.6, 0.3, 1)
+
+[node name="StairsToAltar" parent="Interactables" instance=ExtResource("6")]
+position = Vector2(680, 250)
+target_room = "altar"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out to the Altar"
+display_name = "Altar Doorway"
+visual_color = Color(0.35, 0.15, 0.5, 1)
+
+[node name="StairsToLeyLineOutcropping" parent="Interactables" instance=ExtResource("6")]
+position = Vector2(600, 400)
+target_room = "ley_line_outcropping"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out to the Ley Line Outcropping"
+display_name = "Ley Line Outcropping Doorway"
+visual_color = Color(0.6, 0.85, 0.95, 1)
+
+[node name="StairsToOrrery" parent="Interactables" instance=ExtResource("6")]
+position = Vector2(520, 300)
+target_room = "orrery"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out to the Orrery"
+display_name = "Orrery Doorway"
+visual_color = Color(0.15, 0.65, 0.65, 1)
+
+[node name="StairsToShopBack" parent="Interactables" instance=ExtResource("6")]
+position = Vector2(250, 486)
+target_room = "garden"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out back"
+display_name = "Shop Back Doorway"
+visual_color = Color(0.45, 0.4, 0.35, 1)

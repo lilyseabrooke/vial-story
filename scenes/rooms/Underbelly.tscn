@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/spawners/DragonStashSpawner.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/spawners/DragonSpawner.tscn" id="4"]
+[ext_resource type="Script" uid="uid://b8cgx2suy2olb" path="res://scripts/data/dragon_spawn_entry.gd" id="5"]
+[ext_resource type="Resource" path="res://data/dragons/wyrmling.tres" id="6"]
+[ext_resource type="Resource" path="res://data/dragons/drake.tres" id="7"]
+
+[sub_resource type="Resource" id="SubResource_1"]
+script = ExtResource("5")
+dragon = ExtResource("6")
+weight = 10.0
+
+[sub_resource type="Resource" id="SubResource_2"]
+script = ExtResource("5")
+dragon = ExtResource("7")
+weight = 5.0
+
+[node name="Underbelly" type="Node2D"]
+script = ExtResource("1")
+room_id = "underbelly"
+room_size = Vector2(1400, 1000)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Walls" type="TileMapLayer" parent="."]
+
+[node name="SpawnPoint" type="Marker2D" parent="."]
+position = Vector2(120, 100)
+
+[node name="Interactables" type="Node2D" parent="."]
+
+[node name="StairsBack" parent="Interactables" instance=ExtResource("2")]
+position = Vector2(120, 60)
+target_room = "shop"
+spawn_position = Vector2(0, 0)
+prompt_text = "head back to the Shop"
+display_name = "Trail Back"
+visual_color = Color(0.5, 0.5, 0.55, 1)
+
+[node name="SpawnZones" type="Node2D" parent="."]
+
+[node name="Zone1" type="Polygon2D" parent="SpawnZones"]
+color = Color(0.55, 0.15, 0.15, 0.18)
+polygon = PackedVector2Array(250, 150, 1300, 150, 1300, 900, 250, 900)
+
+[node name="DragonStashSpawner" parent="." instance=ExtResource("3")]
+spawner_id = "underbelly_stashes"
+spawn_zone_path = NodePath("../SpawnZones")
+
+[node name="DragonSpawner" parent="." instance=ExtResource("4")]
+spawn_zone_path = NodePath("../SpawnZones")
+roster = Array[ExtResource("5")]([SubResource("SubResource_1"), SubResource("SubResource_2")])
+count_min = 1
+count_max = 2
