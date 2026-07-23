@@ -13,7 +13,7 @@ func populate(display_name: String, hearts: int, max_hearts: int, tint: Color, p
 
 	var hearts_label: Label = $HeartsLabel
 	hearts_label.text = "♥".repeat(hearts) + "♡".repeat(max_hearts - hearts)
-	hearts_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.4))
+	hearts_label.add_theme_color_override("font_color", UiPalette.HEART)
 
 	var portrait_rect: TextureRect = $Portrait
 	portrait_rect.texture = portrait

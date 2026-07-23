@@ -31,17 +31,21 @@ func _build_root_menu() -> void:
 	add_child(_root_layer)
 
 	var panel := PanelContainer.new()
+	panel.theme_type_variation = &"FramedPanel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_root_layer.add_child(panel)
+	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(280, 0)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Vial Story"
-	title.add_theme_font_size_override("font_size", 32)
+	title.theme_type_variation = &"TitleLabel"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
@@ -104,17 +108,21 @@ func _build_load_menu() -> void:
 	add_child(_load_layer)
 
 	var panel := PanelContainer.new()
+	panel.theme_type_variation = &"FramedPanel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_load_layer.add_child(panel)
+	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(280, 0)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Load Game"
-	title.add_theme_font_size_override("font_size", 20)
+	title.theme_type_variation = &"HeadingLabel"
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
@@ -133,7 +141,7 @@ func _build_load_menu() -> void:
 			vbox.add_child(button)
 
 	_load_status_label = Label.new()
-	_load_status_label.modulate = Color(1.0, 0.4, 0.4)
+	_load_status_label.modulate = UiPalette.DANGER
 	vbox.add_child(_load_status_label)
 
 	vbox.add_child(HSeparator.new())
@@ -174,17 +182,21 @@ func _build_settings_menu() -> void:
 	add_child(_settings_layer)
 
 	var panel := PanelContainer.new()
+	panel.theme_type_variation = &"FramedPanel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_settings_layer.add_child(panel)
+	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(320, 0)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Settings"
-	title.add_theme_font_size_override("font_size", 20)
+	title.theme_type_variation = &"HeadingLabel"
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())

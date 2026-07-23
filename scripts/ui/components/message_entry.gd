@@ -30,7 +30,10 @@ func populate(header: String, detail: String, accent: Color = Color.WHITE) -> vo
 	var header_label: Label = $VBox/HeaderLabel
 	var detail_label: Label = $VBox/DetailLabel
 	header_label.text = header
-	header_label.modulate = accent
+	# add_theme_color_override (not modulate) sets the accent as the actual font
+	# color — the row's own modulate.a is what the fade-in/dim tween animates,
+	# so the two must not fight over the same property.
+	header_label.add_theme_color_override("font_color", accent)
 	detail_label.text = detail
 	detail_label.visible = false
 	_play_fade_in_then_dim()

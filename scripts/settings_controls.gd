@@ -46,7 +46,7 @@ static func build(parent: VBoxContainer) -> void:
 
 	var note := Label.new()
 	note.text = "(Volume/Difficulty not wired up yet — prototype placeholder.)"
-	note.modulate = Color(0.6, 0.6, 0.6)
+	note.modulate = UiPalette.TEXT_MUTED
 	parent.add_child(note)
 
 

@@ -27,9 +27,10 @@ func setup(slot_role: IngredientDef.Role, is_required: bool) -> void:
 
 	if required:
 		var stylebox := StyleBoxFlat.new()
-		stylebox.bg_color = Color(0.22, 0.2, 0.16)
+		stylebox.bg_color = UiPalette.DRIFTWOOD_TAN
 		stylebox.border_width_top = 3
-		stylebox.border_color = Color(0.85, 0.7, 0.3)
+		stylebox.border_color = UiPalette.GOLD
+		stylebox.set_corner_radius_all(8)
 		stylebox.set_content_margin_all(6)
 		add_theme_stylebox_override("panel", stylebox)
 

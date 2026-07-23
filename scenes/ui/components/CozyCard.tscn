@@ -1,0 +1,36 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/cozy_card.gd" id="1"]
+
+[node name="CozyCard" type="PanelContainer"]
+script = ExtResource("1")
+
+[node name="Root" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="Root"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Flourish" type="TextureRect" parent="Root/Header"]
+visible = false
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TitleLabel" type="Label" parent="Root/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"HeadingLabel"
+
+[node name="HSep" type="HSeparator" parent="Root"]
+visible = false
+layout_mode = 2
+
+[node name="Body" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 6

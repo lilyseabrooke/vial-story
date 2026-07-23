@@ -20,14 +20,13 @@ var supply_panel: VBoxContainer
 var _station_id: String = ""
 var _starting_ingredients: Dictionary = {}
 
-var _calendar_label: Label
-var _time_label: Label
-var _speed_buttons: Array[Button] = []
-var _materials_label: Label
-var _resolve_bar: ProgressBar
-var _resolve_label: Label
+var _almanac: AlmanacClock
+var _materials_pouch: MaterialsPouch
+var _resolve_vial: ResolveVial
 var _game_over_label: Label
-var _prompt_label: Label
+var _interact_prompt: PanelContainer
+var _interact_prompt_label: Label
+var _prompt_tween: Tween
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
 var _message_wall: MessageWall
@@ -42,75 +41,70 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_station_id = station_id
 	_starting_ingredients = starting_ingredients
 
-	# Resolve meter — top-left.
-	var resolve_panel := PanelContainer.new()
-	resolve_panel.position = Vector2(16, 16)
-	add_child(resolve_panel)
+	# Resolve meter — top-left, drawn as a filling potion vial.
+	_resolve_vial = ResolveVial.new()
+	_resolve_vial.build()
+	_resolve_vial.position = Vector2(16, 16)
+	add_child(_resolve_vial)
+	UiFx.add_drop_shadow(_resolve_vial, 0.4, 5, Vector2(0, 4))
 
-	var resolve_vbox := VBoxContainer.new()
-	resolve_panel.add_child(resolve_vbox)
+	# Almanac clock + materials pouch — top-right, stacked in a right-pinned
+	# column (fixed 200px wide, 16px from the top/right corner, growing down).
+	var top_right := VBoxContainer.new()
+	top_right.anchor_left = 1.0
+	top_right.anchor_right = 1.0
+	top_right.offset_left = -216.0
+	top_right.offset_right = -16.0
+	top_right.offset_top = 16.0
+	top_right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	top_right.grow_vertical = Control.GROW_DIRECTION_END
+	top_right.add_theme_constant_override("separation", 8)
+	add_child(top_right)
 
-	_resolve_bar = ProgressBar.new()
-	_resolve_bar.custom_minimum_size = Vector2(180, 20)
-	_resolve_bar.min_value = 0
-	resolve_vbox.add_child(_resolve_bar)
+	_almanac = AlmanacClock.new()
+	_almanac.build()
+	top_right.add_child(_almanac)
+	UiFx.add_drop_shadow(_almanac, 0.4, 5, Vector2(0, 4))
 
-	_resolve_label = Label.new()
-	resolve_vbox.add_child(_resolve_label)
+	_materials_pouch = MaterialsPouch.new()
+	_materials_pouch.build()
+	top_right.add_child(_materials_pouch)
+	UiFx.add_drop_shadow(_materials_pouch, 0.4, 5, Vector2(0, 4))
 
-	# Calendar + Materials — top-right.
-	var calendar_panel := PanelContainer.new()
-	calendar_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	calendar_panel.position = Vector2(-200, 16)
-	add_child(calendar_panel)
+	# Controls hint moved off the always-on HUD into a "?" help toggle,
+	# bottom-left, so the corner stays uncluttered.
+	var help_button := Button.new()
+	help_button.text = "?"
+	help_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	help_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	help_button.position = Vector2(16, -52)
+	help_button.custom_minimum_size = Vector2(36, 36)
+	add_child(help_button)
 
-	var calendar_vbox := VBoxContainer.new()
-	calendar_panel.add_child(calendar_vbox)
+	var help_popover := PanelContainer.new()
+	help_popover.theme_type_variation = &"SmallFramedPanel"
+	help_popover.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	help_popover.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	help_popover.position = Vector2(16, -96)
+	help_popover.visible = false
+	add_child(help_popover)
+	UiFx.add_drop_shadow(help_popover, 0.4, 5, Vector2(0, 4))
 
-	_calendar_label = Label.new()
-	_calendar_label.add_theme_font_size_override("font_size", 24)
-	calendar_vbox.add_child(_calendar_label)
+	var help_label := Label.new()
+	help_label.theme_type_variation = &"CaptionLabel"
+	help_label.text = "WASD move · E interact · Esc menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
+	help_label.custom_minimum_size = Vector2(240, 0)
+	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	help_popover.add_child(help_label)
 
-	_time_label = Label.new()
-	calendar_vbox.add_child(_time_label)
-
-	# Sims-style time speed buttons — 1x/1.5x/2x, radio-selected via a shared
-	# ButtonGroup so exactly one is ever pressed. Clock.set_speed_level()
-	# eases the actual tick rate toward the new target rather than snapping.
-	var speed_hbox := HBoxContainer.new()
-	calendar_vbox.add_child(speed_hbox)
-	var speed_group := ButtonGroup.new()
-	var speed_labels := ["1x", "1.5x", "2x"]
-	for i in speed_labels.size():
-		var speed_button := Button.new()
-		speed_button.text = speed_labels[i]
-		speed_button.toggle_mode = true
-		speed_button.button_group = speed_group
-		speed_button.button_pressed = (i == Clock.speed_level)
-		speed_button.pressed.connect(func() -> void:
-			Clock.set_speed_level(i)
-		)
-		_speed_buttons.append(speed_button)
-		speed_hbox.add_child(speed_button)
-
-	calendar_vbox.add_child(HSeparator.new())
-
-	_materials_label = Label.new()
-	calendar_vbox.add_child(_materials_label)
-
-	calendar_vbox.add_child(HSeparator.new())
-
-	var hint := Label.new()
-	hint.text = "WASD: move | E: interact | Esc: menu | Space: pause | R: drain Resolve (debug) | 1/2/3: speed"
-	hint.modulate = Color(0.6, 0.6, 0.6)
-	hint.custom_minimum_size = Vector2(200, 0)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
-	calendar_vbox.add_child(hint)
+	help_button.pressed.connect(func() -> void:
+		help_popover.visible = not help_popover.visible
+	)
 
 	# Game Over — stays directly on screen (terminal state), not in the menu.
 	_game_over_label = Label.new()
 	_game_over_label.add_theme_font_size_override("font_size", 24)
-	_game_over_label.modulate = Color(1.0, 0.3, 0.3)
+	_game_over_label.modulate = UiPalette.DANGER
 	_game_over_label.visible = false
 	_game_over_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_game_over_label.position = Vector2(-250, 16)
@@ -118,13 +112,22 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_game_over_label)
 
-	_prompt_label = Label.new()
-	_prompt_label.add_theme_font_size_override("font_size", 20)
-	_prompt_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_prompt_label.position = Vector2(-150, -60)
-	_prompt_label.custom_minimum_size = Vector2(300, 0)
-	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_prompt_label)
+	# Interact prompt — a cozy pill at bottom-center, hidden when there's nothing
+	# to interact with.
+	_interact_prompt = PanelContainer.new()
+	_interact_prompt.theme_type_variation = &"SmallFramedPanel"
+	_interact_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_interact_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_interact_prompt.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_interact_prompt.position = Vector2(0, -72)
+	_interact_prompt.visible = false
+	add_child(_interact_prompt)
+	UiFx.add_drop_shadow(_interact_prompt, 0.4, 5, Vector2(0, 4))
+
+	_interact_prompt_label = Label.new()
+	_interact_prompt_label.theme_type_variation = &"SubheadingLabel"
+	_interact_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_interact_prompt.add_child(_interact_prompt_label)
 
 	# Everything else lives in the Escape menu instead of the HUD. Not added
 	# as a child here — MenuScene.open() reparents it into its body on first
@@ -213,7 +216,7 @@ func _connect_autoload_signals() -> void:
 		print("Day ended: %s" % END_REASON_NAMES[reason])
 	)
 	Clock.speed_level_changed.connect(func(level: int) -> void:
-		_speed_buttons[level].button_pressed = true
+		_almanac.sync_speed(level)
 	)
 	Brewing.brew_started.connect(func(station_id: String, recipe_id: String) -> void:
 		var recipe := ContentRegistry.get_recipe(recipe_id)
@@ -409,8 +412,34 @@ func log_message(text: String) -> void:
 	_message_wall.add_notice(text)
 
 
+## The pill unfurls downward on appear and rolls back up on clear, matching the
+## MenuScene windows' motion (default top-left pivot, scale.y). A text change
+## while already showing just swaps the label with no animation.
 func set_prompt(text: String) -> void:
-	_prompt_label.text = text
+	if text != "":
+		_interact_prompt_label.text = text
+		var was_hidden := not _interact_prompt.visible
+		if _prompt_tween:
+			_prompt_tween.kill()
+		_interact_prompt.visible = true
+		if was_hidden:
+			_interact_prompt.scale = Vector2(1.0, 0.0)
+			_interact_prompt.modulate.a = 0.0
+		if _interact_prompt.scale.y < 1.0 or _interact_prompt.modulate.a < 1.0:
+			_prompt_tween = create_tween().set_parallel(true)
+			_prompt_tween.tween_property(_interact_prompt, "scale:y", 1.0, 0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			_prompt_tween.tween_property(_interact_prompt, "modulate:a", 1.0, 0.12)
+	elif _interact_prompt.visible:
+		if _prompt_tween:
+			_prompt_tween.kill()
+		_prompt_tween = create_tween().set_parallel(true)
+		_prompt_tween.tween_property(_interact_prompt, "scale:y", 0.0, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		_prompt_tween.tween_property(_interact_prompt, "modulate:a", 0.0, 0.12)
+		_prompt_tween.chain().tween_callback(func() -> void:
+			_interact_prompt.visible = false
+			_interact_prompt.scale = Vector2.ONE
+			_interact_prompt.modulate.a = 1.0
+		)
 
 
 func is_menu_open() -> bool:
@@ -529,12 +558,7 @@ func _on_upgrade_purchased(upgrade_id: String) -> void:
 
 
 func update_clock_label() -> void:
-	var day_type_name: String = DAY_TYPE_NAMES[Clock.day_type()]
-	_calendar_label.text = "Day %d (%s)" % [Clock.day_number, day_type_name]
-	_time_label.text = "%s%s" % [
-		Clock.get_clock_string(),
-		" [PAUSED]" if Clock.is_paused else "",
-	]
+	_almanac.update_time()
 
 
 func update_ingredients_label() -> void:
@@ -542,7 +566,7 @@ func update_ingredients_label() -> void:
 
 
 func update_materials_label() -> void:
-	_materials_label.text = "Materials: %d" % Inventory.materials
+	_materials_pouch.set_amount(Inventory.materials)
 
 
 func update_skills_label() -> void:
@@ -550,7 +574,4 @@ func update_skills_label() -> void:
 
 
 func update_resolve_meter() -> void:
-	_resolve_bar.max_value = Resolve.max_resolve
-	_resolve_bar.value = Resolve.current
-	var strained_suffix := " [STRAINED]" if Resolve.is_strained() else ""
-	_resolve_label.text = "Resolve: %d/%d%s" % [Resolve.current, Resolve.max_resolve, strained_suffix]
+	_resolve_vial.set_values(Resolve.current, Resolve.max_resolve, Resolve.is_strained())

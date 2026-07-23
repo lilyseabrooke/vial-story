@@ -1,10 +1,10 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3 uid="uid://bpb2ew5pf1mm0"]
 
-[ext_resource type="Script" path="res://scripts/room.gd" id="1"]
+[ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/spawners/DragonSpawner.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/spawners/DragonStashSpawner.tscn" id="4"]
-[ext_resource type="Script" path="res://scripts/data/dragon_spawn_entry.gd" id="5"]
+[ext_resource type="Script" uid="uid://b8cgx2suy2olb" path="res://scripts/data/dragon_spawn_entry.gd" id="5"]
 [ext_resource type="Resource" path="res://data/dragons/wyrmling.tres" id="6"]
 [ext_resource type="Resource" path="res://data/dragons/drake.tres" id="7"]
 [ext_resource type="Resource" path="res://data/dragons/wyvern.tres" id="8"]
@@ -28,45 +28,39 @@ weight = 2.0
 [sub_resource type="Resource" id="SubResource_4"]
 script = ExtResource("5")
 dragon = ExtResource("9")
-weight = 1.0
 
-[node name="DragonsGround" type="Node2D"]
+[node name="DragonsGround" type="Node2D" unique_id=148751496]
 script = ExtResource("1")
 room_id = "dragons_ground"
 room_size = Vector2(1400, 1000)
 
-[node name="Floor" type="TileMapLayer" parent="."]
+[node name="Floor" type="TileMapLayer" parent="." unique_id=89469547]
 
-[node name="Walls" type="TileMapLayer" parent="."]
+[node name="Walls" type="TileMapLayer" parent="." unique_id=1569781574]
 
-[node name="SpawnPoint" type="Marker2D" parent="."]
+[node name="SpawnPoint" type="Marker2D" parent="." unique_id=1536065055]
 position = Vector2(120, 100)
 
-[node name="Interactables" type="Node2D" parent="."]
+[node name="Interactables" type="Node2D" parent="." unique_id=570874962]
 
-[node name="StairsBack" parent="Interactables" instance=ExtResource("2")]
+[node name="StairsBack" parent="Interactables" unique_id=679600022 instance=ExtResource("2")]
 position = Vector2(120, 60)
 target_room = "shop"
+spawn_position = Vector2(0, 0)
 prompt_text = "head back to the Shop"
 display_name = "Trail Back"
 visual_color = Color(0.5, 0.5, 0.55, 1)
 
-[node name="SpawnZones" type="Node2D" parent="."]
+[node name="SpawnZones" type="Node2D" parent="." unique_id=1766822995]
 
-[node name="Zone1" type="Polygon2D" parent="SpawnZones"]
+[node name="Zone1" type="Polygon2D" parent="SpawnZones" unique_id=1143051449]
 color = Color(0.55, 0.15, 0.15, 0.18)
 polygon = PackedVector2Array(250, 150, 1300, 150, 1300, 900, 250, 900)
 
-[node name="DragonSpawner" parent="." instance=ExtResource("3")]
+[node name="DragonSpawner" parent="." unique_id=107924995 instance=ExtResource("3")]
 spawn_zone_path = NodePath("../SpawnZones")
-roster = Array[DragonSpawnEntry]([SubResource("SubResource_1"), SubResource("SubResource_2"), SubResource("SubResource_3"), SubResource("SubResource_4")])
-count_min = 3
-count_max = 5
-min_separation = 90.0
+roster = Array[ExtResource("5")]([SubResource("SubResource_1"), SubResource("SubResource_2"), SubResource("SubResource_3"), SubResource("SubResource_4")])
 
-[node name="DragonStashSpawner" parent="." instance=ExtResource("4")]
+[node name="DragonStashSpawner" parent="." unique_id=2135519441 instance=ExtResource("4")]
 spawner_id = "dragons_ground_stashes"
 spawn_zone_path = NodePath("../SpawnZones")
-max_stashes = 6
-avg_days_to_max = 3.0
-min_separation = 72.0

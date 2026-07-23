@@ -1,0 +1,10 @@
+[gd_resource type="StyleBoxTexture" format=3 uid="uid://dyjmxk2qkk14q"]
+
+[ext_resource type="Texture2D" uid="uid://c0lq3icuhk7ek" path="res://assets/ui/StyleBox_WoodFrame_SmallMargins.png" id="1_0agir"]
+
+[resource]
+texture = ExtResource("1_0agir")
+texture_margin_left = 15.0
+texture_margin_top = 15.0
+texture_margin_right = 15.0
+texture_margin_bottom = 15.0

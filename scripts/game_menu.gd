@@ -1,19 +1,22 @@
 class_name GameMenu
-extends TabContainer
-## The Escape menu's content — a tabbed utility screen. The tab shell itself
-## is still built ad hoc in code, same as scripts/hud.gd and
-## scripts/menu_scene.gd, but each tab's repeated rows/cells (item slots,
-## skill rows, relationship rows, recipe entries, quest entries) are
-## scenes/ui/components/*.tscn scenes with a populate() method, instanced
-## here rather than built node-by-node inline — see the *_SCENE consts below.
-## hud.gd owns one GameMenu instance and hands it to MenuScene the same way
-## it always handed over the old flat game-menu VBoxContainer.
+extends MarginContainer
+## The Escape menu's content — a cozy journal/ledger with a left tab rail of
+## themed sections and a scrollable content area on the right, handed to
+## MenuScene by hud.gd. (Replaced the old flat 9-tab TabContainer; the class
+## name and public API — build()/update_inventory()/update_skills()/... — stay
+## the same so hud.gd is untouched.)
 ##
-## Inventory/Skills/Shop/Relationships/Classes/Journal tabs connect directly
-## to the autoload signals whose only effect is refreshing their own display —
-## consistent with how hud.gd wires up signals whose effect is purely a
-## label update. Map is out of scope for the prototype and stays a disabled
-## tab.
+## Sections: Satchel (inventory) · Grimoire (recipes) · Shop (stock + coffers) ·
+## Studies (skills + Academy report card, merged) · Hearts (relationships) ·
+## Journal (quests) · Settings (options + Save/Return/Quit). The old disabled
+## Map tab is dropped.
+##
+## Each section's repeated rows/cells (item slots, skill rows, relationship
+## rows, recipe entries, quest entries) are scenes/ui/components/*.tscn scenes
+## with a populate() method, instanced here rather than built node-by-node
+## inline — see the *_SCENE consts below. Section content is built once in
+## build() (detached from the SceneTree until MenuScene.open() reparents it in),
+## which is why component node refs are looked up on demand, not via @onready.
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
@@ -26,6 +29,12 @@ const SKILL_ROW_SCENE := preload("res://scenes/ui/components/SkillRow.tscn")
 const RELATIONSHIP_ROW_SCENE := preload("res://scenes/ui/components/RelationshipRow.tscn")
 const RECIPE_ENTRY_SCENE := preload("res://scenes/ui/components/RecipeEntry.tscn")
 const QUEST_ENTRY_SCENE := preload("res://scenes/ui/components/QuestEntry.tscn")
+
+var _rail: VBoxContainer
+var _content: Control
+var _rail_group := ButtonGroup.new()
+var _rail_buttons: Dictionary = {}   # section_id -> Button
+var _sections: Dictionary = {}       # section_id -> ScrollContainer
 
 var _inventory_grid: GridContainer
 var _skills_list: VBoxContainer
@@ -40,19 +49,37 @@ var _save_status_label: Label
 
 
 func build() -> void:
-	custom_minimum_size = Vector2(560, 400)
+	custom_minimum_size = Vector2(820, 480)
 
-	_build_inventory_tab()
-	_build_skills_tab()
-	_build_shop_tab()
-	_build_relationships_tab()
-	_build_classes_tab()
-	_build_disabled_tab("Map")
-	_build_recipes_tab()
-	_build_journal_tab()
-	_build_settings_tab()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	add_child(hbox)
 
-	set_tab_disabled(5, true)  # Map
+	_rail = VBoxContainer.new()
+	_rail.add_theme_constant_override("separation", 5)
+	_rail.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(_rail)
+
+	hbox.add_child(VSeparator.new())
+
+	_content = Control.new()
+	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.clip_contents = true
+	# GRID_COLUMNS(8) * ItemSlot min width(72) + 7 * GridContainer h_separation(4) = 604;
+	# this must stay >= that or the Satchel/Shop grids bleed past the panel edge.
+	_content.custom_minimum_size = Vector2(620, 0)
+	hbox.add_child(_content)
+
+	_add_section("satchel", "Satchel", _build_inventory_tab())
+	_add_section("grimoire", "Grimoire", _build_recipes_tab())
+	_add_section("shop", "Shop", _build_shop_tab())
+	_add_section("studies", "Studies", _build_studies_tab())
+	_add_section("hearts", "Hearts", _build_relationships_tab())
+	_add_section("journal", "Journal", _build_journal_tab())
+	_add_section("settings", "Settings", _build_settings_tab())
+
+	_show_section("satchel")
 
 	Inventory.ingredient_changed.connect(func(_id: String, _qty: int) -> void: update_inventory())
 	Inventory.potion_added.connect(func(_id: String, _potency: float, _ease: float) -> void: update_inventory())
@@ -82,17 +109,62 @@ func build() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Inventory
+# Journal-book frame: left rail + swappable scrollable sections
 # ---------------------------------------------------------------------------
 
-func _build_inventory_tab() -> void:
-	var root := VBoxContainer.new()
-	root.name = "Inventory"
-	add_child(root)
+## Wraps a section's content in a titled, scrollable panel and registers a rail
+## button that shows it. The button's toggled/pressed theme state (walnut fill)
+## is what marks the active section.
+func _add_section(id: String, label: String, content: Control) -> void:
+	var button := Button.new()
+	button.text = label
+	button.toggle_mode = true
+	button.button_group = _rail_group
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.pressed.connect(_show_section.bind(id))
+	_rail.add_child(button)
+	_rail_buttons[id] = button
 
+	var titled := VBoxContainer.new()
+	titled.add_theme_constant_override("separation", 8)
+	titled.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var heading := Label.new()
+	heading.text = label
+	heading.theme_type_variation = &"HeadingLabel"
+	titled.add_child(heading)
+	titled.add_child(HSeparator.new())
+
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	titled.add_child(content)
+
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.visible = false
+	scroll.add_child(titled)
+	_content.add_child(scroll)
+	_sections[id] = scroll
+
+
+func _show_section(id: String) -> void:
+	for section_id in _sections:
+		(_sections[section_id] as Control).visible = (section_id == id)
+	if _rail_buttons.has(id):
+		(_rail_buttons[id] as Button).button_pressed = true
+
+
+# ---------------------------------------------------------------------------
+# Satchel (Inventory)
+# ---------------------------------------------------------------------------
+
+func _build_inventory_tab() -> Control:
+	var root := VBoxContainer.new()
 	_inventory_grid = GridContainer.new()
 	_inventory_grid.columns = GRID_COLUMNS
 	root.add_child(_inventory_grid)
+	return root
 
 
 func update_inventory() -> void:
@@ -124,20 +196,37 @@ func update_inventory() -> void:
 
 func _color_for_id(id: String) -> Color:
 	var hue := float(hash(id) % 360) / 360.0
-	return Color.from_hsv(hue, 0.6, 0.9)
+	return Color.from_hsv(hue, 0.45, 0.85)
 
 
 # ---------------------------------------------------------------------------
-# Skills
+# Studies (Skills + Academy report card)
 # ---------------------------------------------------------------------------
 
-func _build_skills_tab() -> void:
+func _build_studies_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = "Skills"
-	add_child(root)
+	root.add_theme_constant_override("separation", 8)
+
+	var skills_heading := Label.new()
+	skills_heading.text = "Skills"
+	skills_heading.theme_type_variation = &"SubheadingLabel"
+	root.add_child(skills_heading)
 
 	_skills_list = VBoxContainer.new()
 	root.add_child(_skills_list)
+
+	root.add_child(HSeparator.new())
+
+	var report_heading := Label.new()
+	report_heading.text = "Report Card"
+	report_heading.theme_type_variation = &"SubheadingLabel"
+	root.add_child(report_heading)
+
+	_report_card_label = Label.new()
+	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	root.add_child(_report_card_label)
+
+	return root
 
 
 func update_skills() -> void:
@@ -153,14 +242,18 @@ func update_skills() -> void:
 		row.populate(def.display_name, Skills.level(skill_id), current_xp, def.xp_per_level)
 
 
+func update_report_card() -> void:
+	_report_card_label.text = "Score: %.0f/100   Strikes: %d/%d   Absences: %d   Next exam in %d day(s)" % [
+		Academy.running_score, Academy.strikes, Academy.STRIKE_LIMIT, Academy.absences, Academy.days_until_exam()
+	]
+
+
 # ---------------------------------------------------------------------------
 # Shop
 # ---------------------------------------------------------------------------
 
-func _build_shop_tab() -> void:
+func _build_shop_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = "Shop"
-	add_child(root)
 
 	_shop_reputation_label = Label.new()
 	root.add_child(_shop_reputation_label)
@@ -173,6 +266,7 @@ func _build_shop_tab() -> void:
 	_shop_grid = GridContainer.new()
 	_shop_grid.columns = GRID_COLUMNS
 	root.add_child(_shop_grid)
+	return root
 
 
 ## Rebuilds the grid at Shop.capacity slots rather than a fixed size, since
@@ -196,16 +290,14 @@ func update_shop() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Relationships
+# Hearts (Relationships)
 # ---------------------------------------------------------------------------
 
-func _build_relationships_tab() -> void:
+func _build_relationships_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = "Relationships"
-	add_child(root)
-
 	_relationships_list = VBoxContainer.new()
 	root.add_child(_relationships_list)
+	return root
 
 
 func update_relationships() -> void:
@@ -224,36 +316,14 @@ func update_relationships() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Classes
+# Grimoire (Recipes)
 # ---------------------------------------------------------------------------
 
-func _build_classes_tab() -> void:
+func _build_recipes_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = "Classes"
-	add_child(root)
-
-	_report_card_label = Label.new()
-	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	root.add_child(_report_card_label)
-
-
-func update_report_card() -> void:
-	_report_card_label.text = "Report Card\n\nScore: %.0f/100\nStrikes: %d/%d\nAbsences: %d\nNext exam in %d day(s)" % [
-		Academy.running_score, Academy.strikes, Academy.STRIKE_LIMIT, Academy.absences, Academy.days_until_exam()
-	]
-
-
-# ---------------------------------------------------------------------------
-# Recipes
-# ---------------------------------------------------------------------------
-
-func _build_recipes_tab() -> void:
-	var root := VBoxContainer.new()
-	root.name = "Recipes"
-	add_child(root)
-
 	_recipes_list = VBoxContainer.new()
 	root.add_child(_recipes_list)
+	return root
 
 
 func update_recipes() -> void:
@@ -283,30 +353,28 @@ func update_recipes() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Journal
+# Journal (Quests)
 # ---------------------------------------------------------------------------
 
-func _build_journal_tab() -> void:
+func _build_journal_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = "Journal"
-	add_child(root)
-
 	_journal_list = VBoxContainer.new()
 	root.add_child(_journal_list)
+	return root
 
 
 func update_journal() -> void:
 	for child in _journal_list.get_children():
 		child.queue_free()
 
-	_add_journal_section("Ready to Turn In", QuestManager.ready_to_turn_in_quest_ids(), Color(0.9, 0.8, 0.3))
-	_add_journal_section("Active", QuestManager.active_quest_ids(), Color(1, 1, 1))
-	_add_journal_section("Completed", QuestManager.completed_quest_ids(), Color(0.6, 0.6, 0.6))
+	_add_journal_section("Ready to Turn In", QuestManager.ready_to_turn_in_quest_ids(), UiPalette.GOLD)
+	_add_journal_section("Active", QuestManager.active_quest_ids(), UiPalette.TEXT_PRIMARY)
+	_add_journal_section("Completed", QuestManager.completed_quest_ids(), UiPalette.TEXT_MUTED)
 
 	if _journal_list.get_child_count() == 0:
 		var empty_label := Label.new()
 		empty_label.text = "No quests yet."
-		empty_label.modulate = Color(0.6, 0.6, 0.6)
+		empty_label.modulate = UiPalette.TEXT_MUTED
 		_journal_list.add_child(empty_label)
 
 
@@ -316,7 +384,7 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 
 	var header := Label.new()
 	header.text = section_title
-	header.add_theme_font_size_override("font_size", 14)
+	header.theme_type_variation = &"SubheadingLabel"
 	_journal_list.add_child(header)
 
 	for quest_id in quest_ids:
@@ -332,29 +400,11 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 
 
 # ---------------------------------------------------------------------------
-# Disabled (out of scope) tabs
+# Settings (options + Save / Return / Quit)
 # ---------------------------------------------------------------------------
 
-func _build_disabled_tab(tab_name: String) -> void:
+func _build_settings_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.name = tab_name
-
-	var label := Label.new()
-	label.text = "Coming soon."
-	label.modulate = Color(0.6, 0.6, 0.6)
-	root.add_child(label)
-
-	add_child(root)
-
-
-# ---------------------------------------------------------------------------
-# Settings
-# ---------------------------------------------------------------------------
-
-func _build_settings_tab() -> void:
-	var root := VBoxContainer.new()
-	root.name = "Settings"
-	add_child(root)
 
 	SettingsControls.build(root)
 
@@ -366,7 +416,7 @@ func _build_settings_tab() -> void:
 	root.add_child(save_button)
 
 	_save_status_label = Label.new()
-	_save_status_label.modulate = Color(0.6, 0.6, 0.6)
+	_save_status_label.modulate = UiPalette.TEXT_MUTED
 	root.add_child(_save_status_label)
 
 	var return_button := Button.new()
@@ -378,6 +428,7 @@ func _build_settings_tab() -> void:
 	quit_button.text = "Quit"
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	root.add_child(quit_button)
+	return root
 
 
 func _on_save_button_pressed() -> void:

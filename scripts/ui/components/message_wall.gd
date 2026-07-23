@@ -28,7 +28,7 @@ const RECENT_WINDOW_SECONDS := 5.5
 
 var _scroll: ScrollContainer
 var _list: VBoxContainer
-var _empty_icon: Label
+var _empty_icon: Control
 var _entries: Array[MessageEntry] = []
 var _dragging := false
 var _drag_start_y := 0.0
@@ -74,7 +74,7 @@ func add_dice_result(roll: Dictionary, label: String) -> void:
 
 
 func add_notice(text: String) -> void:
-	_add_entry(text, "", Color(0.85, 0.85, 0.85))
+	_add_entry(text, "", UiPalette.TEXT_PRIMARY)
 
 
 func _dice_result_text(roll: Dictionary) -> String:
@@ -92,15 +92,15 @@ func _dice_result_text(roll: Dictionary) -> String:
 
 func _dice_accent_color(roll: Dictionary) -> Color:
 	if roll.get("inflection_point", false):
-		return Color(0.7, 0.55, 0.9)
+		return UiPalette.MAGIC
 	elif roll.get("critical_failure", false):
-		return Color.CRIMSON
+		return UiPalette.DANGER
 	elif roll.get("critical_success", false):
-		return Color.GOLD
+		return UiPalette.GOLD
 	elif roll.passed:
-		return Color.GREEN
+		return UiPalette.SUCCESS
 	else:
-		return Color.INDIAN_RED
+		return UiPalette.WARNING
 
 
 func _add_entry(header: String, detail: String, accent: Color) -> void:
