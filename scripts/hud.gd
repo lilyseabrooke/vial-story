@@ -170,9 +170,11 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	UiFx.add_drop_shadow(_pantry_window)
 
 	discover_panel = VBoxContainer.new()
+	discover_panel.add_child(MenuKeyNav.new())
 	_rebuild_discover_panel()
 
 	supply_panel = VBoxContainer.new()
+	supply_panel.add_child(MenuKeyNav.new())
 	for ingredient in ContentRegistry.ingredients:
 		var ingredient_button := Button.new()
 		ingredient_button.text = "Buy %s (%d)" % [ingredient.display_name, ingredient.buy_price]
@@ -191,6 +193,7 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 		supply_panel.add_child(upgrade_button)
 
 	class_panel = VBoxContainer.new()
+	class_panel.add_child(MenuKeyNav.new())
 	for effort in [Academy.Effort.LOW, Academy.Effort.NORMAL, Academy.Effort.HIGH]:
 		var effort_button := Button.new()
 		effort_button.text = "%s (-%d Resolve)" % [
@@ -578,7 +581,8 @@ func _hide_pantry() -> void:
 ## lives in BrewMenu, which owns its own refresh.)
 func _rebuild_discover_panel() -> void:
 	for child in discover_panel.get_children():
-		child.queue_free()
+		if child is Control:   # keep the panel's MenuKeyNav (a plain Node) alive
+			child.queue_free()
 
 	for potion in ContentRegistry.potions:
 		if potion.has_puzzle():

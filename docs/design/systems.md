@@ -35,6 +35,25 @@ Clock
   `tick_rate_minutes_per_second` eases toward the new target every frame
   (`move_toward` in `_process`) instead of snapping, so speed changes read as a
   smooth ramp rather than a jump cut.
+- **Menu keyboard navigation** (`MenuKeyNav`, `scripts/ui/menu_key_nav.gd`): every
+  menu drives on the same keys the brew menu established (system 4) — **W/S** (or
+  arrows) move a cursor rendered as the theme's forced-*hover* look, **E** activates
+  the control under it, **A/D** nudge sliders and cycle OptionButtons, and **Esc**
+  backs out one level, falling through unconsumed to whoever owns closing (main.gd
+  for `MenuScene` menus) when there's nothing left to undo. Simple button-list menus
+  get it by adding a `MenuKeyNav` child node to the content Control — it re-collects
+  the host's buttons/sliders in tree order on every move, so rebuilt panels never
+  strand the cursor — currently the supply shelf, class-effort, and Potion Book
+  discover panels, plus the main menu's root/load/settings screens (the latter two
+  with `handle_escape`, so Esc is their Back button; `require_pause` off there since
+  the title screen never pauses). `BrewMenu` and `GameMenu` keep their own two-mode
+  `_input()` but build on MenuKeyNav's shared statics
+  (`set_highlight`/`activate`/`adjust`/`collect_nav_controls`/`ensure_visible`).
+  The Escape menu's two levels mirror the brew menu's browse/focus split: W/S at the
+  rail switch sections directly, E steps into the shown section's controls (a
+  no-op for sections with nothing actionable), Esc steps back to the rail, and a
+  second Esc closes the menu; a caption pinned under the rail shows the active
+  level's key map.
 - **Ending a day** has three independent triggers, all routed through one
   `AdvanceToNextDay(reason)` resolution so there's a single source of truth for
   "day is over":
@@ -316,8 +335,10 @@ BrewJob
     directly pin the focused recipe to that slot regardless of cursor, and **Esc**
     steps back to browsing (consumed, so the menu stays open; a second Esc, now
     browsing, closes it). The cursor marks its button by forcing the theme's
-    *hover* look (`_highlight_action_button()` overrides the normal/pressed
-    styleboxes + font — the focus outline read as too subtle); a magic-tinted ring
+    *hover* look (`_highlight_action_button()`, routed through
+    `MenuKeyNav.set_highlight()` — see system 1 — which overrides the
+    normal/pressed styleboxes + font, since the focus outline read as too
+    subtle); a magic-tinted ring
     around the detail card (`_detail_focus_ring`) plus a mode line and footer tip
     signal the focused state.
   The mouse still works alongside all of this (click a row to select, the Brew

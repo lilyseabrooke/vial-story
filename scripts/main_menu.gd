@@ -20,6 +20,7 @@ var _load_layer: CanvasLayer
 var _settings_layer: CanvasLayer
 var _character_creator: CharacterCreator
 var _load_status_label: Label
+var _root_nav: MenuKeyNav
 
 
 func _ready() -> void:
@@ -70,6 +71,23 @@ func _build_root_menu() -> void:
 	quit_button.text = "Quit"
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	vbox.add_child(quit_button)
+
+	# Esc at the root screen deliberately does nothing (no back to go to, and
+	# quitting on Esc would be hostile), so no on_back here.
+	_root_nav = _attach_nav(vbox)
+
+
+## W/S + E keyboard navigation for one of the menu's button columns (see
+## MenuKeyNav). `require_pause` is off because nothing pauses on the title
+## screen; a non-null `on_back` makes Esc act as that screen's Back button.
+func _attach_nav(host: Control, on_back: Callable = Callable()) -> MenuKeyNav:
+	var nav := MenuKeyNav.new()
+	nav.require_pause = false
+	if on_back.is_valid():
+		nav.handle_escape = true
+		nav.back_requested.connect(on_back)
+	host.add_child(nav)
+	return nav
 
 
 # ---------------------------------------------------------------------------
@@ -147,9 +165,11 @@ func _build_load_menu() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
-	back_button.text = "Back"
+	back_button.text = "Back (Esc)"
 	back_button.pressed.connect(_on_load_back_pressed)
 	vbox.add_child(back_button)
+
+	_attach_nav(vbox, _on_load_back_pressed)
 
 
 func _on_load_slot_pressed(game_id: String) -> void:
@@ -166,6 +186,8 @@ func _on_load_back_pressed() -> void:
 	_load_layer.queue_free()
 	_load_layer = null
 	_root_layer.visible = true
+	# The root layer never left the tree, so its nav must be re-armed by hand.
+	_root_nav.reset()
 
 
 # ---------------------------------------------------------------------------
@@ -206,12 +228,15 @@ func _build_settings_menu() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
-	back_button.text = "Back"
+	back_button.text = "Back (Esc)"
 	back_button.pressed.connect(_on_settings_back_pressed)
 	vbox.add_child(back_button)
+
+	_attach_nav(vbox, _on_settings_back_pressed)
 
 
 func _on_settings_back_pressed() -> void:
 	_settings_layer.queue_free()
 	_settings_layer = null
 	_root_layer.visible = true
+	_root_nav.reset()

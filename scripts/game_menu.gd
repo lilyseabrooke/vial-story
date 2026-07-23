@@ -17,6 +17,21 @@ extends MarginContainer
 ## inline — see the *_SCENE consts below. Section content is built once in
 ## build() (detached from the SceneTree until MenuScene.open() reparents it in),
 ## which is why component node refs are looked up on demand, not via @onready.
+##
+## Fully keyboard-navigable in two levels, mirroring BrewMenu's two-mode model
+## (see docs/design/systems.md, system 1) and built on MenuKeyNav's statics:
+##   - Rail (default): W/S move through the sections, switching the shown page
+##     as they go (the rail button's pressed fill is the cursor). E steps into
+##     the current section if it has anything actionable. Esc isn't consumed,
+##     so it falls through to main.gd and closes the menu.
+##   - Section (after E): a hover-look cursor moves through the section's
+##     buttons/sliders with W/S, A/D adjusts sliders and cycles OptionButtons,
+##     E activates, and Esc steps back to the rail (consumed — a second Esc,
+##     now at the rail, closes the menu). Controls are re-collected on every
+##     move, so sections that rebuild themselves (Journal after a turn-in)
+##     never leave the cursor on a freed node.
+## The mouse works alongside this; clicking a rail button drops back to rail
+## level, since you're picking a new section, not acting inside the old one.
 
 const GRID_COLUMNS := 8
 const GRID_ROWS := 3
@@ -30,11 +45,19 @@ const RELATIONSHIP_ROW_SCENE := preload("res://scenes/ui/components/Relationship
 const RECIPE_ENTRY_SCENE := preload("res://scenes/ui/components/RecipeEntry.tscn")
 const QUEST_ENTRY_SCENE := preload("res://scenes/ui/components/QuestEntry.tscn")
 
+const RAIL_TIP := "W/S section\nE step in\nEsc close"
+const SECTION_TIP := "W/S move\nA/D adjust\nE use\nEsc back"
+
 var _rail: VBoxContainer
 var _content: Control
 var _rail_group := ButtonGroup.new()
 var _rail_buttons: Dictionary = {}   # section_id -> Button
 var _sections: Dictionary = {}       # section_id -> ScrollContainer
+var _section_order: Array[String] = []
+var _current_section_id := ""
+var _in_section := false             # keyboard cursor is inside the section
+var _section_highlight: Control = null
+var _nav_tip: Label
 
 var _inventory_grid: GridContainer
 var _skills_list: VBoxContainer
@@ -78,6 +101,16 @@ func build() -> void:
 	_add_section("hearts", "Hearts", _build_relationships_tab())
 	_add_section("journal", "Journal", _build_journal_tab())
 	_add_section("settings", "Settings", _build_settings_tab())
+
+	# Keyboard hint pinned to the bottom of the rail; swaps between the rail
+	# and in-section key maps as the cursor level changes.
+	var rail_spacer := Control.new()
+	rail_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_rail.add_child(rail_spacer)
+	_nav_tip = Label.new()
+	_nav_tip.theme_type_variation = &"CaptionLabel"
+	_nav_tip.text = RAIL_TIP
+	_rail.add_child(_nav_tip)
 
 	_show_section("satchel")
 
@@ -125,6 +158,7 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	button.pressed.connect(_show_section.bind(id))
 	_rail.add_child(button)
 	_rail_buttons[id] = button
+	_section_order.append(id)
 
 	var titled := VBoxContainer.new()
 	titled.add_theme_constant_override("separation", 8)
@@ -148,11 +182,123 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	_sections[id] = scroll
 
 
+## Switching sections (keyboard W/S at the rail, or a mouse click on a rail
+## button) always drops back to rail level — you're picking a new section,
+## not acting inside the old one.
 func _show_section(id: String) -> void:
+	_current_section_id = id
+	_leave_section()
 	for section_id in _sections:
 		(_sections[section_id] as Control).visible = (section_id == id)
 	if _rail_buttons.has(id):
 		(_rail_buttons[id] as Button).button_pressed = true
+
+
+# ---------------------------------------------------------------------------
+# Keyboard navigation (rail level <-> section level)
+# ---------------------------------------------------------------------------
+
+## Re-opened via MenuScene (which reparents this in), so reset the cursor to
+## rail level each time rather than resuming a stale in-section state.
+func _enter_tree() -> void:
+	_leave_section()
+
+
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not Clock.is_paused:
+		return
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+
+	# Captured up front: activating the Settings tab's Return/Quit buttons
+	# tears this menu out of the tree synchronously (change_scene_to_file),
+	# after which get_viewport() returns null — same hazard as MenuKeyNav.
+	var viewport := get_viewport()
+	match event.keycode:
+		KEY_W, KEY_UP:
+			if _in_section:
+				_move_section_cursor(-1)
+			else:
+				_move_rail(-1)
+			viewport.set_input_as_handled()
+		KEY_S, KEY_DOWN:
+			if _in_section:
+				_move_section_cursor(1)
+			else:
+				_move_rail(1)
+			viewport.set_input_as_handled()
+		KEY_A, KEY_LEFT:
+			if _in_section and is_instance_valid(_section_highlight) \
+					and MenuKeyNav.adjust(_section_highlight, -1):
+				viewport.set_input_as_handled()
+		KEY_D, KEY_RIGHT:
+			if _in_section and is_instance_valid(_section_highlight) \
+					and MenuKeyNav.adjust(_section_highlight, 1):
+				viewport.set_input_as_handled()
+		KEY_E, KEY_ENTER, KEY_KP_ENTER:
+			if _in_section:
+				if is_instance_valid(_section_highlight):
+					MenuKeyNav.activate(_section_highlight)
+			else:
+				_enter_section()
+			# Consumed either way so E never falls through to main.gd's
+			# world interact while the journal owns the screen.
+			viewport.set_input_as_handled()
+		KEY_ESCAPE:
+			# Only consume Esc when it has something to undo (stepping back to
+			# the rail); at rail level it falls through to main.gd, which
+			# closes the menu.
+			if _in_section:
+				_leave_section()
+				viewport.set_input_as_handled()
+
+
+func _move_rail(delta: int) -> void:
+	var idx := _section_order.find(_current_section_id)
+	idx = 0 if idx == -1 else clampi(idx + delta, 0, _section_order.size() - 1)
+	_show_section(_section_order[idx])
+
+
+## E at the rail: step into the current section, dropping the cursor on its
+## first actionable control. A section with nothing actionable (Satchel,
+## Hearts...) just stays at rail level.
+func _enter_section() -> void:
+	var controls := MenuKeyNav.collect_nav_controls(_sections.get(_current_section_id))
+	if controls.is_empty():
+		return
+	_in_section = true
+	_set_section_highlight(controls[0])
+	_nav_tip.text = SECTION_TIP
+
+
+func _leave_section() -> void:
+	_in_section = false
+	if is_instance_valid(_section_highlight):
+		MenuKeyNav.set_highlight(_section_highlight, false)
+	_section_highlight = null
+	if _nav_tip != null:
+		_nav_tip.text = RAIL_TIP
+
+
+## Controls are re-collected on every move so a section that rebuilt itself
+## since the last keypress (Journal after a turn-in) can't strand the cursor
+## on a freed node — find() just misses and the cursor restarts at the top.
+func _move_section_cursor(delta: int) -> void:
+	var controls := MenuKeyNav.collect_nav_controls(_sections.get(_current_section_id))
+	if controls.is_empty():
+		_leave_section()
+		return
+	var idx := controls.find(_section_highlight)
+	idx = 0 if idx == -1 else clampi(idx + delta, 0, controls.size() - 1)
+	_set_section_highlight(controls[idx])
+
+
+func _set_section_highlight(control: Control) -> void:
+	if is_instance_valid(_section_highlight):
+		MenuKeyNav.set_highlight(_section_highlight, false)
+	_section_highlight = control
+	MenuKeyNav.set_highlight(control, true)
+	MenuKeyNav.ensure_visible(control, _content)
 
 
 # ---------------------------------------------------------------------------

@@ -172,47 +172,52 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
+	# Captured up front so a brew that closes the menu can't leave a null
+	# get_viewport() before the handled-mark — MenuScene currently defers
+	# content removal past close(), but don't lean on that (see the same
+	# capture in MenuKeyNav._input, where scene changes made it a real crash).
+	var viewport := get_viewport()
 	match event.keycode:
 		KEY_W, KEY_UP:
 			if _focused:
 				_move_action(-1)
 			else:
 				_move_selection(-1)
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_S, KEY_DOWN:
 			if _focused:
 				_move_action(1)
 			else:
 				_move_selection(1)
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_A, KEY_LEFT:
 			# Only meaningful (and only consumed) while focused, moving the action
 			# cursor along the slot row; browsing ignores it (recipes are a column).
 			if _focused:
 				_move_action(-1)
-				get_viewport().set_input_as_handled()
+				viewport.set_input_as_handled()
 		KEY_D, KEY_RIGHT:
 			if _focused:
 				_move_action(1)
-				get_viewport().set_input_as_handled()
+				viewport.set_input_as_handled()
 		KEY_E, KEY_ENTER, KEY_KP_ENTER:
 			_activate()
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_1, KEY_KP_1:
 			_press_digit(0)
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_2, KEY_KP_2:
 			_press_digit(1)
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_3, KEY_KP_3:
 			_press_digit(2)
-			get_viewport().set_input_as_handled()
+			viewport.set_input_as_handled()
 		KEY_ESCAPE:
 			# Only consume Esc when it has something to undo (leaving focus);
 			# while browsing it falls through to main.gd, which closes the menu.
 			if _focused:
 				_set_focused(false)
-				get_viewport().set_input_as_handled()
+				viewport.set_input_as_handled()
 
 
 ## E / Enter: focus the selection when browsing; when already focused, activate
@@ -257,11 +262,10 @@ func _move_action(delta: int) -> void:
 	_highlight_action_button()
 
 
-## Marks the cursor'd action button by forcing its *hover* look (the theme's
-## focus outline was too subtle) — Godot has no way to fake a hover state, so the
-## button's normal/pressed styleboxes and font colors are overridden with the
-## hover ones until the cursor moves. Also overriding "pressed" so a pinned
-## quick-slot button (a toggled Button showing its pressed style) still lights up.
+## Marks the cursor'd action button by forcing its *hover* look — the shared
+## trick now implemented once in MenuKeyNav.set_highlight() (see there), which
+## also overrides "pressed" so a pinned quick-slot button (a toggled Button
+## showing its pressed style) still lights up.
 func _highlight_action_button() -> void:
 	_clear_action_highlight()
 	if _action_index < 0 or _action_index >= _action_buttons.size():
@@ -269,12 +273,7 @@ func _highlight_action_button() -> void:
 	var button := _action_buttons[_action_index]
 	if not is_instance_valid(button) or button.disabled:
 		return
-	var hover_style := button.get_theme_stylebox("hover")
-	var hover_font := button.get_theme_color("font_hover_color")
-	button.add_theme_stylebox_override("normal", hover_style)
-	button.add_theme_stylebox_override("pressed", hover_style)
-	button.add_theme_color_override("font_color", hover_font)
-	button.add_theme_color_override("font_pressed_color", hover_font)
+	MenuKeyNav.set_highlight(button, true)
 	_highlighted_button = button
 
 
@@ -282,10 +281,7 @@ func _clear_action_highlight() -> void:
 	if not is_instance_valid(_highlighted_button):
 		_highlighted_button = null
 		return
-	_highlighted_button.remove_theme_stylebox_override("normal")
-	_highlighted_button.remove_theme_stylebox_override("pressed")
-	_highlighted_button.remove_theme_color_override("font_color")
-	_highlighted_button.remove_theme_color_override("font_pressed_color")
+	MenuKeyNav.set_highlight(_highlighted_button, false)
 	_highlighted_button = null
 
 
