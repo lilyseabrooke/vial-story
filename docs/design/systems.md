@@ -118,17 +118,27 @@ Recipe
   - puzzle_constraints: [(type, target, min, max)]   # the recipe-discovery puzzle
 ```
 
-- Two-stage unlock: a recipe can be *listed* (station menu shows a "Discover" button
-  for it) before it's *learned* (brewable). Recipe *learned* state now lives at
-  runtime in the `Alchemy` autoload (`is_learned`/`learn_recipe`/`unlearn_recipe`,
+- Two-stage unlock: a recipe can be *listed* (the Potion Book's menu shows a
+  "Discover" button for it) before it's *learned* (brewable at the Alembic). Recipe
+  *learned* state now lives at runtime in the `Alchemy` autoload
+  (`is_learned`/`learn_recipe`/`unlearn_recipe`,
   `recipe_learned`/`recipe_unlearned`/`puzzle_attempted` signals, its own
   `get_save_data()`/`load_save_data()`), not on `RecipeDef` itself — `known` on the
   `.tres` only seeds which recipes `Alchemy` starts a new game already knowing.
   `unlearn_recipe()` has no UI trigger yet in the prototype; it's a hook for a later
   curse/memory-loss mechanical intervention (system 11).
 - Recipes should live in a data table/resource, not hardcoded — content will grow fast.
-- **Recipe-discovery puzzle [BUILT]**: attempting an unlearned recipe (the alchemy
-  lab / brew station's "Discover: X" button) opens a drag-and-drop puzzle
+- Discovering and brewing are split across two interactables: the **Potion Book**
+  (`PotionBookInteractable`, `scripts/potion_book_interactable.gd`) opens
+  `hud.discover_panel`, listing a "Discover: X" button per unlearned recipe that has
+  a puzzle; the **Alembic** (`BrewStationInteractable`) opens `hud.brew_panel`,
+  listing only a "Brew: X" button per already-learned recipe. Both panels are
+  rebuilt together off the same `Alchemy.recipe_learned`/`recipe_unlearned` signals
+  (`hud.gd`'s `_rebuild_brew_panel()`/`_rebuild_discover_panel()`) so a freshly
+  learned recipe disappears from the Potion Book and appears at the Alembic in the
+  same frame.
+- **Recipe-discovery puzzle [BUILT]**: attempting an unlearned recipe (the Potion
+  Book's "Discover: X" button) opens a drag-and-drop puzzle
   (`scripts/ui/attempt_puzzle_panel.gd`, `AttemptPuzzlePanel`), laid out in three
   columns: a pinned note (top-left, tilted `PanelContainer`) showing the recipe's
   objectives with a live ✓ against each one already satisfied by the current field;

@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/LeyLineNodeInteractable.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PlanarRiftInteractable.tscn" id="11"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/PotionBookInteractable.tscn" id="12"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -87,6 +88,13 @@ target_id = "workbench_1"
 prompt_text = "break down Scrap"
 display_name = "Workbench"
 visual_color = Color(0.55, 0.55, 0.6, 1)
+
+[node name="PotionBook" parent="Interactables" instance=ExtResource("12")]
+position = Vector2(280, 150)
+target_id = "potion_book_1"
+prompt_text = "browse the Potion Book"
+display_name = "Potion Book"
+visual_color = Color(0.3, 0.45, 0.75, 1)
 
 [node name="StairsToDragonsGround" parent="Interactables" unique_id=1919002959 instance=ExtResource("6")]
 position = Vector2(300, 250)

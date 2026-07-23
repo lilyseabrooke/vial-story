@@ -15,6 +15,7 @@ const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigameP
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
 
 var brew_panel: VBoxContainer
+var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 
 var _station_id: String = ""
@@ -153,6 +154,9 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 
 	brew_panel = VBoxContainer.new()
 	_rebuild_brew_panel()
+
+	discover_panel = VBoxContainer.new()
+	_rebuild_discover_panel()
 
 	supply_panel = VBoxContainer.new()
 	for ingredient in ContentRegistry.ingredients:
@@ -396,9 +400,11 @@ func _connect_autoload_signals() -> void:
 		log_message("Learned recipe: %s!" % (recipe.display_name if recipe else recipe_id))
 		print("Learned recipe: %s" % recipe_id)
 		_rebuild_brew_panel()
+		_rebuild_discover_panel()
 	)
 	Alchemy.recipe_unlearned.connect(func(_recipe_id: String) -> void:
 		_rebuild_brew_panel()
+		_rebuild_discover_panel()
 	)
 	Alchemy.puzzle_attempted.connect(func(recipe_id: String, success: bool) -> void:
 		if not success:
@@ -474,12 +480,11 @@ func toggle_game_menu() -> void:
 
 ## Rebuilds brew_panel's buttons in place (same container instance, since
 ## main.gd's _on_interact_pressed() toggles it by reference) — one "Brew"
-## button per learned recipe, one "Discover" button per unlearned recipe that
-## has a puzzle, called both at build() and whenever Alchemy's learned set
-## changes so the buttons stay in sync. This menu only ever opens when the
-## station has no job running (main.gd's _interact_brew_station()), so there's
-## no collect button here — a finished brew is auto-collected on interact
-## instead.
+## button per learned recipe, called both at build() and whenever Alchemy's
+## learned set changes so the buttons stay in sync. This menu only ever opens
+## when the station has no job running (main.gd's _interact_brew_station()),
+## so there's no collect button here — a finished brew is auto-collected on
+## interact instead.
 func _rebuild_brew_panel() -> void:
 	for child in brew_panel.get_children():
 		child.queue_free()
@@ -490,11 +495,21 @@ func _rebuild_brew_panel() -> void:
 			button.text = "Brew: %s" % recipe.display_name
 			button.pressed.connect(on_brew_button_pressed.bind(recipe))
 			brew_panel.add_child(button)
-		elif recipe.has_puzzle():
+
+
+## Rebuilds discover_panel's buttons in place, same pattern as
+## _rebuild_brew_panel() but for the Potion Book — one "Discover" button per
+## unlearned recipe that has a puzzle.
+func _rebuild_discover_panel() -> void:
+	for child in discover_panel.get_children():
+		child.queue_free()
+
+	for recipe in ContentRegistry.recipes:
+		if not Alchemy.is_learned(recipe.id) and recipe.has_puzzle():
 			var discover_button := Button.new()
 			discover_button.text = "Discover: %s" % recipe.display_name
 			discover_button.pressed.connect(_on_discover_button_pressed.bind(recipe))
-			brew_panel.add_child(discover_button)
+			discover_panel.add_child(discover_button)
 
 
 func _on_discover_button_pressed(recipe: RecipeDef) -> void:
