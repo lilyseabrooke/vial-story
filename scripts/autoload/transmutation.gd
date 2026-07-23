@@ -21,6 +21,11 @@ signal heap_started(heap_id: String)
 signal heap_progress(heap_id: String)
 signal heap_cancelled(heap_id: String)
 signal heap_resolved(heap_id: String, roll: Dictionary, scrap_granted: int, ingredients: Dictionary)
+## Fired after an overnight spawn roll adds one or more new heaps to a given
+## spawner's population -- same shape as Draconology's ground_stashes_spawned.
+## Each ScrapHeapSpawnerNode listens for its own spawner_id and hands the new
+## ids to RoomBuilder to place.
+signal ground_heaps_spawned(spawner_id: String, heap_ids: Array)
 
 const ARTIFICIAL_INGREDIENT_IDS := ["scrap_alloy", "refined_component"]
 
@@ -53,9 +58,22 @@ const HEAP_ARTIFICIAL_CHANCE := 0.2
 var _heap_jobs: Dictionary = {}          # heap_id -> ScrapHeapJob, actively being dug only
 var _collected_heap_ids: Dictionary = {} # heap_id -> true, forever
 
+## One entry per ScrapHeapSpawnerNode that has called register_heap_spawner(),
+## keyed by that node's spawner_id -- {"max": int, "avg_days_to_max": float}.
+## Same "in-memory only, re-supplied on room load" shape as Draconology's
+## _spawner_configs.
+var _spawner_configs: Dictionary = {}
+
+## Ids of heaps currently scattered per spawner, distinct from any hand-placed
+## heap a room might define directly (e.g. the Shop's scrap_heap_1). Mirrors
+## Draconology._spawner_stash_ids exactly.
+var _spawner_heap_ids: Dictionary = {}   # spawner_id -> Array[String]
+var _spawner_counters: Dictionary = {}   # spawner_id -> int, next id to hand out
+
 
 func _ready() -> void:
 	Clock.minute_tick.connect(_on_minute_tick)
+	Clock.day_started.connect(_on_day_started)
 
 
 ## Pops one piece of Scrap from Inventory (FIFO) and resolves it: a visible
@@ -109,6 +127,44 @@ func get_heap_job(heap_id: String) -> ScrapHeapJob:
 
 func is_heap_collected(heap_id: String) -> bool:
 	return _collected_heap_ids.has(heap_id)
+
+
+## Called once by each ScrapHeapSpawnerNode's _ready() to declare its
+## population/rate tuning and get back whichever of its ids are already
+## scattered (from a loaded save, or a prior room visit this session). Same
+## shape as Draconology.register_spawner().
+func register_heap_spawner(spawner_id: String, max_heaps: int, avg_days_to_max: float) -> Array[String]:
+	_spawner_configs[spawner_id] = {"max": max_heaps, "avg_days_to_max": avg_days_to_max}
+	if not _spawner_heap_ids.has(spawner_id):
+		_spawner_heap_ids[spawner_id] = [] as Array[String]
+	if not _spawner_counters.has(spawner_id):
+		_spawner_counters[spawner_id] = 0
+	return (_spawner_heap_ids[spawner_id] as Array[String]).duplicate()
+
+
+## Same asymptotic per-slot nightly roll as Draconology._on_day_started() --
+## see that method's doc comment for the full reasoning.
+func _on_day_started(_day_number: int, _day_type: int) -> void:
+	for spawner_id in _spawner_configs.keys():
+		var config: Dictionary = _spawner_configs[spawner_id]
+		var max_heaps: int = config["max"]
+		var avg_days_to_max: float = config["avg_days_to_max"]
+		var base_chance := 1.0 / maxf(avg_days_to_max, 0.01)
+		var existing_ids: Array[String] = _spawner_heap_ids[spawner_id]
+
+		var new_ids: Array[String] = []
+		for i in max_heaps:
+			var current_count := existing_ids.size() + new_ids.size()
+			if current_count >= max_heaps:
+				break
+			var fullness := float(current_count) / float(max_heaps)
+			if Rng.range_f(0.0, 1.0) < base_chance * (1.0 - fullness):
+				_spawner_counters[spawner_id] += 1
+				new_ids.append("%s_heap_%d" % [spawner_id, _spawner_counters[spawner_id]])
+		if new_ids.is_empty():
+			continue
+		existing_ids.append_array(new_ids)
+		ground_heaps_spawned.emit(spawner_id, new_ids)
 
 
 ## No-op if this heap already has a job running -- interact() only calls this
@@ -179,6 +235,15 @@ func _resolve_heap(heap_id: String, job: ScrapHeapJob) -> void:
 
 	_heap_jobs.erase(heap_id)
 	_collected_heap_ids[heap_id] = true
+	# Freeing the slot back up (rather than leaving it permanently occupied)
+	# is what lets that spawner's next overnight spawn roll approach its cap
+	# again instead of the population only ever draining -- same reasoning as
+	# Draconology._resolve().
+	for spawner_id in _spawner_heap_ids:
+		var ids: Array[String] = _spawner_heap_ids[spawner_id]
+		if ids.has(heap_id):
+			ids.erase(heap_id)
+			break
 	Skills.add_xp("transmutation", XP_PER_HEAP)
 	heap_resolved.emit(heap_id, roll, scrap_count, ingredients)
 
@@ -189,11 +254,34 @@ func _resolve_heap(heap_id: String, job: ScrapHeapJob) -> void:
 ## which heaps are permanently collected needs to survive -- same reasoning
 ## as Draconology.get_save_data().
 func get_save_data() -> Dictionary:
-	return {"collected_heap_ids": _collected_heap_ids.keys()}
+	var ground_heap_ids := {}
+	for spawner_id in _spawner_heap_ids:
+		ground_heap_ids[spawner_id] = _spawner_heap_ids[spawner_id]
+	return {
+		"collected_heap_ids": _collected_heap_ids.keys(),
+		"spawner_heap_ids": ground_heap_ids,
+		"spawner_counters": _spawner_counters,
+	}
 
 
+## Deliberately does not touch _spawner_configs -- that's re-supplied by each
+## ScrapHeapSpawnerNode's own register_heap_spawner() call once its room
+## loads, same as Draconology.load_save_data().
 func load_save_data(data: Dictionary) -> void:
 	_heap_jobs.clear()
 	_collected_heap_ids.clear()
 	for heap_id in (data.get("collected_heap_ids", []) as Array):
 		_collected_heap_ids[heap_id] = true
+
+	_spawner_heap_ids.clear()
+	var saved_ids: Dictionary = data.get("spawner_heap_ids", {})
+	for spawner_id in saved_ids:
+		var ids: Array[String] = []
+		for heap_id in (saved_ids[spawner_id] as Array):
+			ids.append(heap_id as String)
+		_spawner_heap_ids[spawner_id] = ids
+
+	_spawner_counters.clear()
+	var saved_counters: Dictionary = data.get("spawner_counters", {})
+	for spawner_id in saved_counters:
+		_spawner_counters[spawner_id] = int(saved_counters[spawner_id])

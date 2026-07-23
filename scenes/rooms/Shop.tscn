@@ -112,6 +112,14 @@ prompt_text = "head out to the Dragons' Ground"
 display_name = "Dragons' Ground Doorway"
 visual_color = Color(0.45, 0.3, 0.2, 1)
 
+[node name="StairsToScrapYard" parent="Interactables" instance=ExtResource("6")]
+position = Vector2(500, 486)
+target_room = "scrap_yard"
+spawn_position = Vector2(120, 100)
+prompt_text = "head out to the Scrap Yard"
+display_name = "Scrap Yard Doorway"
+visual_color = Color(0.6, 0.55, 0.35, 1)
+
 [node name="LeyLineNode" parent="Interactables" unique_id=1932554392 instance=ExtResource("10")]
 position = Vector2(600, 400)
 difficulty = 2.0

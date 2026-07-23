@@ -612,27 +612,30 @@ CurseState
 - No pathfinding/AI needs beyond simple player movement + interaction prompts for
   the prototype.
 - **Rooms**: the interior is split into separate hand-authored room scenes
-  (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, and
-  `DragonsGround.tscn`), each a `Room`-scripted (`scripts/room.gd`) `Node2D`
+  (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, `DragonsGround.tscn`,
+  and `ScrapYard.tscn`), each a `Room`-scripted (`scripts/room.gd`) `Node2D`
   with `Floor`/`Walls` `TileMapLayer`s, a `SpawnPoint` `Marker2D`, and an
   `Interactables` container of pre-placed interactable instances configured
   entirely via the Inspector. `RoomBuilder.build_rooms()`
-  (`scripts/room_builder.gd`) loads all three scenes up front, reads each
+  (`scripts/room_builder.gd`) loads all four scenes up front, reads each
   room's markers, and wires every pre-placed interactable's signals; grow-plot
-  interactables and Dragons' Ground stashes are the exceptions and stay
-  code-instanced (into a `Plots`/`GroundStashes` container node respectively)
-  since they come from runtime `Herbalism`/`Draconology` data rather than
-  being hand-placed — see system 19 for how the Dragons' Ground spawns and
-  places its stashes. Only one room is active at a time — `switch_room()`
-  toggles `visible`/`process_mode` on the room scenes (inactive rooms are
-  `PROCESS_MODE_DISABLED`, which also stops their interactable areas from
-  firing enter/exit signals while hidden) and repositions the single shared
-  player + camera. The player and camera are scene-level nodes, not per-room,
-  so they persist across a switch. Wall tiles carry real collision (physics
-  layer 2, named "Walls" in `project.godot`'s `[layer_names]`; `Player`'s
-  `collision_mask` includes it) — floor tiles don't; `Bedroom`/`DragonsGround`
-  currently leave `Floor`/`Walls` empty placeholders with no tileset assigned
-  yet, same as `Shop.tscn` did before its interior was painted.
+  interactables, Dragons' Ground stashes, and Scrap Yard heaps are the
+  exceptions and stay code-instanced (each parented under its own spawner
+  node rather than a room's `Interactables` container) since they come from
+  runtime `Herbalism`/`Draconology`/`Transmutation` data rather than being
+  hand-placed — see system 19 for how the Dragons' Ground spawns and places
+  its stashes, and system 18's Scrap Heap subsection for the Scrap Yard's
+  identically-shaped `ScrapHeapSpawnerNode`. Only one room is active at a
+  time — `switch_room()` toggles `visible`/`process_mode` on the room scenes
+  (inactive rooms are `PROCESS_MODE_DISABLED`, which also stops their
+  interactable areas from firing enter/exit signals while hidden) and
+  repositions the single shared player + camera. The player and camera are
+  scene-level nodes, not per-room, so they persist across a switch. Wall
+  tiles carry real collision (physics layer 2, named "Walls" in
+  `project.godot`'s `[layer_names]`; `Player`'s `collision_mask` includes
+  it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard` currently
+  leave `Floor`/`Walls` empty placeholders with no tileset assigned yet, same
+  as `Shop.tscn` did before its interior was painted.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
@@ -655,15 +658,17 @@ CurseState
   `spawn_position` in the destination room, the same per-instance-config
   pattern as every other interactable. The Bed lives in the Bedroom; the
   Shop's brew station/stock box/supply shelf/class door/grow plots stay in
-  the Shop; the Dragons' Ground has nothing but its stashes and a stairs back
-  — each pair of rooms is connected by a stairs interactable in each room
-  pointing at the other. One quirk of `_load_room()`'s spawn-position
+  the Shop; the Dragons' Ground has nothing but its stashes and a stairs
+  back; the Scrap Yard is the same shape as the Dragons' Ground but with a
+  `ScrapHeapSpawner` in place of the `DragonSpawner`/`DragonStashSpawner`
+  pair — each pair of rooms is connected by a stairs interactable in each
+  room pointing at the other. One quirk of `_load_room()`'s spawn-position
   resolution: it only auto-fills a stairs' `spawn_position` from the target
   room's `SpawnPoint` if the target room was *already* loaded when the
   stairs gets wired, so a stairs pointing at a room that loads later
-  (`Shop`'s stairs to `Bedroom`/`DragonsGround`, both of which load after
-  `Shop`) needs its `spawn_position` hand-set in the `.tscn` to match that
-  room's `SpawnPoint` instead of relying on auto-resolution.
+  (`Shop`'s stairs to `Bedroom`/`DragonsGround`/`ScrapYard`, all of which load
+  after `Shop`) needs its `spawn_position` hand-set in the `.tscn` to match
+  that room's `SpawnPoint` instead of relying on auto-resolution.
 
 ---
 
@@ -1358,18 +1363,34 @@ full reasoning; only what differs is called out here.
   heap occasionally turns up something already refined instead of raw material, without needing a
   trip to the Workbench. Grants `XP_PER_HEAP` (20) Transmutation XP, then erases the job and
   records the heap as collected.
-- **Hand-placed, not spawner-scattered.** Unlike the Dragon's Stash, which is procedurally
-  scattered through the Dragons' Ground by `DragonStashSpawnerNode`, a Scrap Heap is a fixed
-  fixture placed directly in a room scene (currently one, `scrap_heap_1` in `Shop.tscn`) — no
-  spawner/population/regeneration machinery, since there's no fictional "dangerous territory that
-  restocks overnight" framing to justify one here. `RoomBuilder._wire_interactable()` still guards
-  the reload path the same way it would for a runtime-instanced stash: on load, a heap whose id is
-  already in `Transmutation._collected_heap_ids` has its hand-placed node discarded on sight
-  (`interactable.queue_free()`) instead of being registered, so a collected heap stays gone across
-  a save/load even though its node would otherwise just reappear from the room scene every time.
-  This is also why, unlike `Draconology`, `Transmutation` now needs a save contract at all —
-  `get_save_data()`/`load_save_data()` persist only `_collected_heap_ids` (active jobs are dropped
-  on load/walk-away, same reasoning as every other tethered job) — and is registered in
+- **Both hand-placed and spawner-scattered.** `scrap_heap_1` in `Shop.tscn` is a fixed fixture with
+  no spawner behind it, same as before. But the Scrap Yard (`scenes/rooms/ScrapYard.tscn`,
+  `room_id = "scrap_yard"` — a large room reachable from the Shop's `StairsToScrapYard`, visually
+  the Dragons' Ground's layout minus the dragons) carries a `ScrapHeapSpawnerNode`
+  (`scripts/scrap_heap_spawner_node.gd`, wrapped as `scenes/spawners/ScrapHeapSpawner.tscn`,
+  `spawner_id = "scrap_yard_heaps"`) linked to its own `SpawnZones` container. It's
+  `DragonStashSpawnerNode` (system 19) with the serial numbers filed off exactly the same way the
+  hand-placed heap mirrors the hand-placed stash: `spawn_zone_path`/`max_heaps`/`avg_days_to_max`/
+  `min_separation` exports, `SpawnZoneUtils.random_point()` for placement, and the same
+  "spawner only owns *where* and *how often*, RoomBuilder does the actual instancing/wiring" split
+  — it emits `spawn_requested(heap_id, world_position)`, which `RoomBuilder._on_heap_spawn_requested()`
+  (connected in `_load_room()`, mirroring `_on_stash_spawn_requested()`) turns into a real
+  `ScrapHeapInteractable` parented under the spawner node. `Transmutation.register_heap_spawner()`/
+  `_on_day_started()` (now wired to `Clock.day_started`, alongside the pre-existing `minute_tick`
+  hook) mirror `Draconology.register_spawner()`/`_on_day_started()`'s asymptotic per-slot nightly
+  roll line for line, and `ground_heaps_spawned(spawner_id, heap_ids)` mirrors
+  `ground_stashes_spawned`. `_resolve_heap()` frees a resolved id back out of `_spawner_heap_ids` the
+  same way `Draconology._resolve()` does, so a spawner's population approaches its cap again instead
+  of only ever draining.
+- **`RoomBuilder._wire_interactable()`** still guards the reload path the same way it would for a
+  runtime-instanced stash: on load, a heap whose id is already in `Transmutation._collected_heap_ids`
+  has its node discarded on sight (`interactable.queue_free()`) instead of being registered, so a
+  collected heap — hand-placed or spawner-scattered — stays gone across a save/load even though a
+  hand-placed node would otherwise just reappear from the room scene every time. This is also why,
+  unlike `Draconology`, `Transmutation` needs a save contract at all — `get_save_data()`/
+  `load_save_data()` now persist `_collected_heap_ids` plus `_spawner_heap_ids`/`_spawner_counters`
+  (mirroring `Draconology`'s spawner persistence exactly; active jobs are still dropped on load/
+  walk-away, same reasoning as every other tethered job) — and is registered in
   `SaveManager._SAVE_ORDER` right after `Summoning`.
 - **The bar fills deep brown → bright gold**, `ScrapHeapInteractable`'s cosmetic answer to the
   Dragon's Stash's pale-green → maroon — "raw material giving way to something valuable" instead

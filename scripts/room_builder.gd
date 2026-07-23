@@ -22,12 +22,15 @@ const PLAYER_SCENE := preload("res://scenes/Player.tscn")
 const SHOP_SCENE := preload("res://scenes/rooms/Shop.tscn")
 const BEDROOM_SCENE := preload("res://scenes/rooms/Bedroom.tscn")
 const DRAGONS_GROUND_SCENE := preload("res://scenes/rooms/DragonsGround.tscn")
+const SCRAP_YARD_SCENE := preload("res://scenes/rooms/ScrapYard.tscn")
 const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
+const SCRAP_HEAP_SCENE := preload("res://scenes/interactables/ScrapHeapInteractable.tscn")
 
 const SHOP_ROOM_ID := "shop"
 const BEDROOM_ROOM_ID := "bedroom"
 const DRAGONS_GROUND_ROOM_ID := "dragons_ground"
+const SCRAP_YARD_ROOM_ID := "scrap_yard"
 
 var player: CharacterBody2D
 var current_room_id: String = ""
@@ -49,6 +52,7 @@ func build_rooms() -> void:
 	_load_room(SHOP_SCENE)
 	_load_room(BEDROOM_SCENE)
 	_load_room(DRAGONS_GROUND_SCENE)
+	_load_room(SCRAP_YARD_SCENE)
 
 	# Added after the rooms so they draw on top of each room's floor — 2D draw
 	# order follows tree order, and rooms are siblings of the player/camera.
@@ -133,6 +137,8 @@ func _load_room(scene: PackedScene) -> void:
 	for spawner in room.get_children():
 		if spawner is DragonStashSpawnerNode:
 			spawner.spawn_requested.connect(_on_stash_spawn_requested.bind(spawner))
+		elif spawner is ScrapHeapSpawnerNode:
+			spawner.spawn_requested.connect(_on_heap_spawn_requested.bind(spawner))
 
 	add_child(room)
 	room.visible = false
@@ -229,6 +235,21 @@ func _on_stash_spawn_requested(stash_id: String, pos: Vector2, spawner: DragonSt
 	interactable.prompt_text = "dig through the Dragon's Stash"
 	interactable.display_name = "Dragon's Stash"
 	interactable.visual_color = Color(0.5, 0.08, 0.2, 1)
+	interactable.position = pos
+	spawner.add_child(interactable)
+	_wire_interactable(interactable)
+
+
+## Instances a Scrap Heap Interactable in response to a ScrapHeapSpawnerNode's
+## spawn_requested signal (connected in _load_room()) and parents it under
+## that same spawner node -- same "code-instanced, not hand-placed" shape as
+## _on_stash_spawn_requested().
+func _on_heap_spawn_requested(heap_id: String, pos: Vector2, spawner: ScrapHeapSpawnerNode) -> void:
+	var interactable: ScrapHeapInteractable = SCRAP_HEAP_SCENE.instantiate()
+	interactable.target_id = heap_id
+	interactable.prompt_text = "dig through the Scrap Heap"
+	interactable.display_name = "Scrap Heap"
+	interactable.visual_color = Color(0.72, 0.55, 0.22, 1)
 	interactable.position = pos
 	spawner.add_child(interactable)
 	_wire_interactable(interactable)
