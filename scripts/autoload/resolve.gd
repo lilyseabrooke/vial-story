@@ -13,9 +13,12 @@ signal strained_changed(is_strained: bool)
 signal collapsed
 
 const STRAINED_DEBUFF_MULTIPLIER := 0.5
+## Starting max_resolve, and the baseline the HUD's Resolve vial sizes itself
+## against (see ResolveVial._size_scale_for) — 1.0 scale at this value.
+const BASE_MAX_RESOLVE := 100
 
-var max_resolve: int = 100
-var current: int = 100
+var max_resolve: int = BASE_MAX_RESOLVE
+var current: int = BASE_MAX_RESOLVE
 var strained_threshold: int = 30
 
 var _was_strained: bool = false

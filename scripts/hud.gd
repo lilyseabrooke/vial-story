@@ -11,6 +11,7 @@ extends CanvasLayer
 const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
+const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
 
@@ -46,8 +47,7 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_starting_ingredients = starting_ingredients
 
 	# Resolve meter — top-left, drawn as a filling potion vial.
-	_resolve_vial = ResolveVial.new()
-	_resolve_vial.build()
+	_resolve_vial = RESOLVE_VIAL_SCENE.instantiate()
 	_resolve_vial.position = Vector2(16, 16)
 	add_child(_resolve_vial)
 	UiFx.add_drop_shadow(_resolve_vial, 0.4, 5, Vector2(0, 4))

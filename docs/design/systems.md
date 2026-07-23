@@ -501,6 +501,11 @@ Resolve
   actions or items later.
 - Prototype scope: only Brewing failure events need to cost Resolve; other failure
   sources (Summoning, exams) plug in once those systems exist.
+- **HUD vial grows with `max_resolve`.** `ResolveVial` (top-left HUD card) scales its
+  vial art continuously as `max_resolve` rises above `Resolve.BASE_MAX_RESOLVE` (100),
+  via a sqrt curve clamped at 2x size — deliberately curve-driven off `max_resolve`
+  itself rather than off any specific upgrade/skill, since prototype scope doesn't yet
+  define what raises the cap and multiple sources may stack.
 
 ---
 
@@ -615,11 +620,15 @@ CurseState
   the prototype.
 - **Rooms**: the interior is split into separate hand-authored room scenes
   (currently `scenes/rooms/Shop.tscn`, `Bedroom.tscn`, `DragonsGround.tscn`,
-  `ScrapYard.tscn`, and `Garden.tscn`), each a `Room`-scripted
+  `ScrapYard.tscn`, `Garden.tscn`, `CommonGarden.tscn`, `Altar.tscn`,
+  `LeyLineOutcropping.tscn`, `Orrery.tscn`, `RavenCanopy.tscn`,
+  `LeyLineFissure.tscn`, `ConfluenceZone.tscn`, `FormerReliquary.tscn`, and
+  `Underbelly.tscn`), each
+  a `Room`-scripted
   (`scripts/room.gd`) `Node2D` with `Floor`/`Walls` `TileMapLayer`s, a
   `SpawnPoint` `Marker2D`, and an `Interactables` container of pre-placed
   interactable instances configured entirely via the Inspector.
-  `RoomBuilder.build_rooms()` (`scripts/room_builder.gd`) loads all five
+  `RoomBuilder.build_rooms()` (`scripts/room_builder.gd`) loads all fourteen
   scenes up front, reads each room's markers, and wires every pre-placed
   interactable's signals; grow-plot interactables, Dragons' Ground stashes,
   and Scrap Yard heaps are the exceptions and stay code-instanced (each
@@ -636,9 +645,10 @@ CurseState
   camera are scene-level nodes, not per-room, so they persist across a
   switch. Wall tiles carry real collision (physics layer 2, named "Walls" in
   `project.godot`'s `[layer_names]`; `Player`'s `collision_mask` includes
-  it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard`/`Garden`
-  currently leave `Floor`/`Walls` empty placeholders with no tileset assigned
-  yet, same as `Shop.tscn` did before its interior was painted.
+  it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard`/`Garden`/
+  `Altar`/`LeyLineOutcropping`/`Orrery` currently leave `Floor`/`Walls` empty
+  placeholders with no tileset assigned yet, same as `Shop.tscn` did before
+  its interior was painted.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
@@ -665,14 +675,57 @@ CurseState
   back); the Dragons' Ground has nothing but its stashes and a stairs back;
   the Scrap Yard is the same shape as the Dragons' Ground but with a
   `ScrapHeapSpawner` in place of the `DragonSpawner`/`DragonStashSpawner`
-  pair — each pair of rooms is connected by a stairs interactable in each
+  pair; the Contract Book lives in the Altar, the Ley Line Node in the Ley
+  Line Outcropping, and the Planar Rift in the Orrery — each of these three
+  is the same "single hand-placed fixture plus a stairs back" shape as the
+  Garden — each pair of rooms is connected by a stairs interactable in each
   room pointing at the other. One quirk of `_load_room()`'s spawn-position
   resolution: it only auto-fills a stairs' `spawn_position` from the target
   room's `SpawnPoint` if the target room was *already* loaded when the
   stairs gets wired, so a stairs pointing at a room that loads later
-  (`Shop`'s stairs to `Bedroom`/`DragonsGround`/`ScrapYard`, all of which load
-  after `Shop`) needs its `spawn_position` hand-set in the `.tscn` to match
-  that room's `SpawnPoint` instead of relying on auto-resolution.
+  (`Shop`'s stairs to `Bedroom`/`DragonsGround`/`ScrapYard`/`Altar`/
+  `LeyLineOutcropping`/`Orrery`, all of which load after `Shop`) needs its
+  `spawn_position` hand-set in the `.tscn` to match that room's `SpawnPoint`
+  instead of relying on auto-resolution.
+- **Shop Back.** One extra door in the Shop (`StairsToShopBack`) whose
+  `target_room` is resolved at runtime from `PlayerProfile.shop_origin`
+  instead of being fixed in the `.tscn` like every other stairs —
+  `RoomBuilder._wire_shop_back_door()` runs once, after all rooms are loaded,
+  and looks the origin id up in `SHOP_BACK_ROOM_BY_ORIGIN` to set that one
+  node's `target_room`/`spawn_position` (falling back to the Garden if
+  `shop_origin` is empty/unrecognized, e.g. a scaffolded test run that
+  skipped character creation). This is on top of, not instead of, the
+  always-present stairs above — every ingredient-category room stays
+  reachable from the Shop regardless of origin; Shop Back just gives the
+  chosen category's room a second, closer door. Five of the six
+  `ShopLocationDef` entries get their own dedicated room, distinct from the
+  always-reachable one covering the same system so the two don't collide on
+  a shared interactable/spawner id: `raven_canopy` → `RavenCanopy.tscn`
+  (a second `ContractBookInteractable`, `target_id = "contract_book_2"`),
+  `ley_line_fissure` → `LeyLineFissure.tscn` (`ley_line_node_2`),
+  `confluence_zone` → `ConfluenceZone.tscn` (`planar_rift_2`),
+  `former_reliquary` → `FormerReliquary.tscn` (a `ScrapHeapSpawner`,
+  `spawner_id = "former_reliquary_heaps"`, same shape as the Scrap Yard's),
+  and `underbelly` → `Underbelly.tscn` (a `DragonStashSpawner`,
+  `spawner_id = "underbelly_stashes"`, plus a `DragonSpawner` capped to a
+  `wyrmling`/`drake`-only roster and `count_min`/`count_max` of 1–2 — "a few
+  low-level dragons" rather than the Dragons' Ground's full roster/count).
+  The sixth, `magic_garden`, is the same "own dedicated room" shape as the
+  other five, just without a duplicated interactable — grow plots are one
+  global `Herbalism`-driven pool, so `Garden.tscn` (`GARDEN_ROOM_ID`) is
+  magic_garden's exclusive Shop Back room and a second scene,
+  `CommonGarden.tscn` (`COMMON_GARDEN_ROOM_ID`), is the always-reachable
+  counterpart every other origin uses instead of `Garden.tscn` — Shop's
+  `StairsToCommonGarden` (the always-present door, alongside `StairsUp`/
+  `StairsToDragonsGround`/`StairsToScrapYard`/`StairsToAltar`/etc.) points at
+  `CommonGarden`, not `Garden`. `RoomBuilder._active_garden_room_id()` picks
+  which of the two rooms' `Plots` container the code-instanced grow-plot
+  Interactables actually land in, based on the same `shop_origin ==
+  "magic_garden"` check `_wire_shop_back_door()` uses — so a magic_garden
+  playthrough finds its plots behind the Shop and every other playthrough
+  finds them in the always-reachable `CommonGarden` instead. Only one of the
+  two rooms ever holds live plots in a given playthrough; the other's
+  `Plots` container just stays empty.
 
 ---
 
@@ -962,7 +1015,8 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` and
   `house_id` are now real `ShopLocationDef`/`HouseDef` ids (loaded via `ContentRegistry.get_shop_location()`
   / `get_house()`) — `ShopLocationDef`'s favored `IngredientDef.Category` per location is now consumed:
-  it drives the +2 shop-origin skill bonus (system 6). `scripts/character_creator.gd` is the
+  it drives the +2 shop-origin skill bonus (system 6), and it drives which room the Shop Back door
+  leads to (system 12's Shop Back subsection). `scripts/character_creator.gd` is the
   character-creation UI, a 3-step wizard (Back/Next/Confirm nav, `Next` disabled until the current
   step is valid): (1) name, pronouns, House (a row of placeholder tiles, one per
   `ContentRegistry.houses` entry, tinted via each House's own hand-authored `HouseDef.placeholder_color`
@@ -1891,8 +1945,8 @@ Summoning (autoload)
   `learn_bundle`), so the known set grows through play. (Dedicated in-game teaching methods beyond
   experimentation stay out of scope.)
 - **`PlanarRiftInteractable`** (`scripts/planar_rift_interactable.gd`) is a permanent, hand-placed
-  fixture (`scenes/rooms/Shop.tscn`), same as the Brew Station and Contract Book, not a spawner-driven
-  one-shot like a Dragon's Stash. `interact()` **opens the minigame** if no rift is running (via
+  fixture (`scenes/rooms/Orrery.tscn`), same shape as the Brew Station and Contract Book, not a
+  spawner-driven one-shot like a Dragon's Stash. `interact()` **opens the minigame** if no rift is running (via
   `Summoning.open_rift_minigame()` → the `rift_minigame_requested` signal → hud.gd opens the panel,
   the same "autoload signal → HUD opens a panel" shape LeyLines uses), collects a ready one, or just
   logs "still summoning" otherwise — the same three-way shape `BrewStationInteractable` uses.
