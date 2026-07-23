@@ -5,13 +5,8 @@
 [resource]
 script = ExtResource("1")
 id = "minor_healing_draught"
-display_name = "Minor Healing Draught"
+display_name = "Moonpetal + Iron Filings"
 known = true
-station_type = "alembic"
-brew_time_minutes = 60
+output_potion_id = "minor_healing_draught"
 ingredient_ids = Array[String](["moonpetal", "iron_filings"])
 ingredient_quantities = Array[int]([2, 1])
-potency_range = Vector2(30, 50)
-ease_range = Vector2(60, 80)
-output_potion_id = "minor_healing_draught"
-unlock_minigame_id = ""

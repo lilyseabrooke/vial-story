@@ -210,5 +210,15 @@ func is_open() -> bool:
 	return _panel.visible and not _closing
 
 
+## The rect the window settles into once open — computed the same way the open
+## animation does (content min size, centered), so a caller positioning a
+## companion panel beside it (e.g. GameHud's detached pantry window) doesn't
+## have to wait for the slide-open animation to finish.
+func get_window_rect() -> Rect2:
+	var size := _panel.get_combined_minimum_size()
+	var pos := ((_panel.get_viewport_rect().size - size) * 0.5).floor()
+	return Rect2(pos, size)
+
+
 func has_content(content: Control) -> bool:
 	return _current_content == content

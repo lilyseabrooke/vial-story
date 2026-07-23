@@ -26,7 +26,10 @@ const _MIGRATIONS: Dictionary = {}
 ## restore them in: PlayerProfile first (no dependencies), then Clock (every
 ## other system's timestamp comparisons depend on it being restored first),
 ## then the rest in roughly their project.godot autoload dependency order.
-## Brewing/Herbalism rebuild their station/plot arrays wholesale from saved
+## Alchemy restores before Brewing because a saved in-progress brew job
+## resolves its RecipeDef via Alchemy.get_learned_recipe() (dynamically
+## discovered recipes only exist there, not in ContentRegistry). Brewing/
+## Herbalism rebuild their station/plot arrays wholesale from saved
 ## data and rely on Clock already being correct so already-elapsed jobs/plots
 ## resolve naturally on the very next minute_tick, with no special catch-up
 ## logic. Economy's own load_save_data() deliberately does not replay
@@ -35,7 +38,7 @@ const _MIGRATIONS: Dictionary = {}
 ## directly.
 const _SAVE_ORDER := [
 	"PlayerProfile", "Clock", "Rng", "Inventory", "Resolve", "Skills",
-	"Brewing", "Alchemy", "Herbalism", "Shop", "Economy", "Academy", "Demonology", "Draconology", "Summoning", "Story", "LoveInterests",
+	"Alchemy", "Brewing", "Herbalism", "Shop", "Economy", "Academy", "Demonology", "Draconology", "Summoning", "Story", "LoveInterests",
 	"QuestManager",
 ]
 

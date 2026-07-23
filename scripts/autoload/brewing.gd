@@ -44,8 +44,9 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 		return "No such station."
 	if station.current_job != null:
 		return "Station is already brewing something."
-	if recipe.station_type != station.station_type:
-		return "This recipe needs a %s." % recipe.station_type
+	var potion := ContentRegistry.get_potion(recipe.output_potion_id)
+	if potion.station_type != station.station_type:
+		return "This recipe needs a %s." % potion.station_type
 	if not Alchemy.is_learned(recipe.id):
 		return "You haven't learned this recipe yet."
 	if not Inventory.has_ingredients_for(recipe):
@@ -72,14 +73,14 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 	job.start_timestamp = Clock.get_timestamp()
 
 	var speed_modifier := station.speed_modifier + Skills.get_bonus("station_speed")
-	var brew_minutes := recipe.brew_time_minutes
+	var brew_minutes := potion.brew_time_minutes
 	if speed_modifier > 0.0:
 		brew_minutes = int(brew_minutes / speed_modifier)
 	job.ready_timestamp = job.start_timestamp + brew_minutes
 
 	var t := clampf(inverse_lerp(2.0, 30.0, roll.total), 0.0, 1.0)
-	job.rolled_potency = clampf(lerp(recipe.potency_range.x, recipe.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
-	job.rolled_ease = clampf(lerp(recipe.ease_range.x, recipe.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
+	job.rolled_potency = clampf(lerp(potion.potency_range.x, potion.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
+	job.rolled_ease = clampf(lerp(potion.ease_range.x, potion.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
 	job.potion_count = 2 if roll.critical_success else 1
 	job.status = BrewJob.Status.BREWING
 
@@ -163,7 +164,7 @@ func load_save_data(data: Dictionary) -> void:
 		var job_data = entry.get("current_job")
 		if job_data != null:
 			var job := BrewJob.new()
-			job.recipe = ContentRegistry.get_recipe(job_data.get("recipe_id", ""))
+			job.recipe = Alchemy.get_learned_recipe(job_data.get("recipe_id", ""))
 			job.start_timestamp = job_data.get("start_timestamp", 0)
 			job.ready_timestamp = job_data.get("ready_timestamp", 0)
 			job.rolled_potency = job_data.get("rolled_potency", 0.0)

@@ -5,13 +5,8 @@
 [resource]
 script = ExtResource("1")
 id = "clarity_tonic"
-display_name = "Clarity Tonic"
+display_name = "Moonpetal + Ghostcap Mushroom"
 known = true
-station_type = "alembic"
-brew_time_minutes = 90
+output_potion_id = "clarity_tonic"
 ingredient_ids = Array[String](["moonpetal", "ghostcap_mushroom"])
 ingredient_quantities = Array[int]([1, 2])
-potency_range = Vector2(50, 70)
-ease_range = Vector2(20, 40)
-output_potion_id = "clarity_tonic"
-unlock_minigame_id = ""

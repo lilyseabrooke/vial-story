@@ -28,7 +28,7 @@ func interact(main: MainScene) -> void:
 	var station := Brewing.get_station(target_id)
 	var job := station.current_job if station else null
 	if job == null:
-		main.hud.toggle_menu(main.hud.brew_panel, "Brewing")
+		main.hud.toggle_brew_menu()
 	elif job.status == BrewJob.Status.READY:
 		if not Brewing.collect(target_id):
 			main.hud.log_message("Inventory is full — couldn't collect the potion.")

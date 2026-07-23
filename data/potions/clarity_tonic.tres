@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PotionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/potion_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "clarity_tonic"
+display_name = "Clarity Tonic"
+station_type = "alembic"
+brew_time_minutes = 90
+potency_range = Vector2(50, 70)
+ease_range = Vector2(20, 40)
+puzzle_constraint_types = Array[String](["characteristic_range", "ingredient_count_range"])
+puzzle_constraint_targets = Array[String](["dream", ""])
+puzzle_constraint_min = Array[float]([-1.0, 2.0])
+puzzle_constraint_max = Array[float]([4.0, 3.0])

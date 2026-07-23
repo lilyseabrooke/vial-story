@@ -1,9 +1,12 @@
 class_name AttemptPuzzlePanel
 extends VBoxContainer
 ## Drag-and-drop content hosted by MenuScene when the player tries to
-## discover a recipe they haven't learned yet (Alchemy.attempt_puzzle). One
-## instance owned by hud.gd, reused across attempts via show_for() the same
-## way DiceRollPopup is a single reused instance rather than rebuilt per use.
+## discover a new recipe for a potion (Alchemy.attempt_discovery). Always
+## available for any potion with puzzle criteria, even one the player
+## already knows a recipe for — a successful attempt synthesizes a brand new
+## RecipeDef from whatever ingredients were used. One instance owned by
+## hud.gd, reused across attempts via show_for() the same way DiceRollPopup
+## is a single reused instance rather than rebuilt per use.
 ##
 ## Three-column layout: a pinned note (top-left, the recipe's objectives,
 ## with a live ✓ against each one already satisfied by the current field) —
@@ -19,7 +22,7 @@ const INGREDIENT_DRAG_CHIP_SCENE := preload("res://scenes/ui/components/Ingredie
 
 const ROLE_ORDER := [IngredientDef.Role.BASE, IngredientDef.Role.BINDER, IngredientDef.Role.CATALYST]
 
-var _recipe: RecipeDef
+var _potion: PotionDef
 
 var _note_label: Label
 var _summary_label: Label
@@ -52,11 +55,11 @@ func build() -> void:
 	add_child(_result_label)
 
 
-## Called each time the player opens this panel for a specific recipe —
+## Called each time the player opens this panel for a specific potion —
 ## clears the field and rebuilds the ingredient lists from current
 ## inventory, since owned quantities can have changed since the last attempt.
-func show_for(recipe: RecipeDef) -> void:
-	_recipe = recipe
+func show_for(potion: PotionDef) -> void:
+	_potion = potion
 	_result_label.text = ""
 	for role in ROLE_ORDER:
 		(_slots_by_role[role] as PotionRoleSlot).clear()
@@ -192,17 +195,17 @@ func _refresh_ingredient_lists() -> void:
 ## note's per-objective ✓ markers, the weight/count summary, and whether
 ## Submit is enabled — called on every slot change plus once from show_for().
 func _refresh_feedback() -> void:
-	if _recipe == null:
+	if _potion == null:
 		return
 
 	var ids := _current_ingredient_ids()
-	var results := Alchemy.check_constraints(_recipe, ids)
+	var results := Alchemy.check_constraints(_potion, ids)
 
 	var lines: Array[String] = []
-	for i in _recipe.puzzle_constraint_types.size():
+	for i in _potion.puzzle_constraint_types.size():
 		var satisfied := i < results.size() and results[i]
-		lines.append("%s %s" % ["✓" if satisfied else "•", _recipe.describe_puzzle_constraint(i)])
-	_note_label.text = "%s\n\n%s" % [_recipe.display_name, "\n".join(lines)]
+		lines.append("%s %s" % ["✓" if satisfied else "•", _potion.describe_puzzle_constraint(i)])
+	_note_label.text = "%s\n\n%s" % [_potion.display_name, "\n".join(lines)]
 
 	_summary_label.text = _build_summary_text(ids)
 	_submit_button.disabled = not _selection_is_valid(ids)
@@ -253,9 +256,14 @@ func _on_submit_pressed() -> void:
 	for id in ids:
 		Inventory.consume_ingredient(id, 1)
 
-	var success := Alchemy.attempt_puzzle(_recipe, ids)
-	_result_label.text = "Success! You learned %s." % _recipe.display_name if success \
-		else "The mixture didn't work — %s wasn't learned. Ingredients were consumed." % _recipe.display_name
+	var result := Alchemy.attempt_discovery(_potion, ids)
+	if not result.success:
+		_result_label.text = "The mixture didn't work — no new recipe discovered. Ingredients were consumed."
+	elif result.already_known:
+		_result_label.text = "That combination works, but you already knew it!"
+	else:
+		var recipe: RecipeDef = result.recipe
+		_result_label.text = "Success! Learned a new way to brew %s: %s." % [_potion.display_name, recipe.display_name]
 
 	for role in ROLE_ORDER:
 		(_slots_by_role[role] as PotionRoleSlot).clear()

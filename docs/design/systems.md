@@ -29,7 +29,9 @@ Clock
 - Day runs roughly 6:00 AM to a soft cap around 2:00 AM; nothing else is phase-gated,
   the player just moves around and acts freely in real time.
 - **Speed controls** (Sims-style): 1x/1.5x/2x buttons in the HUD (and 1/2/3 hotkeys)
-  call `Clock.set_speed_level()`, which multiplies the base tick rate. The actual
+  call `Clock.set_speed_level()`, which multiplies the base tick rate. Those digit
+  hotkeys are reused as quick-brew slots while the brew menu is open (system 4) —
+  no conflict, since the world is paused during menus. The actual
   `tick_rate_minutes_per_second` eases toward the new target every frame
   (`move_toward` in `_process`) instead of snapping, so speed changes read as a
   smooth ramp rather than a jump cut.
@@ -93,7 +95,7 @@ Ingredient
   stubbed as source methods that recipes/upgrades can reference but that have no
   unlock path yet.
 - `role`/`weight`/`characteristics` don't do anything on their own — they only feed a
-  recipe's discovery puzzle (system 3). `characteristics` is a set of free-form,
+  potion's discovery puzzle (system 3). `characteristics` is a set of free-form,
   signed integer axes (astral, abyssal, necromantic, dream, ...) with no fixed enum;
   an axis absent from an ingredient's list is implicitly 0. `IngredientDef` stores
   both as parallel arrays (`characteristic_ids`/`characteristic_values`), same
@@ -104,73 +106,113 @@ Ingredient
 ## 3. Recipe System **[BUILD]**
 
 ```
-Recipe
+Potion                              # PotionDef, scripts/data/potion_def.gd
   - id
   - display_name
-  - known: bool                   # seeds Alchemy's learned set at new-game start only
+  - icon
   - station_required: StationType
-  - brew_time: int                # in minutes of game-clock time
-  - ingredients: [(ingredient_id, quantity)]
-  - base_potency_range: (min, max)
-  - base_ease_range: (min, max)
-  - output_potion_id
-  - unlock_minigame_id            # unused legacy field, superseded by puzzle_constraints below
+  - brew_time: int                 # in minutes of game-clock time
+  - potency_range: (min, max)
+  - ease_range: (min, max)
   - puzzle_constraints: [(type, target, min, max)]   # the recipe-discovery puzzle
+
+Recipe                              # RecipeDef, scripts/data/recipe_def.gd
+  - id
+  - display_name                   # a *method* label, e.g. "Ember Dust + Rift Glass" — not the potion's name
+  - known: bool                    # seeds Alchemy's learned set at new-game start only
+  - output_potion_id               # which Potion this is a way of making
+  - ingredients: [(ingredient_id, quantity)]
 ```
 
-- Two-stage unlock: a recipe can be *listed* (the Potion Book's menu shows a
-  "Discover" button for it) before it's *learned* (brewable at the Alembic). Recipe
-  *learned* state now lives at runtime in the `Alchemy` autoload
-  (`is_learned`/`learn_recipe`/`unlearn_recipe`,
+- **A potion's stats and discovery criteria live on `PotionDef`; a `RecipeDef` is just
+  one learned *way* to make it** — an ingredient combination, nothing more. This split
+  exists because recipes can't be hand-authored one-per-permutation at scale: with
+  hundreds of ingredients across many potions there's no way to anticipate every viable
+  combination up front. Instead, the player finds them — any ingredient selection that
+  satisfies a `PotionDef`'s puzzle criteria becomes its own independently-learned
+  `RecipeDef`, synthesized at runtime, so the same potion can end up with several
+  unrelated learned recipes (moonpetal + iron filings *and*, separately, ember dust +
+  rift glass) without either being pre-written as content.
+- Two-stage unlock: a potion's discovery puzzle is *always available* at the Potion Book
+  (not gated on whether the player already knows a recipe for it) before any resulting
+  recipe becomes *learned* (brewable at the Alembic). Recipe *learned* state lives at
+  runtime in the `Alchemy` autoload (`is_learned`/`get_learned_recipe`/
+  `get_learned_recipes`/`unlearn_recipe`,
   `recipe_learned`/`recipe_unlearned`/`puzzle_attempted` signals, its own
-  `get_save_data()`/`load_save_data()`), not on `RecipeDef` itself — `known` on the
-  `.tres` only seeds which recipes `Alchemy` starts a new game already knowing.
+  `get_save_data()`/`load_save_data()`) — `known` on a starter `RecipeDef` `.tres` only
+  seeds which recipes `Alchemy` starts a new game already knowing (see
+  `data/recipes/minor_healing_draught.tres`/`clarity_tonic.tres`). A potion the player
+  starts with no knowledge of at all (`grave_ward_tonic`) has **no** `RecipeDef` on disk
+  — only its `PotionDef`; every recipe for it comes from discovery.
   `unlearn_recipe()` has no UI trigger yet in the prototype; it's a hook for a later
   curse/memory-loss mechanical intervention (system 11).
-- Recipes should live in a data table/resource, not hardcoded — content will grow fast.
+- Both potions and recipes live in data tables/resources, not hardcoded — content will
+  grow fast, and potions/recipes now scale independently of each other.
 - Discovering and brewing are split across two interactables: the **Potion Book**
   (`PotionBookInteractable`, `scripts/potion_book_interactable.gd`) opens
-  `hud.discover_panel`, listing a "Discover: X" button per unlearned recipe that has
-  a puzzle; the **Alembic** (`BrewStationInteractable`) opens `hud.brew_panel`,
-  listing only a "Brew: X" button per already-learned recipe. Both panels are
-  rebuilt together off the same `Alchemy.recipe_learned`/`recipe_unlearned` signals
-  (`hud.gd`'s `_rebuild_brew_panel()`/`_rebuild_discover_panel()`) so a freshly
-  learned recipe disappears from the Potion Book and appears at the Alembic in the
-  same frame.
-- **Recipe-discovery puzzle [BUILT]**: attempting an unlearned recipe (the Potion
-  Book's "Discover: X" button) opens a drag-and-drop puzzle
-  (`scripts/ui/attempt_puzzle_panel.gd`, `AttemptPuzzlePanel`), laid out in three
-  columns: a pinned note (top-left, tilted `PanelContainer`) showing the recipe's
-  objectives with a live ✓ against each one already satisfied by the current field;
-  the potion field (middle) — one `PotionRoleSlot` per Base/Binder/Catalyst
-  (`scenes/ui/components/PotionRoleSlot.tscn`), Base visually marked required via a
-  gold accent border; and the player's ingredients (right) — one draggable
-  `IngredientDragChip` (`scenes/ui/components/IngredientDragChip.tscn`) per owned
-  ingredient, grouped into Base/Binder/Catalyst sections, showing weight and
+  `hud.discover_panel`, listing a "Discover: X" button per `PotionDef` that has a
+  puzzle — shown unconditionally, since discovery always looks for a *new* recipe and
+  is never blocked by an existing one; the **Alembic** (`BrewStationInteractable`)
+  opens `hud.brew_panel` — a `BrewMenu` (`scripts/ui/brew_menu.gd`), described in
+  system 4, listing only learned recipes. `BrewMenu.refresh()` reacts to
+  `Alchemy.recipe_learned`/`recipe_unlearned` so a freshly discovered recipe appears at
+  the Alembic the same frame it's found.
+- **Recipe-discovery puzzle [BUILT]**: the Potion Book's "Discover: X" button opens a
+  drag-and-drop puzzle (`scripts/ui/attempt_puzzle_panel.gd`, `AttemptPuzzlePanel`),
+  laid out in three columns: a pinned note (top-left, tilted `PanelContainer`) showing
+  the potion's objectives with a live ✓ against each one already satisfied by the
+  current field; the potion field (middle) — one `PotionRoleSlot` per
+  Base/Binder/Catalyst (`scenes/ui/components/PotionRoleSlot.tscn`), Base visually
+  marked required via a gold accent border; and the player's ingredients (right) — one
+  draggable `IngredientDragChip` (`scenes/ui/components/IngredientDragChip.tscn`) per
+  owned ingredient, grouped into Base/Binder/Catalyst sections, showing weight and
   non-zero characteristics. Both components are standard Godot Control drag-and-drop
   (`_get_drag_data`/`_can_drop_data`/`_drop_data`); a slot only accepts a chip whose
   ingredient's `role` matches. Since each of the 3 slots holds at most one
   ingredient, "2 or 3 ingredients, always including a Base" falls out of the layout
   itself — `AttemptPuzzlePanel._selection_is_valid()` requires the Base slot filled
-  plus at least one of Binder/Catalyst, and disables Submit otherwise. Submitting
-  consumes exactly the filled slots' ingredients (win or lose — same "ingredients are
-  spent on the attempt" feel as a real brew) and calls `Alchemy.attempt_puzzle()`,
-  which checks the selection against `RecipeDef.puzzle_constraint_types` (parallel
-  arrays: `_types`/`_targets`/`_min`/`_max`, same convention as
+  plus at least one of Binder/Catalyst, and disables Submit otherwise (a deliberate
+  narrowing: any *base-containing* 2-3 ingredient combination can be found this way,
+  not literally any arbitrary set of ingredients). Submitting consumes exactly the
+  filled slots' ingredients (win or lose — same "ingredients are spent on the attempt"
+  feel as a real brew) and calls `Alchemy.attempt_discovery(potion, ingredient_ids)`,
+  which checks the selection against `PotionDef.puzzle_constraint_types` (parallel
+  arrays: `_types`/`_targets`/`_min`/`_max`, same convention as a recipe's
   `ingredient_ids`/`ingredient_quantities`) — `characteristic_range` (a summed
   characteristic must land in `[min, max]`), `total_weight_range`,
   `ingredient_count_range`, and `role_lightest`/`role_heaviest` (every ingredient of
   the target role must be strictly lighter/heavier than every ingredient of every
   other role present — requires the role, and at least one other role, to actually be
   used, not vacuously true). `Alchemy.check_constraints()` returns a per-constraint
-  pass/fail array, reused both by `attempt_puzzle()` (all must pass) and by the note's
-  live ✓ markers, so the UI's feedback and the actual judging logic can't drift apart.
-  All constraints must pass for the attempt to succeed; success calls
-  `Alchemy.learn_recipe()`, failure only logs a message — no separate "wasted" penalty
-  beyond the consumed ingredients. `data/recipes/grave_ward_tonic.tres` (ships
-  `known: false`) is the sample proving the pipeline: Necromantic 4–6, Dream ≤ 0,
-  catalyst must be the lightest component — solved by Grave Dust as Base (weight 2.0,
-  necromantic +3) + Ghostcap Mushroom as Catalyst (weight 0.5, necromantic +2, dream -1).
+  pass/fail array, reused both by `attempt_discovery()` (all must pass) and by the
+  note's live ✓ markers, so the UI's feedback and the actual judging logic can't drift
+  apart. `data/potions/grave_ward_tonic.tres` is the sample proving the pipeline:
+  Necromantic 4–6, Dream ≤ 0, catalyst must be the lightest component — solved by
+  Grave Dust as Base (weight 2.0, necromantic +3) + Ghostcap Mushroom as Catalyst
+  (weight 0.5, necromantic +2, dream -1). `data/potions/minor_healing_draught.tres`
+  and `clarity_tonic.tres` carry deliberately loose criteria (just a weight/count
+  range, or a light characteristic nudge) so many different base+catalyst/binder
+  combinations satisfy them — demonstrating that a potion's *known* starter recipe
+  doesn't stop the player from finding a second, different one later.
+- On a successful attempt, `attempt_discovery()` builds a deterministic id from the
+  potion and the exact ingredient multiset used (sorted `ingredient_id`×`count`
+  pairs, e.g. `minor_healing_draught__ember_dustx1_rift_glassx1`) — this doubles as
+  the dedup key, so re-finding the exact same combination resolves to the
+  already-learned `RecipeDef` (`already_known: true` in the returned result) instead
+  of creating a duplicate. A genuinely new combination gets a freshly synthesized
+  `RecipeDef` (`display_name` auto-built from the ingredients' names, e.g. "Ember Dust
+  + Rift Glass"), registered into `Alchemy`'s learned set and emitted via
+  `recipe_learned`. A failed attempt only logs a message via `puzzle_attempted` — no
+  separate "wasted" penalty beyond the consumed ingredients, and nothing is learned.
+  Because discovered `RecipeDef`s exist only inside `Alchemy` (never as `.tres`
+  content), `Alchemy.get_save_data()` serializes each learned recipe's full fields
+  rather than just an id, and `SaveManager._SAVE_ORDER` restores `Alchemy` before
+  `Brewing` so an in-progress brew job (which resolves its `RecipeDef` via
+  `Alchemy.get_learned_recipe()`) has something to resolve against.
+- The Grimoire (`GameMenu`'s recipe tab, system 13/journal) mirrors this: it lists one
+  group per `ContentRegistry.potions` entry (not per recipe), showing every learned
+  recipe for that potion as its own row beneath the potion's name, or a single "???
+  (unknown)" placeholder row if none have been discovered yet.
 - Quality is two independent numeric axes, not a single grade (see system 4):
   **potency** (how powerful the effect is) and **ease** (how easy the potion is to
   take/use). Different buyer archetypes and love interests will eventually weight
@@ -212,8 +254,8 @@ BrewJob
 - Starting a brew rolls **one** visible 2d10 check (`Rng.roll_2d10`, system 16) — a
   BG3-style dice check surfaced in the message wall (system 16), `DICE_DC := 11.0`, modifier = the averaged
   `potency_modifier`/`ease_modifier` (station + `Skills.get_bonus()`). The roll's
-  total sets a shared quality scalar `t`, lerped onto the recipe's existing
-  `potency_range`/`ease_range` (no recipe `.tres` data changed), and each stat then
+  total sets a shared quality scalar `t`, lerped onto the potion's
+  `potency_range`/`ease_range` (`PotionDef`, system 3 — not per-recipe data), and each stat then
   gets its own small independent quiet `+/- STAT_VARIANCE` wobble (`Rng.range_f`) so
   potency and ease aren't identical despite sharing one quality roll.
 - The roll's *natural* die faces (not the modified total) decide the outcome, not the
@@ -232,11 +274,58 @@ BrewJob
   `Clock.minute_tick` so it also restores correctly on a loaded save). A station with
   a job running — `Brewing` or `Ready` — can't be interacted with to open the brew
   menu; interacting with a `Ready` station auto-collects it instead
-  (`main.gd._interact_brew_station()`), failing quietly (job stays put) if
+  (`BrewStationInteractable.interact()`), failing quietly (job stays put) if
   `Inventory.has_room_for_potions()` says there's no room. `Inventory.MAX_POTIONS`
-  (20) is the first potion-capacity limit in the prototype; the brew menu's old
-  standalone "Collect" button was removed since the menu only opens when a station
-  has no job at all.
+  (20) is the first potion-capacity limit in the prototype; the brew menu has no
+  standalone "Collect" button since the menu only opens when a station has no job
+  at all.
+- **The brew menu** (`BrewMenu`, `scripts/ui/brew_menu.gd`) is the `MenuScene`
+  content the Alembic opens. Master-detail: a scrollable list of *learned*
+  recipes on the left, a detail/confirm card on the right. The player's **pantry**
+  (owned ingredients as icon×N chips) is *not* nested inside this window — it's a
+  separate `PantryWindow` (`scripts/ui/pantry_window.gd`) that GameHud parks just
+  to the left of the brew window (`MenuScene.get_window_rect()` locates it),
+  shows/refreshes on open, and fades out on any menu close — keeping the brew
+  window from stacking yet another frame. Recipes that share an
+  `output_potion_id` are **grouped** under one potion heading (`_potion_name()`,
+  reading `ContentRegistry.get_potion(id).display_name`/`.icon`), each shown as
+  a "method" variant (`_variant_label()` — simply the recipe's `display_name`,
+  since that field is the method label, e.g. "Ember Dust + Rift Glass", not the
+  potion's name — see system 3). A "Ready to brew only" toggle filters the list
+  to recipes the player has ingredients for (`Inventory.has_ingredients_for`).
+  The detail card shows the required ingredients as icon×N chips tinted
+  green/red by whether the player has enough, plus the potion's potency/ease
+  ranges and brew time (`ContentRegistry.get_potion(recipe.output_potion_id)`),
+  and a Brew button (disabled when short).
+  `IngredientChip`/`BrewRecipeRow` (`scripts/ui/components/`) are the repeated
+  cells, following the same populate()-driven, icon-with-fallback-dot component
+  convention as `ItemSlot`. BrewMenu only *reads* game state and emits
+  `brew_confirmed(recipe)`; `hud.gd._on_brew_confirmed()` runs `Brewing.start_brew`
+  and closes the menu on an accepted attempt.
+- **Keyboard navigation** (`BrewMenu._input()`) works in two modes, so the whole
+  menu is playable without the mouse:
+  - *Browsing* (default): **W/S** move the highlighted selection through the flat
+    list of visible recipes (`_visible_recipes`, scrolled into view), **E** focuses
+    the selection, and a bare **1/2/3** brews whatever recipe is pinned to that
+    quick slot. **Esc** is deliberately *not* consumed here — it falls through to
+    main.gd, which closes the menu.
+  - *Focused* (after E): a cursor sits on the detail card's action buttons —
+    **W/S** (or arrows / A/D) move it across **Brew** and the three quick-slot
+    buttons (`_action_index`/`_action_buttons`, skipping a disabled Brew when the
+    recipe isn't brewable), and **E** activates the button under it. **1/2/3** still
+    directly pin the focused recipe to that slot regardless of cursor, and **Esc**
+    steps back to browsing (consumed, so the menu stays open; a second Esc, now
+    browsing, closes it). The cursor marks its button by forcing the theme's
+    *hover* look (`_highlight_action_button()` overrides the normal/pressed
+    styleboxes + font — the focus outline read as too subtle); a magic-tinted ring
+    around the detail card (`_detail_focus_ring`) plus a mode line and footer tip
+    signal the focused state.
+  The mouse still works alongside all of this (click a row to select, the Brew
+  button to brew, the slot buttons to pin). Every key except browsing-Esc is marked
+  handled so it never falls through to main.gd's Clock-speed hotkeys (system 1) —
+  safe because the world is paused whenever a menu is open.
+- **Quick slots** (1/2/3) are session-only (held on the `BrewMenu` instance, not
+  saved) and self-clear if their recipe becomes unlearned (`_validate_quick_slots`).
 
 ---
 
@@ -852,12 +941,16 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   `SaveManager.save_game(GameFlow.game_id)` — the only place gameplay saves are triggered from today
   (no autosave yet).
 - **Per-autoload save contract.** Every gameplay autoload (`Clock`, `Inventory`, `Resolve`, `Skills`,
-  `Brewing`, `Shop`, `Herbalism`, `Economy`, `Academy`, `Story`, `LoveInterests`, `PlayerProfile`) owns
-  a `get_save_data() -> Dictionary` / `load_save_data(data: Dictionary) -> void` pair, consistent with
-  every other system owning its own state. Only plain Dictionaries/Arrays/primitives cross this
-  boundary — `RecipeDef`/`SeedDef` references (in `BrewJob`/`GrowPlotInstance`) are saved as their
-  string `id` and re-resolved on load via the new `ContentRegistry` autoload (a small id→Resource
-  lookup that replaced `main.gd`'s previously-duplicated content path lists).
+  `Alchemy`, `Brewing`, `Shop`, `Herbalism`, `Economy`, `Academy`, `Story`, `LoveInterests`, `PlayerProfile`)
+  owns a `get_save_data() -> Dictionary` / `load_save_data(data: Dictionary) -> void` pair, consistent
+  with every other system owning its own state. Only plain Dictionaries/Arrays/primitives cross this
+  boundary — `SeedDef` references (in `GrowPlotInstance`) are saved as their string `id` and
+  re-resolved on load via the `ContentRegistry` autoload (a small id→Resource lookup that replaced
+  `main.gd`'s previously-duplicated content path lists). `RecipeDef` references (in `BrewJob`) are the
+  exception: since most recipes are discovered at runtime rather than loaded from `.tres` content
+  (system 3), `Alchemy` itself saves/restores each learned recipe's full fields, and `BrewJob.recipe`
+  is re-resolved via `Alchemy.get_learned_recipe()`, not `ContentRegistry` — which is also why
+  `Alchemy` must restore before `Brewing` in `SaveManager._SAVE_ORDER`.
 - **Economy double-apply hazard.** Upgrade effects (station modifiers, shop capacity, plot count) are
   applied once at purchase time directly onto `Brewing`/`Shop`/`Herbalism`'s own numbers. Those
   *resulting* numbers are what gets saved and restored directly by each system's own

@@ -10,7 +10,11 @@ extends Node
 const RECIPE_PATHS := [
 	"res://data/recipes/minor_healing_draught.tres",
 	"res://data/recipes/clarity_tonic.tres",
-	"res://data/recipes/grave_ward_tonic.tres",
+]
+const POTION_PATHS := [
+	"res://data/potions/minor_healing_draught.tres",
+	"res://data/potions/clarity_tonic.tres",
+	"res://data/potions/grave_ward_tonic.tres",
 ]
 const INGREDIENT_PATHS := [
 	"res://data/ingredients/moonpetal.tres",
@@ -64,6 +68,7 @@ const RIFT_BUNDLE_PATHS := [
 ]
 
 var recipes: Array[RecipeDef] = []
+var potions: Array[PotionDef] = []
 var ingredients: Array[IngredientDef] = []
 var upgrades: Array[UpgradeDef] = []
 var seeds: Array[SeedDef] = []
@@ -73,6 +78,7 @@ var quests: Array[QuestDef] = []
 var rift_bundles: Array[RiftBundleDef] = []
 
 var _recipes_by_id: Dictionary = {}        # id -> RecipeDef
+var _potions_by_id: Dictionary = {}        # id -> PotionDef
 var _ingredients_by_id: Dictionary = {}    # id -> IngredientDef
 var _upgrades_by_id: Dictionary = {}       # id -> UpgradeDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
@@ -87,6 +93,10 @@ func _ready() -> void:
 		var def := load(path) as RecipeDef
 		recipes.append(def)
 		_recipes_by_id[def.id] = def
+	for path in POTION_PATHS:
+		var def := load(path) as PotionDef
+		potions.append(def)
+		_potions_by_id[def.id] = def
 	for path in INGREDIENT_PATHS:
 		var def := load(path) as IngredientDef
 		ingredients.append(def)
@@ -119,6 +129,10 @@ func _ready() -> void:
 
 func get_recipe(id: String) -> RecipeDef:
 	return _recipes_by_id.get(id)
+
+
+func get_potion(id: String) -> PotionDef:
+	return _potions_by_id.get(id)
 
 
 func get_ingredient(id: String) -> IngredientDef:

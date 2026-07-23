@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PotionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/potion_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "minor_healing_draught"
+display_name = "Minor Healing Draught"
+station_type = "alembic"
+brew_time_minutes = 60
+potency_range = Vector2(30, 50)
+ease_range = Vector2(60, 80)
+puzzle_constraint_types = Array[String](["total_weight_range", "ingredient_count_range"])
+puzzle_constraint_targets = Array[String](["", ""])
+puzzle_constraint_min = Array[float]([1.0, 2.0])
+puzzle_constraint_max = Array[float]([4.5, 3.0])

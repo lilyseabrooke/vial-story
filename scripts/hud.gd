@@ -14,7 +14,7 @@ const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
 
-var brew_panel: VBoxContainer
+var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 
@@ -30,6 +30,8 @@ var _interact_prompt_label: Label
 var _prompt_tween: Tween
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
+var _pantry_window: PantryWindow
+var _pantry_tween: Tween
 var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
@@ -152,8 +154,19 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 	_rift_panel = PLANAR_RIFT_MINIGAME_PANEL_SCENE.instantiate()
 	_rift_panel.build()
 
-	brew_panel = VBoxContainer.new()
-	_rebuild_brew_panel()
+	brew_panel = BrewMenu.new()
+	brew_panel.build()
+	brew_panel.brew_confirmed.connect(_on_brew_confirmed)
+	brew_panel.notice.connect(log_message)
+
+	# The pantry is its own detached window (see PantryWindow) that rides
+	# alongside the brew menu rather than nesting inside its frame. Lives on the
+	# HUD layer, hidden until the brew menu opens.
+	_pantry_window = PantryWindow.new()
+	_pantry_window.build()
+	_pantry_window.visible = false
+	add_child(_pantry_window)
+	UiFx.add_drop_shadow(_pantry_window)
 
 	discover_panel = VBoxContainer.new()
 	_rebuild_discover_panel()
@@ -192,6 +205,10 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 		if Summoning.is_minigame_active():
 			Summoning.abort_rift_minigame()
 			log_message("You step back from the rift — the portal fades without a summoning.")
+		# The pantry window only ever rides with the brew menu, so hiding it on
+		# any menu close is correct (and covers every close route — Esc, walking
+		# away, a confirmed brew).
+		_hide_pantry()
 	)
 
 	_message_wall = MESSAGE_WALL_SCENE.instantiate()
@@ -223,8 +240,7 @@ func _connect_autoload_signals() -> void:
 		_almanac.sync_speed(level)
 	)
 	Brewing.brew_started.connect(func(station_id: String, recipe_id: String) -> void:
-		var recipe := ContentRegistry.get_recipe(recipe_id)
-		log_message("Started brewing %s." % (recipe.display_name if recipe else recipe_id))
+		log_message("Started brewing %s." % _potion_display_name(recipe_id))
 		print("Brew started at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_ready.connect(func(station_id: String, recipe_id: String) -> void:
@@ -232,8 +248,7 @@ func _connect_autoload_signals() -> void:
 		print("Brew ready at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_collected.connect(func(_collected_station_id: String, recipe_id: String, potency: float, ease_value: float) -> void:
-		var recipe := ContentRegistry.get_recipe(recipe_id)
-		log_message("Collected %s!" % (recipe.display_name if recipe else recipe_id))
+		log_message("Collected %s!" % _potion_display_name(recipe_id))
 		print("Collected %s — potency %.1f, ease %.1f" % [recipe_id, potency, ease_value])
 	)
 	Brewing.brew_botched.connect(func(station_id: String, recipe_id: String) -> void:
@@ -396,26 +411,37 @@ func _connect_autoload_signals() -> void:
 		update_ingredients_label()
 	)
 	Alchemy.recipe_learned.connect(func(recipe_id: String) -> void:
-		var recipe := ContentRegistry.get_recipe(recipe_id)
-		log_message("Learned recipe: %s!" % (recipe.display_name if recipe else recipe_id))
+		var recipe := Alchemy.get_learned_recipe(recipe_id)
+		if recipe != null:
+			var potion := ContentRegistry.get_potion(recipe.output_potion_id)
+			log_message("Learned a new way to brew %s: %s!" % [potion.display_name if potion else recipe.output_potion_id, recipe.display_name])
 		print("Learned recipe: %s" % recipe_id)
-		_rebuild_brew_panel()
-		_rebuild_discover_panel()
+		brew_panel.refresh()
 	)
 	Alchemy.recipe_unlearned.connect(func(_recipe_id: String) -> void:
-		_rebuild_brew_panel()
-		_rebuild_discover_panel()
+		brew_panel.refresh()
 	)
-	Alchemy.puzzle_attempted.connect(func(recipe_id: String, success: bool) -> void:
+	Alchemy.puzzle_attempted.connect(func(potion_id: String, success: bool) -> void:
 		if not success:
-			var recipe := ContentRegistry.get_recipe(recipe_id)
-			log_message("That combination didn't work for %s." % (recipe.display_name if recipe else recipe_id))
-		print("Puzzle attempted for %s: %s" % [recipe_id, "success" if success else "failure"])
+			var potion := ContentRegistry.get_potion(potion_id)
+			log_message("That combination didn't work for %s." % (potion.display_name if potion else potion_id))
+		print("Puzzle attempted for %s: %s" % [potion_id, "success" if success else "failure"])
 	)
 
 
 func log_message(text: String) -> void:
 	_message_wall.add_notice(text)
+
+
+## The potion's own display name for a learned recipe id, falling back to the
+## raw id if the recipe is somehow gone — recipe.display_name alone is just
+## the method (e.g. "Ember Dust + Rift Glass"), not the potion's name.
+func _potion_display_name(recipe_id: String) -> String:
+	var recipe := Alchemy.get_learned_recipe(recipe_id)
+	if recipe == null:
+		return recipe_id
+	var potion := ContentRegistry.get_potion(recipe.output_potion_id)
+	return potion.display_name if potion != null else recipe.display_name
 
 
 ## The pill unfurls downward on appear and rolls back up on clear, matching the
@@ -478,53 +504,92 @@ func toggle_game_menu() -> void:
 		_menu_scene.open(_game_menu, "Menu")
 
 
-## Rebuilds brew_panel's buttons in place (same container instance, since
-## main.gd's _on_interact_pressed() toggles it by reference) — one "Brew"
-## button per learned recipe, called both at build() and whenever Alchemy's
-## learned set changes so the buttons stay in sync. This menu only ever opens
-## when the station has no job running (main.gd's _interact_brew_station()),
-## so there's no collect button here — a finished brew is auto-collected on
-## interact instead.
-func _rebuild_brew_panel() -> void:
-	for child in brew_panel.get_children():
-		child.queue_free()
-
-	for recipe in ContentRegistry.recipes:
-		if Alchemy.is_learned(recipe.id):
-			var button := Button.new()
-			button.text = "Brew: %s" % recipe.display_name
-			button.pressed.connect(on_brew_button_pressed.bind(recipe))
-			brew_panel.add_child(button)
+## Opens (refreshing first) or closes the brew menu. The brew station only lets
+## the menu open when it has no job running, so there's no collect action here —
+## a finished brew is auto-collected on interact instead (BrewStationInteractable).
+func toggle_brew_menu() -> void:
+	if _menu_scene.has_content(brew_panel) and _menu_scene.is_open():
+		_menu_scene.close()
+	else:
+		brew_panel.refresh()
+		open_menu(brew_panel, "Brewing")
+		_show_pantry()
 
 
-## Rebuilds discover_panel's buttons in place, same pattern as
-## _rebuild_brew_panel() but for the Potion Book — one "Discover" button per
-## unlearned recipe that has a puzzle.
+## Reveals the detached pantry window and parks it just to the left of the brew
+## window. Positioning is deferred a frame so the brew window's rect has settled
+## (get_window_rect() is deterministic, but the panel's min size can be dirty on
+## the same frame the content was swapped in).
+func _show_pantry() -> void:
+	_pantry_window.refresh()
+	_pantry_window.visible = true
+	_pantry_window.modulate.a = 0.0
+	_position_pantry.call_deferred()
+
+
+func _position_pantry() -> void:
+	if not _pantry_window.visible:
+		return
+	var window_rect := _menu_scene.get_window_rect()
+	var pantry_size := _pantry_window.get_combined_minimum_size()
+	const GAP := 24.0
+	_pantry_window.position = Vector2(
+		window_rect.position.x - GAP - pantry_size.x,
+		window_rect.position.y + (window_rect.size.y - pantry_size.y) * 0.5)
+
+	if _pantry_tween:
+		_pantry_tween.kill()
+	_pantry_tween = create_tween()
+	_pantry_tween.tween_property(_pantry_window, "modulate:a", 1.0, 0.14)
+
+
+func _hide_pantry() -> void:
+	if not _pantry_window.visible:
+		return
+	if _pantry_tween:
+		_pantry_tween.kill()
+	_pantry_tween = create_tween()
+	_pantry_tween.tween_property(_pantry_window, "modulate:a", 0.0, 0.12)
+	_pantry_tween.tween_callback(func() -> void: _pantry_window.visible = false)
+
+
+## Rebuilds discover_panel's buttons in place — one "Discover" button per
+## potion that has puzzle criteria, for the Potion Book. Shown regardless of
+## whether the player already knows a recipe for that potion — discovery
+## always finds a *new* combination, never gated on prior progress — so this
+## only needs building once (there's no learned-state dependency to react to,
+## unlike the old per-recipe version). (The brewing side of this pairing now
+## lives in BrewMenu, which owns its own refresh.)
 func _rebuild_discover_panel() -> void:
 	for child in discover_panel.get_children():
 		child.queue_free()
 
-	for recipe in ContentRegistry.recipes:
-		if not Alchemy.is_learned(recipe.id) and recipe.has_puzzle():
+	for potion in ContentRegistry.potions:
+		if potion.has_puzzle():
 			var discover_button := Button.new()
-			discover_button.text = "Discover: %s" % recipe.display_name
-			discover_button.pressed.connect(_on_discover_button_pressed.bind(recipe))
+			discover_button.text = "Discover: %s" % potion.display_name
+			discover_button.pressed.connect(_on_discover_button_pressed.bind(potion))
 			discover_panel.add_child(discover_button)
 
 
-func _on_discover_button_pressed(recipe: RecipeDef) -> void:
-	_attempt_puzzle_panel.show_for(recipe)
-	open_menu(_attempt_puzzle_panel, "Discover: %s" % recipe.display_name)
+func _on_discover_button_pressed(potion: PotionDef) -> void:
+	_attempt_puzzle_panel.show_for(potion)
+	open_menu(_attempt_puzzle_panel, "Discover: %s" % potion.display_name)
 
 
-## Success feedback (started brewing / botched) comes from the brew_started
-## and brew_botched signal listeners above — start_brew() emits those
-## synchronously before returning, so only the failure-to-start case needs
-## handling here.
-func on_brew_button_pressed(recipe: RecipeDef) -> void:
+## Runs a brew requested from BrewMenu. Success/botch feedback comes from the
+## brew_started/brew_botched signal listeners above — start_brew() emits those
+## synchronously before returning — so only the failure-to-start case is logged
+## here. On an accepted attempt (a real brew *or* a botch, both of which consume
+## the ingredients and leave nothing more to choose) the menu closes; on a
+## rejection (e.g. a stale quick slot the player no longer has ingredients for)
+## it stays open with the reason logged.
+func _on_brew_confirmed(recipe: RecipeDef) -> void:
 	var error := Brewing.start_brew(_station_id, recipe)
 	if error != "":
 		log_message("Couldn't brew %s: %s" % [recipe.display_name, error])
+	else:
+		close_menu()
 
 
 func on_stock_button_pressed() -> void:

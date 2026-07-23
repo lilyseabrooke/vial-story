@@ -326,29 +326,44 @@ func _build_recipes_tab() -> Control:
 	return root
 
 
+## One group per potion (ContentRegistry.potions), not per recipe — a potion
+## can have any number of learned recipes (different ingredient combinations
+## Alchemy.attempt_discovery() has synthesized for it), each shown as its own
+## row beneath the potion's header; an as-yet-undiscovered potion shows a
+## single "??? (unknown)" placeholder row instead.
 func update_recipes() -> void:
 	for child in _recipes_list.get_children():
 		child.queue_free()
 
-	for recipe in ContentRegistry.recipes:
-		var ingredients_text := ""
-		var icon: Texture2D = null
-		var learned := Alchemy.is_learned(recipe.id)
-		if learned:
-			var ingredient_parts: Array[String] = []
-			for i in recipe.ingredient_ids.size():
-				var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
-				var ingredient_name := ingredient.display_name if ingredient != null else recipe.ingredient_ids[i]
-				ingredient_parts.append("%s x%d" % [ingredient_name, recipe.ingredient_quantities[i]])
-			ingredients_text = ", ".join(ingredient_parts)
-			# TODO: use the output potion's own icon once a PotionDef resource
-			# exists; for now the first required ingredient stands in for it.
-			var first_ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[0])
-			icon = first_ingredient.icon if first_ingredient != null else null
+	for potion in ContentRegistry.potions:
+		var header := Label.new()
+		header.theme_type_variation = &"SubheadingLabel"
+		header.text = potion.display_name
+		_recipes_list.add_child(header)
 
-		var row: RecipeEntry = RECIPE_ENTRY_SCENE.instantiate()
-		_recipes_list.add_child(row)
-		row.populate(recipe.display_name, learned, ingredients_text, icon)
+		var learned_recipes: Array[RecipeDef] = []
+		for recipe in Alchemy.get_learned_recipes():
+			if recipe.output_potion_id == potion.id:
+				learned_recipes.append(recipe)
+
+		if learned_recipes.is_empty():
+			var row: RecipeEntry = RECIPE_ENTRY_SCENE.instantiate()
+			_recipes_list.add_child(row)
+			row.populate(potion.display_name, false, "")
+		else:
+			for recipe in learned_recipes:
+				var ingredient_parts: Array[String] = []
+				for i in recipe.ingredient_ids.size():
+					var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
+					var ingredient_name := ingredient.display_name if ingredient != null else recipe.ingredient_ids[i]
+					ingredient_parts.append("%s x%d" % [ingredient_name, recipe.ingredient_quantities[i]])
+				var ingredients_text := ", ".join(ingredient_parts)
+				var first_ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[0]) if not recipe.ingredient_ids.is_empty() else null
+				var icon: Texture2D = potion.icon if potion.icon != null else (first_ingredient.icon if first_ingredient != null else null)
+
+				var row: RecipeEntry = RECIPE_ENTRY_SCENE.instantiate()
+				_recipes_list.add_child(row)
+				row.populate(recipe.display_name, true, ingredients_text, icon)
 		_recipes_list.add_child(HSeparator.new())
 
 
