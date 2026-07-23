@@ -291,9 +291,12 @@ Skill
      (ingredients granted per stash) are both read by the Draconology / Dragon's Stash System
      (system 19); `learn_speed_draconic` **[STUB]**.
   6. **Demonology** — better demon barter with less drawback, learns demonic ingredients faster.
-     `demon_barter` (writ speed + submission roll modifier) and `demon_yield` (ingredients granted
-     per writ) are both read by the Demonology / Contract System (system 17); `learn_speed_demonic`
-     **[STUB]**.
+     `demon_yield` (ingredients granted per writ) is read by the Demonology / Contract System
+     (system 17) the same as every other skill effect, via `Skills.get_bonus()`. Writ speed and the
+     submission roll modifier are also Demonology-driven but *not* through the `Skills` bonus ledger —
+     `Demonology._demon_barter()` computes them directly and continuously from
+     `Skills.level("demonology")` instead of unlocking at fixed level thresholds like every other
+     skill effect (see system 17). `learn_speed_demonic` **[STUB]**.
   7. **Transmutation** — better dismantling of objects for materials, learns artificial ingredients
      faster. `transmute_ease`, `transmute_yield`, `learn_speed_artificial` **[STUB]**.
   8. **Charm** — better social-check success, unlocks new dialog options. `social_check_bonus`
@@ -1028,16 +1031,20 @@ Demonology (autoload)
 ```
 
 - **Writing, then automatic revision.** `start_writ(book_id)` opens a writ in the
-  `WRITING` phase (`BASE_WRITING_MINUTES` = 60, reduced by the Demonology skill's
-  `demon_barter` bonus). Finishing WRITING rolls an initial `quality` from
-  `Skills.level("demonology")` plus `±QUALITY_BASE_VARIANCE` random swing, flips the
-  writ to `REVISING`, and immediately starts the first revision — the player never has
-  to re-trigger revising, only submission. Every revision costs the same fixed
-  `BASE_REVISION_MINUTES` (30, i.e. exactly half of the writing time, also
-  `demon_barter`-reduced) regardless of how many have already happened; only the
-  *quality bonus per revision* shrinks, geometrically (`FIRST_REVISION_BONUS *
-  REVISION_DECAY^(n-1)`), matching "smaller bonus each time" without making later
-  revisions faster or slower than earlier ones.
+  `WRITING` phase (`BASE_WRITING_MINUTES` = 60, reduced by `Demonology._demon_barter()`).
+  Finishing WRITING rolls an initial `quality` from `Skills.level("demonology")` plus
+  `±QUALITY_BASE_VARIANCE` random swing, flips the writ to `REVISING`, and immediately
+  starts the first revision — the player never has to re-trigger revising, only
+  submission. Every revision costs the same fixed `BASE_REVISION_MINUTES` (30, i.e.
+  exactly half of the writing time, also `_demon_barter()`-reduced) regardless of how
+  many have already happened; only the *quality bonus per revision* shrinks,
+  geometrically (`FIRST_REVISION_BONUS * REVISION_DECAY^(n-1)`), matching "smaller bonus
+  each time" without making later revisions faster or slower than earlier ones.
+  `_demon_barter()` is `Skills.level("demonology") * DEMON_BARTER_PER_LEVEL`, halved
+  under `Resolve.is_strained()` same as `Skills.get_bonus()` — deliberately continuous
+  per level rather than the flat-bonus-at-a-threshold shape every other skill effect
+  uses (`SkillDef.effect_levels`), so writ speed (and the submission roll below) keeps
+  improving every level instead of plateauing after one threshold.
 - **Engagement, not a deadline.** `WritJob.minutes_elapsed`/`minutes_required` is an
   accumulator `Demonology._on_minute_tick()` increments only for writs whose
   `is_working` is true — never a `Clock.get_timestamp()` deadline comparison like
@@ -1055,7 +1062,7 @@ Demonology (autoload)
   `MenuScene.open()` does) would also freeze the player, making "walk away to pause"
   impossible, so the entire mechanic lives in world-space HUD (the meter + diamonds
   above the book), the same shape as `BrewStationInteractable`'s progress bar.
-- **Submission**: `submit_writ()` rolls `Rng.roll_2d10(Skills.get_bonus("demon_barter"),
+- **Submission**: `submit_writ()` rolls `Rng.roll_2d10(Demonology._demon_barter(),
   SUBMIT_DC)`; a critical success/failure only shifts `quality` by `±CRIT_QUALITY_SWING`
   (per the design note that crits just nudge quality, nothing more exotic). Final
   quality drives two independent outputs:

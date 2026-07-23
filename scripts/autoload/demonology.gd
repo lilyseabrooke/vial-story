@@ -27,12 +27,17 @@ const XP_PER_WRIT := 30
 
 # Timing -- BASE_REVISION_MINUTES is exactly half of BASE_WRITING_MINUTES per
 # design (every revision costs the same, constant, reduced time; only the
-# quality bonus per revision diminishes, not the time). Skill speed comes
-# from the Demonology skill's "demon_barter" bonus (small flat additions, same
-# shape as Brewing's potency/ease modifiers), not a percentage multiplier.
+# quality bonus per revision diminishes, not the time). Skill speed comes from
+# a "demon barter" modifier computed continuously off the Demonology skill's
+# level (DEMON_BARTER_PER_LEVEL per level, unlike every other skill effect,
+# which is a flat bonus unlocked at fixed level thresholds via SkillDef) --
+# so writs keep getting faster every single level rather than plateauing
+# after one threshold, per direct request rather than an existing pattern
+# elsewhere in the skill system.
 const BASE_WRITING_MINUTES := 60
 const BASE_REVISION_MINUTES := 30
 const MINUTES_PER_BARTER_POINT := 10.0
+const DEMON_BARTER_PER_LEVEL := 0.5
 const MIN_PHASE_MINUTES := 5
 
 ## Reaching this many revisions on one writ is an edge case far past the
@@ -129,7 +134,7 @@ func submit_writ(book_id: String) -> void:
 	if writ == null or not writ.can_submit():
 		return
 
-	var modifier := Skills.get_bonus("demon_barter")
+	var modifier := _demon_barter()
 	var roll := Rng.roll_2d10(modifier, SUBMIT_DC)
 
 	var final_quality := writ.quality
@@ -148,13 +153,24 @@ func submit_writ(book_id: String) -> void:
 
 
 func _writing_minutes() -> int:
-	var reduction := Skills.get_bonus("demon_barter") * MINUTES_PER_BARTER_POINT
+	var reduction := _demon_barter() * MINUTES_PER_BARTER_POINT
 	return maxi(MIN_PHASE_MINUTES, int(round(BASE_WRITING_MINUTES - reduction)))
 
 
 func _revision_minutes() -> int:
-	var reduction := Skills.get_bonus("demon_barter") * (MINUTES_PER_BARTER_POINT * 0.5)
+	var reduction := _demon_barter() * (MINUTES_PER_BARTER_POINT * 0.5)
 	return maxi(MIN_PHASE_MINUTES, int(round(BASE_REVISION_MINUTES - reduction)))
+
+
+## Continuous per-level scaling rather than Skills' usual flat-bonus-at-a-
+## threshold shape (see SkillDef/Skills.get_bonus) -- demon_barter isn't
+## tracked in Skills._bonus_totals at all, so the Resolve-strained halving
+## Skills.get_bonus() applies has to be replicated here directly.
+func _demon_barter() -> float:
+	var value := Skills.level("demonology") * DEMON_BARTER_PER_LEVEL
+	if Resolve.is_strained():
+		value *= Resolve.STRAINED_DEBUFF_MULTIPLIER
+	return value
 
 
 func _roll_initial_quality() -> float:
