@@ -52,6 +52,7 @@ const DETAIL_TEXT_WIDTH := DETAIL_WIDTH - 48
 const BROWSE_TIP := "W / S browse recipes  ·  E to focus  ·  1 / 2 / 3 brew a saved potion  ·  Esc to close"
 const FOCUS_TIP := "W / S pick an action  ·  E to use it  ·  1 / 2 / 3 save this potion  ·  Esc to step back"
 
+var _station_id: String = ""
 var _ready_only := false
 var _focused := false
 var _selected_recipe: RecipeDef = null
@@ -148,6 +149,14 @@ func build() -> void:
 	add_child(_tip)
 
 
+## Which station's brew menu this is — set by GameHud before refresh() so
+## ingredient availability includes that station's linked Pantries
+## (Brewing.available_ingredient_count/has_ingredients_for), not just carried
+## inventory.
+func set_station(station_id: String) -> void:
+	_station_id = station_id
+
+
 ## Rebuilds everything from current Inventory/Alchemy state — called by GameHud
 ## each time the menu opens, and whenever the learned-recipe set changes.
 func refresh() -> void:
@@ -234,7 +243,7 @@ func _activate() -> void:
 
 
 func _brew_selected() -> void:
-	if Inventory.has_ingredients_for(_selected_recipe):
+	if Brewing.has_ingredients_for(_station_id, _selected_recipe):
 		_confirm_brew(_selected_recipe)
 	else:
 		notice.emit("Can't brew %s yet — missing ingredients." % _potion_name(_selected_recipe.output_potion_id))
@@ -245,7 +254,7 @@ func _brew_selected() -> void:
 ## always enabled.
 func _enabled_action_indices() -> Array[int]:
 	var result: Array[int] = []
-	if _selected_recipe != null and Inventory.has_ingredients_for(_selected_recipe):
+	if _selected_recipe != null and Brewing.has_ingredients_for(_station_id, _selected_recipe):
 		result.append(0)
 	for s in QUICK_SLOT_COUNT:
 		result.append(1 + s)
@@ -342,7 +351,7 @@ func _rebuild_list() -> void:
 	for group in _build_groups():
 		var shown: Array[RecipeDef] = []
 		for recipe in group.recipes:
-			if _ready_only and not Inventory.has_ingredients_for(recipe):
+			if _ready_only and not Brewing.has_ingredients_for(_station_id, recipe):
 				continue
 			shown.append(recipe)
 		if shown.is_empty():
@@ -358,7 +367,7 @@ func _rebuild_list() -> void:
 			row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.button_group = _row_group
 			_list_vbox.add_child(row)
-			row.populate(_variant_label(recipe), Inventory.has_ingredients_for(recipe), _slot_of(recipe))
+			row.populate(_variant_label(recipe), Brewing.has_ingredients_for(_station_id, recipe), _slot_of(recipe))
 			row.toggled.connect(func(on: bool) -> void:
 				if on:
 					_select(recipe))
@@ -426,7 +435,7 @@ func _select(recipe: RecipeDef) -> void:
 
 func _pick_default(recipes: Array[RecipeDef]) -> RecipeDef:
 	for recipe in recipes:
-		if Inventory.has_ingredients_for(recipe):
+		if Brewing.has_ingredients_for(_station_id, recipe):
 			return recipe
 	return recipes[0] if not recipes.is_empty() else null
 
@@ -450,7 +459,7 @@ func _rebuild_detail() -> void:
 		return
 
 	var recipe := _selected_recipe
-	var brewable := Inventory.has_ingredients_for(recipe)
+	var brewable := Brewing.has_ingredients_for(_station_id, recipe)
 
 	var name_label := Label.new()
 	name_label.theme_type_variation = &"HeadingLabel"
@@ -478,7 +487,7 @@ func _rebuild_detail() -> void:
 	for i in recipe.ingredient_ids.size():
 		var ingredient := ContentRegistry.get_ingredient(recipe.ingredient_ids[i])
 		var need := recipe.ingredient_quantities[i]
-		var have := Inventory.ingredient_count(recipe.ingredient_ids[i])
+		var have := Brewing.available_ingredient_count(_station_id, recipe.ingredient_ids[i])
 		var enough := have >= need
 		var chip := INGREDIENT_CHIP_SCENE.instantiate()
 		req_flow.add_child(chip)

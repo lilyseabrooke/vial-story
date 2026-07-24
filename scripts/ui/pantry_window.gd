@@ -6,6 +6,13 @@ extends PanelContainer
 ## the brew menu opens, and fades it out when that menu closes. Built in code
 ## like the other HUD panels; frameless IngredientChips wrap into a narrow
 ## column so the window stays tall-and-thin against the brew window's side.
+##
+## Shows combined totals, not just carried inventory: once a Pantry
+## interactable is linked to the same Alchemy Lab Manager as the open
+## station's Alembic, its stock counts as available too (see
+## docs/design/systems.md, system 4) — refresh() takes the open station's id
+## and reads Brewing.available_ingredient_count() per ingredient, the same
+## helper BrewMenu's detail card uses, so both stay in sync.
 
 const INGREDIENT_CHIP_SCENE := preload("res://scenes/ui/components/IngredientChip.tscn")
 
@@ -41,13 +48,13 @@ func build() -> void:
 	scroll.add_child(_flow)
 
 
-func refresh() -> void:
+func refresh(station_id: String = "") -> void:
 	for child in _flow.get_children():
 		child.queue_free()
 
 	var any := false
 	for ingredient in ContentRegistry.ingredients:
-		var count := Inventory.ingredient_count(ingredient.id)
+		var count := Brewing.available_ingredient_count(station_id, ingredient.id)
 		if count <= 0:
 			continue
 		any = true

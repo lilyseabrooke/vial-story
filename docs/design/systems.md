@@ -253,6 +253,14 @@ Station
   - cost                           # Materials to purchase at its linked Alchemy Lab Manager; 0 = already owned
   - purchased: bool
   - upgrade_ids: [String]          # currently-equipped AlembicUpgradeDef ids
+  - lab_manager_id: String         # linked Alchemy Lab Manager's target_id, "" if none
+
+Pantry
+  - id
+  - cost                           # Materials to purchase at its linked Alchemy Lab Manager; 0 = already owned
+  - purchased: bool
+  - lab_manager_id: String         # linked Alchemy Lab Manager's target_id
+  - stored_ingredients: {ingredient_id: int}
 
 BrewJob
   - recipe_id
@@ -301,23 +309,32 @@ BrewJob
   standalone "Collect" button since the menu only opens when a station has no job
   at all.
 - **The brew menu** (`BrewMenu`, `scripts/ui/brew_menu.gd`) is the `MenuScene`
-  content the Alembic opens. Master-detail: a scrollable list of *learned*
-  recipes on the left, a detail/confirm card on the right. The player's **pantry**
-  (owned ingredients as icon×N chips) is *not* nested inside this window — it's a
-  separate `PantryWindow` (`scripts/ui/pantry_window.gd`) that GameHud parks just
-  to the left of the brew window (`MenuScene.get_window_rect()` locates it),
-  shows/refreshes on open, and fades out on any menu close — keeping the brew
-  window from stacking yet another frame. Recipes that share an
-  `output_potion_id` are **grouped** under one potion heading (`_potion_name()`,
-  reading `ContentRegistry.get_potion(id).display_name`/`.icon`), each shown as
-  a "method" variant (`_variant_label()` — simply the recipe's `display_name`,
-  since that field is the method label, e.g. "Ember Dust + Rift Glass", not the
-  potion's name — see system 3). A "Ready to brew only" toggle filters the list
-  to recipes the player has ingredients for (`Inventory.has_ingredients_for`).
+  content the Alembic opens. `hud.gd.toggle_brew_menu(station_id)` calls
+  `BrewMenu.set_station(station_id)` before every `refresh()`, so the menu
+  always knows which Alembic it's serving. Master-detail: a scrollable list of
+  *learned* recipes on the left, a detail/confirm card on the right. The
+  player's **Pantry** (carried ingredients *plus* the stock of any Pantry
+  interactable linked to this station's Alchemy Lab Manager, as icon×N chips —
+  see the Pantry bullet below) is *not* nested inside this window — it's a
+  separate `PantryWindow` (`scripts/ui/pantry_window.gd`) that GameHud parks
+  just to the left of the brew window (`MenuScene.get_window_rect()` locates
+  it), shows/refreshes (passed the open station's id) on open, and fades out
+  on any menu close — keeping the brew window from stacking yet another frame.
+  Recipes that share an `output_potion_id` are **grouped** under one potion
+  heading (`_potion_name()`, reading `ContentRegistry.get_potion(id).
+  display_name`/`.icon`), each shown as a "method" variant (`_variant_label()`
+  — simply the recipe's `display_name`, since that field is the method label,
+  e.g. "Ember Dust + Rift Glass", not the potion's name — see system 3). A
+  "Ready to brew only" toggle filters the list to recipes the player has
+  ingredients for (`Brewing.has_ingredients_for(station_id, recipe)`, which
+  checks `Brewing.available_ingredient_count()` — carried inventory plus any
+  linked Pantry stock — per ingredient, rather than
+  `Inventory.has_ingredients_for()`, which only sees carried inventory).
   The detail card shows the required ingredients as icon×N chips tinted
-  green/red by whether the player has enough, plus the potion's potency/ease
-  ranges and brew time (`ContentRegistry.get_potion(recipe.output_potion_id)`),
-  and a Brew button (disabled when short).
+  green/red by whether the player has enough (using the same combined count),
+  plus the potion's potency/ease ranges and brew time
+  (`ContentRegistry.get_potion(recipe.output_potion_id)`), and a Brew button
+  (disabled when short).
   `IngredientChip`/`BrewRecipeRow` (`scripts/ui/components/`) are the repeated
   cells, following the same populate()-driven, icon-with-fallback-dot component
   convention as `ItemSlot`. BrewMenu only *reads* game state and emits
@@ -354,17 +371,21 @@ BrewJob
   `cost` (0 = already owned) and a `lab_manager_path` `NodePath` pointing at the
   `AlchemyLabManagerInteractable` node that sells it. `Brewing.register_station()`
   creates a `StationInstance` for every placed Alembic as `RoomBuilder` wires its
-  room (so a station exists whether or not it's purchased yet), replacing the old
-  hardcoded single-station boot-up. Interacting with an unpurchased Alembic refuses
-  to open the brew menu. The Lab Manager discovers its linked Alembics by scanning
-  the `"alembic_interactables"` group for nodes whose `lab_manager_path` resolves
-  back to itself (link direction is Alembic → Manager), rather than holding a list.
-  Opening it (`AlchemyLabMenu`, `scripts/ui/alchemy_lab_menu.gd`) shows a grid of its
-  stations; selecting an unpurchased one offers a Purchase button
-  (`Brewing.purchase_station`), a purchased one lists every
-  `AlembicUpgradeDef` from the catalog with Buy/Remove buttons
-  (`Brewing.purchase_alembic_upgrade`/`remove_alembic_upgrade`) — removing an
-  upgrade gives no refund, so it's a respec cost, not a return.
+  room (so a station exists whether or not it's purchased yet, and also resolves
+  the linked manager's `target_id` into `lab_manager_id` at the same time),
+  replacing the old hardcoded single-station boot-up. Interacting with an
+  unpurchased Alembic refuses to open the brew menu. The Lab Manager discovers its
+  linked Alembics/Pantries by scanning the `"alembic_interactables"`/
+  `"pantry_interactables"` groups for nodes whose `lab_manager_path` resolves back
+  to itself (link direction is item → Manager), rather than holding a list.
+  Opening it (`AlchemyLabMenu`, `scripts/ui/alchemy_lab_menu.gd`) shows a grid of
+  its linked items (each entry a `{id, kind}` dict, `kind` one of
+  `"alembic"`/`"pantry"`); selecting an unpurchased one offers a Purchase button
+  (`Brewing.purchase_station`/`Inventory.purchase_pantry`, dispatched by `kind`), a
+  purchased Alembic lists every `AlembicUpgradeDef` from the catalog with
+  Buy/Remove buttons (`Brewing.purchase_alembic_upgrade`/`remove_alembic_upgrade`)
+  — removing an upgrade gives no refund, so it's a respec cost, not a return — and
+  a purchased Pantry just confirms it's owned (no upgrade catalog for Pantries).
 - **Alembic upgrade catalog** (`data/alembic_upgrades.json`, loaded by
   `ContentRegistry` into `AlembicUpgradeDef`s) is deliberately JSON rather than the
   rest of the repo's `.tres`/`Resource` convention — each entry's `effects`
@@ -375,9 +396,34 @@ BrewJob
   upgrade ids, checked both directions at purchase time) are variable-shape lists
   that are painful to hand-author as parallel typed-array `.tres` exports. This is a
   one-off exception scoped to that shape, not a precedent for every future data
-  type. The same station/menu/JSON-catalog shape is intended to extend to the other
-  five resource-producing interactables (grow plots, planar rifts, contract books,
-  etc.) later — out of scope for now.
+  type.
+- **Pantry** (`PantryInteractable`, `scripts/pantry_interactable.gd`) is the
+  second interactable type sellable through an Alchemy Lab Manager, proving out
+  the station/menu shape's extensibility for real. Like an Alembic it's
+  hand-placed with its own `cost` and `lab_manager_path`; `Inventory.
+  register_pantry()` creates its `PantryInstance` the same way
+  `Brewing.register_station()` does, including resolving `lab_manager_id`.
+  Interacting with an unpurchased Pantry refuses to open (same split as an
+  Alembic — routine use never goes through the Lab Manager, only the initial
+  purchase does); a purchased one opens `PantryStorageMenu`
+  (`scripts/ui/pantry_storage_menu.gd`, via `hud.toggle_pantry_menu()`) — two
+  columns, "Carried" (every owned ingredient with a Store button,
+  `Inventory.deposit_to_pantry`) and "Stored here" (the Pantry's contents with a
+  Take button, `Inventory.withdraw_from_pantry`), one unit at a time.
+  **Every Alembic linked to the same Alchemy Lab Manager as a purchased Pantry
+  treats its stock as extra inventory**: `Brewing.available_ingredient_count()`
+  sums the player's carried count plus every linked (purchased) Pantry's stock
+  for that ingredient, and `Brewing.has_ingredients_for()`/`start_brew()` (via
+  `_consume_for_brew()`) use it instead of `Inventory.has_ingredients_for()`/
+  `consume_ingredients_for()` — draining linked Pantries first, then the
+  player's carried stock, so stocked-up Pantry supply is spent before the
+  player's personal buffer. `PantryWindow` (the brew menu's sidebar) shows this
+  same combined total via the same helper — the player-facing "Pantry" is
+  meant to read as one shared pool, not two separate displays.
+  The same station/menu/JSON-catalog shape (Pantries currently have no JSON
+  catalog of their own — just cost/purchased/storage) is intended to extend to
+  the remaining four resource-producing interactables (grow plots, planar
+  rifts, contract books, etc.) later — out of scope for now.
 
 ---
 

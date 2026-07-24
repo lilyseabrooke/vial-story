@@ -230,8 +230,14 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
 	if interactable is BrewStationInteractable:
-		Brewing.register_station(interactable.target_id, interactable.display_name, "alembic", interactable.cost)
+		var lab_manager := interactable.get_node_or_null(interactable.lab_manager_path)
+		var lab_manager_id: String = lab_manager.target_id if lab_manager != null else ""
+		Brewing.register_station(interactable.target_id, interactable.display_name, "alembic", interactable.cost, lab_manager_id)
 		_station_nodes[interactable.target_id] = interactable
+	elif interactable is PantryInteractable:
+		var pantry_manager := interactable.get_node_or_null(interactable.lab_manager_path)
+		var pantry_manager_id: String = pantry_manager.target_id if pantry_manager != null else ""
+		Inventory.register_pantry(interactable.target_id, interactable.display_name, interactable.cost, pantry_manager_id)
 	elif interactable is ContractBookInteractable:
 		_contract_nodes[interactable.target_id] = interactable
 		# Walking away always pauses the writ (design: movement pauses

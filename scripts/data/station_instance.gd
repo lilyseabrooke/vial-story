@@ -17,3 +17,9 @@ var current_job: BrewJob = null
 var cost: int = 0
 var purchased: bool = true
 var upgrade_ids: Array[String] = []
+
+## The linked Alchemy Lab Manager's target_id -- resolved once as RoomBuilder
+## wires this station's node. Lets Brewing find every Pantry sharing this
+## station's manager (Brewing._linked_pantries()) without a scene-graph
+## lookup at brew time.
+var lab_manager_id: String = ""

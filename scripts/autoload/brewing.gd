@@ -32,12 +32,19 @@ func get_station(station_id: String) -> StationInstance:
 
 ## Idempotent — called by RoomBuilder as each hand-placed BrewStationInteractable
 ## is wired, so a station exists as soon as its Alembic node loads regardless of
-## whether it's purchased yet. Returns the existing station if `id` is already
-## registered (e.g. a save was already loaded before rooms wired) rather than
-## clobbering its live purchased/upgrade state.
-func register_station(id: String, display_name: String, station_type: String, cost: int) -> StationInstance:
+## whether it's purchased yet. If `id` is already registered (e.g. a save was
+## already loaded before rooms wired), its *live* state (purchased/upgrade_ids/
+## current_job) is left untouched, but the *scene-derived* fields below are
+## always refreshed to match the current wiring -- otherwise a station saved
+## before a field like lab_manager_id existed would keep it empty forever,
+## since the idempotent path would never let a freshly-wired value in.
+func register_station(id: String, display_name: String, station_type: String, cost: int, lab_manager_id: String = "") -> StationInstance:
 	var existing := get_station(id)
 	if existing != null:
+		existing.display_name = display_name
+		existing.station_type = station_type
+		existing.cost = cost
+		existing.lab_manager_id = lab_manager_id
 		return existing
 	var station := StationInstance.new()
 	station.id = id
@@ -45,6 +52,7 @@ func register_station(id: String, display_name: String, station_type: String, co
 	station.station_type = station_type
 	station.cost = cost
 	station.purchased = cost <= 0
+	station.lab_manager_id = lab_manager_id
 	stations.append(station)
 	return station
 
@@ -117,6 +125,60 @@ func _has_tag(station: StationInstance, tag: String) -> bool:
 	return false
 
 
+## Every purchased Pantry sharing this station's Alchemy Lab Manager -- see
+## docs/design/systems.md, system 4. A station with no lab_manager_id (no
+## linked manager) never has any.
+func _linked_pantries(station: StationInstance) -> Array[PantryInstance]:
+	var result: Array[PantryInstance] = []
+	if station.lab_manager_id == "":
+		return result
+	for pantry in Inventory.pantries:
+		if pantry.purchased and pantry.lab_manager_id == station.lab_manager_id:
+			result.append(pantry)
+	return result
+
+
+## The player's carried count for this ingredient plus whatever's stocked in
+## every Pantry linked to this station's Alchemy Lab Manager -- what the
+## brew menu and start_brew() both treat as "available" at this station.
+## Falls back to plain carried inventory if station_id doesn't resolve.
+func available_ingredient_count(station_id: String, ingredient_id: String) -> int:
+	var total := Inventory.ingredient_count(ingredient_id)
+	var station := get_station(station_id)
+	if station == null:
+		return total
+	for pantry in _linked_pantries(station):
+		total += pantry.stored_ingredients.get(ingredient_id, 0)
+	return total
+
+
+func has_ingredients_for(station_id: String, recipe: RecipeDef) -> bool:
+	for i in recipe.ingredient_ids.size():
+		if available_ingredient_count(station_id, recipe.ingredient_ids[i]) < recipe.ingredient_quantities[i]:
+			return false
+	return true
+
+
+## Drains linked pantries first (so stocked-up Pantry supply goes before the
+## player's carried buffer), then falls back to Inventory.consume_ingredient
+## for any remainder.
+func _consume_for_brew(station: StationInstance, recipe: RecipeDef) -> void:
+	var linked := _linked_pantries(station)
+	for i in recipe.ingredient_ids.size():
+		var id := recipe.ingredient_ids[i]
+		var need := recipe.ingredient_quantities[i]
+		for pantry in linked:
+			if need <= 0:
+				break
+			var have: int = pantry.stored_ingredients.get(id, 0)
+			var take := mini(have, need)
+			if take > 0:
+				Inventory.consume_from_pantry(pantry.id, id, take)
+				need -= take
+		if need > 0:
+			Inventory.consume_ingredient(id, need)
+
+
 ## Returns "" on success, or a short reason string on failure (station busy,
 ## missing ingredients) so the calling UI can report why the brew didn't start.
 func start_brew(station_id: String, recipe: RecipeDef) -> String:
@@ -130,10 +192,10 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 		return "This recipe needs a %s." % potion.station_type
 	if not Alchemy.is_learned(recipe.id):
 		return "You haven't learned this recipe yet."
-	if not Inventory.has_ingredients_for(recipe):
+	if not has_ingredients_for(station_id, recipe):
 		return "Not enough ingredients."
 
-	Inventory.consume_ingredients_for(recipe)
+	_consume_for_brew(station, recipe)
 
 	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency") + _upgrade_bonus(station, "potion_potency")
 	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease") + _upgrade_bonus(station, "potion_ease")
@@ -227,6 +289,7 @@ func get_save_data() -> Dictionary:
 			"cost": station.cost,
 			"purchased": station.purchased,
 			"upgrade_ids": station.upgrade_ids.duplicate(),
+			"lab_manager_id": station.lab_manager_id,
 			"current_job": job_data,
 		})
 	return {"stations": station_data}
@@ -251,6 +314,7 @@ func load_save_data(data: Dictionary) -> void:
 		var upgrade_ids: Array[String] = []
 		upgrade_ids.assign(entry.get("upgrade_ids", []))
 		station.upgrade_ids = upgrade_ids
+		station.lab_manager_id = entry.get("lab_manager_id", "")
 
 		var job_data = entry.get("current_job")
 		if job_data != null:

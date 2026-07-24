@@ -20,8 +20,10 @@ var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 var class_panel: VBoxContainer
 var alchemy_lab_panel: AlchemyLabMenu
+var pantry_storage_panel: PantryStorageMenu
 
 var _station_id: String = ""
+var _pantry_menu_id: String = ""
 var _starting_ingredients: Dictionary = {}
 
 var _almanac: AlmanacClock
@@ -195,6 +197,10 @@ func build(starting_ingredients: Dictionary) -> void:
 	alchemy_lab_panel = AlchemyLabMenu.new()
 	alchemy_lab_panel.build()
 	alchemy_lab_panel.notice.connect(log_message)
+
+	pantry_storage_panel = PantryStorageMenu.new()
+	pantry_storage_panel.build()
+	pantry_storage_panel.notice.connect(log_message)
 
 	class_panel = VBoxContainer.new()
 	class_panel.add_child(MenuKeyNav.new())
@@ -547,17 +553,30 @@ func toggle_brew_menu(station_id: String) -> void:
 		_menu_scene.close()
 	else:
 		_station_id = station_id
+		brew_panel.set_station(station_id)
 		brew_panel.refresh()
 		open_menu(brew_panel, "Brewing")
 		_show_pantry()
 
 
 ## Opens the Alchemy Lab menu (refreshing first) for the given manager's
-## linked stations. No toggle-to-close: re-entering the interactable and
-## pressing E again just re-opens with fresh data.
-func open_alchemy_lab_menu(station_ids: Array[String]) -> void:
-	alchemy_lab_panel.open_for(station_ids)
+## linked Alembics/Pantries. No toggle-to-close: re-entering the interactable
+## and pressing E again just re-opens with fresh data.
+func open_alchemy_lab_menu(items: Array[Dictionary]) -> void:
+	alchemy_lab_panel.open_for(items)
 	open_menu(alchemy_lab_panel, "Alchemy Lab")
+
+
+## Opens (refreshing first) or closes the Pantry storage menu for a specific
+## Pantry — same per-open station-context shape as toggle_brew_menu(), since
+## multiple Pantries can exist.
+func toggle_pantry_menu(pantry_id: String) -> void:
+	if _menu_scene.has_content(pantry_storage_panel) and _menu_scene.is_open() and _pantry_menu_id == pantry_id:
+		_menu_scene.close()
+	else:
+		_pantry_menu_id = pantry_id
+		pantry_storage_panel.open_for(pantry_id)
+		open_menu(pantry_storage_panel, "Pantry")
 
 
 ## Reveals the detached pantry window and parks it just to the left of the brew
@@ -565,7 +584,7 @@ func open_alchemy_lab_menu(station_ids: Array[String]) -> void:
 ## (get_window_rect() is deterministic, but the panel's min size can be dirty on
 ## the same frame the content was swapped in).
 func _show_pantry() -> void:
-	_pantry_window.refresh()
+	_pantry_window.refresh(_station_id)
 	_pantry_window.visible = true
 	_pantry_window.modulate.a = 0.0
 	_position_pantry.call_deferred()
