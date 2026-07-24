@@ -24,8 +24,10 @@ room_id = "underbelly"
 room_size = Vector2(1400, 1000)
 
 [node name="Floor" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="Walls" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="SpawnPoint" type="Marker2D" parent="."]
 position = Vector2(120, 100)

@@ -19,13 +19,17 @@ var _speed_buttons: Array[Button] = []
 
 func build() -> void:
 	theme_type_variation = &"SmallFramedPanel"
-	custom_minimum_size = Vector2(200, 0)
+	# Doubled to match the 2x world-camera zoom — real font sizes/control
+	# sizes rather than Control.scale, which just stretches the
+	# already-rasterized (small) glyph bitmaps and renders them blurry.
+	custom_minimum_size = Vector2(400, 0)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 5)
 	add_child(vbox)
 
 	_day_label = Label.new()
 	_day_label.theme_type_variation = &"HeadingLabel"
+	_day_label.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(_day_label)
 
 	var time_row := HBoxContainer.new()
@@ -33,13 +37,14 @@ func build() -> void:
 	vbox.add_child(time_row)
 
 	_tod_icon = TimeOfDayIcon.new()
-	_tod_icon.custom_minimum_size = Vector2(26, 26)
+	_tod_icon.custom_minimum_size = Vector2(52, 52)
 	_tod_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	time_row.add_child(_tod_icon)
 
 	_time_label = Label.new()
 	_time_label.theme_type_variation = &"NumericLabel"
 	_time_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_time_label.add_theme_font_size_override("font_size", 34)
 	time_row.add_child(_time_label)
 
 	var speed_hbox := HBoxContainer.new()
@@ -54,7 +59,8 @@ func build() -> void:
 		speed_button.toggle_mode = true
 		speed_button.button_group = speed_group
 		speed_button.button_pressed = (i == Clock.speed_level)
-		speed_button.custom_minimum_size = Vector2(46, 0)
+		speed_button.custom_minimum_size = Vector2(92, 0)
+		speed_button.add_theme_font_size_override("font_size", 30)
 		speed_button.pressed.connect(func() -> void:
 			Clock.set_speed_level(i)
 		)

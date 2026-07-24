@@ -11,14 +11,21 @@ extends PanelContainer
 
 const BADGE_OUTLINE_SIZE := 6
 
-func populate(item_name: String, subtitle: String, tint: Color, icon: Texture2D = null) -> void:
+## Shop-tab display: icon only, price as a corner badge, and the potion name
+## surfaced via hover tooltip — the same icon-first pattern as populate_item()
+## below (used by the Satchel), so the two grids read consistently.
+func populate(item_name: String, price: int, tint: Color, icon: Texture2D = null) -> void:
 	modulate = Color(1, 1, 1, 1)
-	tooltip_text = ""
 	var name_label: Label = $Overlay/VBox/NameLabel
-	name_label.visible = true
-	name_label.text = "%s\n%s" % [item_name, subtitle] if subtitle != "" else item_name
+	name_label.visible = false
+	name_label.text = ""
 	var badge: Label = $Overlay/QuantityBadge
-	badge.visible = false
+	badge.visible = true
+	badge.text = "%d" % price
+	badge.add_theme_color_override("font_color", UiPalette.CREAM_PAGE)
+	badge.add_theme_color_override("font_outline_color", UiPalette.COCOA_INK)
+	badge.add_theme_constant_override("outline_size", BADGE_OUTLINE_SIZE)
+	tooltip_text = "%s\n%d Materials" % [item_name, price]
 	_apply_icon(tint, icon)
 
 

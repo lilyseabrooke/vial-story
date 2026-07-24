@@ -403,7 +403,7 @@ func _make_group_header(output_id: String) -> HBoxContainer:
 	if icon != null:
 		var icon_rect := TextureRect.new()
 		icon_rect.texture = icon
-		icon_rect.custom_minimum_size = Vector2(20, 20)
+		icon_rect.custom_minimum_size = Vector2(48, 48)
 		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		header.add_child(icon_rect)

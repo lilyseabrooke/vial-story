@@ -18,6 +18,13 @@ const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(2560, 1440),
 ]
 
+## Font sizes/control sizes below are doubled to match the rest of the doubled
+## UI (real sizes, not a Control.scale transform, which would just stretch
+## already-rasterized glyphs and blur them — see hud.gd/main_menu.gd for the
+## same pattern). Shared by both callers (game_menu.gd's Settings tab and
+## main_menu.gd's Settings screen), so both stay in sync automatically.
+const FONT_SIZE := 30
+
 static func build(parent: VBoxContainer) -> void:
 	_add_slider_setting(parent, "Master Volume")
 	_add_slider_setting(parent, "Music Volume")
@@ -27,6 +34,7 @@ static func build(parent: VBoxContainer) -> void:
 
 	var fullscreen_check := CheckBox.new()
 	fullscreen_check.text = "Fullscreen"
+	fullscreen_check.add_theme_font_size_override("font_size", FONT_SIZE)
 	fullscreen_check.button_pressed = (
 		DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 	)
@@ -35,6 +43,7 @@ static func build(parent: VBoxContainer) -> void:
 
 	var vsync_check := CheckBox.new()
 	vsync_check.text = "V-Sync"
+	vsync_check.add_theme_font_size_override("font_size", FONT_SIZE)
 	vsync_check.button_pressed = (
 		DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED
 	)
@@ -47,15 +56,19 @@ static func build(parent: VBoxContainer) -> void:
 	var note := Label.new()
 	note.text = "(Volume/Difficulty not wired up yet — prototype placeholder.)"
 	note.modulate = UiPalette.TEXT_MUTED
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	note.add_theme_font_size_override("font_size", FONT_SIZE)
 	parent.add_child(note)
 
 
 static func _add_resolution_setting(parent: VBoxContainer) -> void:
 	var caption := Label.new()
 	caption.text = "Resolution"
+	caption.add_theme_font_size_override("font_size", FONT_SIZE)
 	parent.add_child(caption)
 
 	var option_button := OptionButton.new()
+	option_button.add_theme_font_size_override("font_size", FONT_SIZE)
 	var current_size := DisplayServer.window_get_size()
 	var selected_index := -1
 	for i in RESOLUTIONS.size():
@@ -97,9 +110,11 @@ static func _on_vsync_toggled(pressed: bool) -> void:
 static func _add_text_speed_setting(parent: VBoxContainer) -> void:
 	var caption := Label.new()
 	caption.text = "Text Speed"
+	caption.add_theme_font_size_override("font_size", FONT_SIZE)
 	parent.add_child(caption)
 
 	var option_button := OptionButton.new()
+	option_button.add_theme_font_size_override("font_size", FONT_SIZE)
 	for option_label in ["Slow", "Normal", "Fast", "Instant"]:
 		option_button.add_item(option_label)
 	var current_index: int = Settings.TEXT_SPEED_MULTIPLIERS.find(Settings.text_speed_multiplier)
@@ -113,6 +128,7 @@ static func _add_text_speed_setting(parent: VBoxContainer) -> void:
 static func _add_slider_setting(parent: VBoxContainer, label_text: String) -> void:
 	var caption := Label.new()
 	caption.text = label_text
+	caption.add_theme_font_size_override("font_size", FONT_SIZE)
 	parent.add_child(caption)
 
 	var slider := HSlider.new()
@@ -120,7 +136,7 @@ static func _add_slider_setting(parent: VBoxContainer, label_text: String) -> vo
 	slider.max_value = 1.0
 	slider.step = 0.01
 	slider.value = 0.8
-	slider.custom_minimum_size = Vector2(220, 0)
+	slider.custom_minimum_size = Vector2(440, 0)
 	parent.add_child(slider)
 
 
@@ -129,9 +145,11 @@ static func _add_option_setting(
 ) -> void:
 	var caption := Label.new()
 	caption.text = label_text
+	caption.add_theme_font_size_override("font_size", FONT_SIZE)
 	parent.add_child(caption)
 
 	var option_button := OptionButton.new()
+	option_button.add_theme_font_size_override("font_size", FONT_SIZE)
 	for option_label in options:
 		option_button.add_item(option_label)
 	option_button.selected = default_index

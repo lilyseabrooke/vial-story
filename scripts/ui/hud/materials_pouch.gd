@@ -18,6 +18,7 @@ func build() -> void:
 	var caption := Label.new()
 	caption.text = "Materials"
 	caption.theme_type_variation = &"CaptionLabel"
+	caption.add_theme_font_size_override("font_size", 24)
 	vbox.add_child(caption)
 
 	var row := HBoxContainer.new()
@@ -27,12 +28,13 @@ func build() -> void:
 	var coin := Label.new()
 	coin.text = "●"
 	coin.add_theme_color_override("font_color", UiPalette.GOLD)
-	coin.add_theme_font_size_override("font_size", 18)
+	coin.add_theme_font_size_override("font_size", 36)
 	coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(coin)
 
 	_count = Label.new()
 	_count.theme_type_variation = &"NumericLabel"
+	_count.add_theme_font_size_override("font_size", 34)
 	row.add_child(_count)
 
 

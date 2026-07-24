@@ -72,15 +72,19 @@ var _save_status_label: Label
 
 
 func build() -> void:
-	custom_minimum_size = Vector2(820, 480)
+	# Doubled to match the Escape menu's doubled font sizes below. Both act as
+	# floors, not caps — HBoxContainer/VBoxContainer already propagate a
+	# child's real minimum size upward, so this only needs to be a reasonable
+	# starting point, not an exact fit.
+	custom_minimum_size = Vector2(1200, 700)
 
 	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 14)
+	hbox.add_theme_constant_override("separation", 28)
 	add_child(hbox)
 
 	_rail = VBoxContainer.new()
 	_rail.add_theme_constant_override("separation", 5)
-	_rail.custom_minimum_size = Vector2(150, 0)
+	_rail.custom_minimum_size = Vector2(300, 0)
 	hbox.add_child(_rail)
 
 	hbox.add_child(VSeparator.new())
@@ -89,15 +93,22 @@ func build() -> void:
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_content.clip_contents = true
-	# GRID_COLUMNS(8) * ItemSlot min width(72) + 7 * GridContainer h_separation(4) = 604;
-	# this must stay >= that or the Satchel/Shop grids bleed past the panel edge.
-	_content.custom_minimum_size = Vector2(620, 0)
+	# _content is a plain Control, not a Container, so unlike _rail above it does
+	# NOT auto-grow to fit its children — this width is a hard cap. It has to
+	# cover both: GRID_COLUMNS(8) * ItemSlot min width(72) + 7 * GridContainer
+	# h_separation(4) = 604 (Satchel/Shop grids, untouched by the font-size
+	# doubling below), and the widest doubled row — SkillRow's
+	# NameLabel(240) + LevelLabel(120) + Progress(240) + ProgressLabel(~100) +
+	# separation ≈ 716. Horizontal scroll is disabled on these sections, so
+	# anything wider than this gets hard-clipped rather than wrapping.
+	_content.custom_minimum_size = Vector2(860, 0)
 	hbox.add_child(_content)
 
 	_add_section("satchel", "Satchel", _build_inventory_tab())
 	_add_section("grimoire", "Grimoire", _build_recipes_tab())
 	_add_section("shop", "Shop", _build_shop_tab())
-	_add_section("studies", "Studies", _build_studies_tab())
+	_add_section("skills", "Skills", _build_skills_tab())
+	_add_section("classes", "Classes", _build_classes_tab())
 	_add_section("hearts", "Hearts", _build_relationships_tab())
 	_add_section("journal", "Journal", _build_journal_tab())
 	_add_section("settings", "Settings", _build_settings_tab())
@@ -110,6 +121,7 @@ func build() -> void:
 	_nav_tip = Label.new()
 	_nav_tip.theme_type_variation = &"CaptionLabel"
 	_nav_tip.text = RAIL_TIP
+	_nav_tip.add_theme_font_size_override("font_size", 24)
 	_rail.add_child(_nav_tip)
 
 	_show_section("satchel")
@@ -155,6 +167,7 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	button.button_group = _rail_group
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 30)
 	button.pressed.connect(_show_section.bind(id))
 	_rail.add_child(button)
 	_rail_buttons[id] = button
@@ -167,6 +180,7 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	var heading := Label.new()
 	heading.text = label
 	heading.theme_type_variation = &"HeadingLabel"
+	heading.add_theme_font_size_override("font_size", 44)
 	titled.add_child(heading)
 	titled.add_child(HSeparator.new())
 
@@ -364,32 +378,13 @@ func _color_for_id(id: String) -> Color:
 
 
 # ---------------------------------------------------------------------------
-# Studies (Skills + Academy report card)
+# Skills
 # ---------------------------------------------------------------------------
 
-func _build_studies_tab() -> Control:
+func _build_skills_tab() -> Control:
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 8)
-
-	var skills_heading := Label.new()
-	skills_heading.text = "Skills"
-	skills_heading.theme_type_variation = &"SubheadingLabel"
-	root.add_child(skills_heading)
-
 	_skills_list = VBoxContainer.new()
 	root.add_child(_skills_list)
-
-	root.add_child(HSeparator.new())
-
-	var report_heading := Label.new()
-	report_heading.text = "Report Card"
-	report_heading.theme_type_variation = &"SubheadingLabel"
-	root.add_child(report_heading)
-
-	_report_card_label = Label.new()
-	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	root.add_child(_report_card_label)
-
 	return root
 
 
@@ -406,6 +401,19 @@ func update_skills() -> void:
 		row.populate(def.display_name, Skills.level(skill_id), current_xp, def.xp_per_level)
 
 
+# ---------------------------------------------------------------------------
+# Classes (Academy report card)
+# ---------------------------------------------------------------------------
+
+func _build_classes_tab() -> Control:
+	var root := VBoxContainer.new()
+	_report_card_label = Label.new()
+	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_report_card_label.add_theme_font_size_override("font_size", 30)
+	root.add_child(_report_card_label)
+	return root
+
+
 func update_report_card() -> void:
 	_report_card_label.text = "Score: %.0f/100   Strikes: %d/%d   Absences: %d   Next exam in %d day(s)" % [
 		Academy.running_score, Academy.strikes, Academy.STRIKE_LIMIT, Academy.absences, Academy.days_until_exam()
@@ -420,9 +428,11 @@ func _build_shop_tab() -> Control:
 	var root := VBoxContainer.new()
 
 	_shop_reputation_label = Label.new()
+	_shop_reputation_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_shop_reputation_label)
 
 	_shop_coffers_label = Label.new()
+	_shop_coffers_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_shop_coffers_label)
 
 	root.add_child(HSeparator.new())
@@ -448,7 +458,9 @@ func update_shop() -> void:
 		_shop_grid.add_child(item_slot)
 		if i < Shop.slots.size():
 			var slot: Dictionary = Shop.slots[i]
-			item_slot.populate(String(slot.potion_id).capitalize(), "%d" % slot.price, _color_for_id(slot.potion_id))
+			var potion := ContentRegistry.get_potion(slot.potion_id)
+			item_slot.populate(String(slot.potion_id).capitalize(), slot.price, _color_for_id(slot.potion_id),
+				potion.icon if potion != null else null)
 		else:
 			item_slot.clear()
 
@@ -503,6 +515,7 @@ func update_recipes() -> void:
 		var header := Label.new()
 		header.theme_type_variation = &"SubheadingLabel"
 		header.text = potion.display_name
+		header.add_theme_font_size_override("font_size", 32)
 		_recipes_list.add_child(header)
 
 		var learned_recipes: Array[RecipeDef] = []
@@ -554,6 +567,7 @@ func update_journal() -> void:
 		var empty_label := Label.new()
 		empty_label.text = "No quests yet."
 		empty_label.modulate = UiPalette.TEXT_MUTED
+		empty_label.add_theme_font_size_override("font_size", 30)
 		_journal_list.add_child(empty_label)
 
 
@@ -564,6 +578,7 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 	var header := Label.new()
 	header.text = section_title
 	header.theme_type_variation = &"SubheadingLabel"
+	header.add_theme_font_size_override("font_size", 32)
 	_journal_list.add_child(header)
 
 	for quest_id in quest_ids:
@@ -591,20 +606,24 @@ func _build_settings_tab() -> Control:
 
 	var save_button := Button.new()
 	save_button.text = "Save Game"
+	save_button.add_theme_font_size_override("font_size", 30)
 	save_button.pressed.connect(_on_save_button_pressed)
 	root.add_child(save_button)
 
 	_save_status_label = Label.new()
 	_save_status_label.modulate = UiPalette.TEXT_MUTED
+	_save_status_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_save_status_label)
 
 	var return_button := Button.new()
 	return_button.text = "Return to Main Screen"
+	return_button.add_theme_font_size_override("font_size", 30)
 	return_button.pressed.connect(_on_return_button_pressed)
 	root.add_child(return_button)
 
 	var quit_button := Button.new()
 	quit_button.text = "Quit"
+	quit_button.add_theme_font_size_override("font_size", 30)
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	root.add_child(quit_button)
 	return root

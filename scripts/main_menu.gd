@@ -40,7 +40,10 @@ func _build_root_menu() -> void:
 	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(280, 0)
+	# Doubled to match the 2x world-camera zoom — via real font sizes below
+	# rather than Control.scale, which just stretches the already-rasterized
+	# (small) glyph bitmaps and renders them blurry.
+	vbox.custom_minimum_size = Vector2(560, 0)
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
@@ -48,27 +51,32 @@ func _build_root_menu() -> void:
 	title.text = "Vial Story"
 	title.theme_type_variation = &"TitleLabel"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 68)
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
 
 	var new_game_button := Button.new()
 	new_game_button.text = "New Game"
+	new_game_button.add_theme_font_size_override("font_size", 30)
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	vbox.add_child(new_game_button)
 
 	var load_game_button := Button.new()
 	load_game_button.text = "Load Game"
+	load_game_button.add_theme_font_size_override("font_size", 30)
 	load_game_button.pressed.connect(_on_load_game_pressed)
 	vbox.add_child(load_game_button)
 
 	var settings_button := Button.new()
 	settings_button.text = "Settings"
+	settings_button.add_theme_font_size_override("font_size", 30)
 	settings_button.pressed.connect(_on_settings_pressed)
 	vbox.add_child(settings_button)
 
 	var quit_button := Button.new()
 	quit_button.text = "Quit"
+	quit_button.add_theme_font_size_override("font_size", 30)
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	vbox.add_child(quit_button)
 
@@ -134,13 +142,16 @@ func _build_load_menu() -> void:
 	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(280, 0)
+	# Doubled the same way as the main menu (see _build_root_menu) — real font
+	# sizes, not Control.scale, so text rasterizes crisp instead of blurring.
+	vbox.custom_minimum_size = Vector2(560, 0)
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Load Game"
 	title.theme_type_variation = &"HeadingLabel"
+	title.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
@@ -149,23 +160,27 @@ func _build_load_menu() -> void:
 	if games.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "No saved games yet."
+		empty_label.add_theme_font_size_override("font_size", 30)
 		vbox.add_child(empty_label)
 	else:
 		for meta in games:
 			var button := Button.new()
 			var day: int = meta.get("latest_day_number", 0)
 			button.text = "%s — Day %d" % [meta.get("character_name", "?"), day]
+			button.add_theme_font_size_override("font_size", 30)
 			button.pressed.connect(_on_load_slot_pressed.bind(meta.get("game_id", "")))
 			vbox.add_child(button)
 
 	_load_status_label = Label.new()
 	_load_status_label.modulate = UiPalette.DANGER
+	_load_status_label.add_theme_font_size_override("font_size", 30)
 	vbox.add_child(_load_status_label)
 
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
 	back_button.text = "Back (Esc)"
+	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_load_back_pressed)
 	vbox.add_child(back_button)
 
@@ -212,23 +227,40 @@ func _build_settings_menu() -> void:
 	UiFx.add_drop_shadow(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(320, 0)
+	# Doubled to match the main/load menus (real font sizes via
+	# SettingsControls, not Control.scale — see settings_controls.gd). The
+	# settings list itself is capped in a ScrollContainer rather than left to
+	# grow freely: SettingsControls' now-doubled rows add up to taller than
+	# this screen used to need, and unlike GameMenu's Settings tab (already
+	# scrolls per-section), this screen had no scroll wrapper at all before.
+	vbox.custom_minimum_size = Vector2(560, 0)
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Settings"
 	title.theme_type_variation = &"HeadingLabel"
+	title.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
 
-	SettingsControls.build(vbox)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, 700)
+	vbox.add_child(scroll)
+
+	var settings_vbox := VBoxContainer.new()
+	settings_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_vbox.add_theme_constant_override("separation", 8)
+	scroll.add_child(settings_vbox)
+	SettingsControls.build(settings_vbox)
 
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
 	back_button.text = "Back (Esc)"
+	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_settings_back_pressed)
 	vbox.add_child(back_button)
 

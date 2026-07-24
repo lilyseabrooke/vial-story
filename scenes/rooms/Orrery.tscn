@@ -10,8 +10,10 @@ room_id = "orrery"
 room_size = Vector2(704, 576)
 
 [node name="Floor" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="Walls" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="SpawnPoint" type="Marker2D" parent="."]
 position = Vector2(120, 100)
