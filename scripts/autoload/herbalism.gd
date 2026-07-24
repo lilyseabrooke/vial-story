@@ -13,6 +13,7 @@ signal water_pump_upgrade_purchased(pump_id: String, upgrade_id: String)
 signal water_pump_upgrade_removed(pump_id: String, upgrade_id: String)
 
 const XP_PER_HARVEST := 15
+const QUALITY_SKILL_FACTOR := 0.03  # per Herbalism level, shifts the quality roll toward better tiers
 const WATER_PUMP_BASE_YIELD_BONUS := 0.20
 
 var plots: Array[GrowPlotInstance] = []
@@ -102,7 +103,11 @@ func harvest(plot_id: String) -> bool:
 	var yield_bonus := int(Skills.get_bonus("grow_yield"))
 	var quantity := int((seed_def.base_yield + yield_bonus) * _yield_multiplier(plot))
 
-	Inventory.add_ingredient(seed_def.yields_ingredient_id, quantity)
+	# Quality is rolled once per harvest (the whole batch shares a tier),
+	# skewed toward better tiers as Herbalism skill rises.
+	var quality_fraction := clampf(randf() + Skills.level("herbalism") * QUALITY_SKILL_FACTOR, 0.0, 1.0)
+	var tier := IngredientQuality.tier_for_fraction(quality_fraction)
+	Inventory.add_ingredient(seed_def.yields_ingredient_id, quantity, tier)
 	Skills.add_xp("herbalism", XP_PER_HARVEST)
 
 	plot.status = GrowPlotInstance.Status.EMPTY

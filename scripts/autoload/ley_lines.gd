@@ -85,19 +85,24 @@ func resolve_minigame(performance: float, bonus_ingredients: int = 0) -> void:
 	var p := clampf(performance, 0.0, 1.0)
 	var tier := _tier_for_performance(p)
 
+	# performance is already 0..1, so it doubles directly as the quality
+	# fraction -- a stronger channel yields both more AND better spectral
+	# ingredients.
+	var quality_tier := IngredientQuality.tier_for_fraction(p)
+
 	var ingredients: Dictionary = {}
 	if tier != "":
 		var yield_bonus := Skills.get_bonus("leyline_yield")
 		var count := maxi(int(TIER_BASE_COUNTS[tier] + yield_bonus), 0)
 		for i in count:
 			var id: String = SPECTRAL_INGREDIENT_IDS[Rng.range_i(0, SPECTRAL_INGREDIENT_IDS.size() - 1)]
-			Inventory.add_ingredient(id, 1)
+			Inventory.add_ingredient(id, 1, quality_tier)
 			ingredients[id] = ingredients.get(id, 0) + 1
 		Skills.add_xp("arcane_history", XP_PER_MINIGAME)
 
 	for i in maxi(bonus_ingredients, 0):
 		var bonus_id: String = SPECTRAL_INGREDIENT_IDS[Rng.range_i(0, SPECTRAL_INGREDIENT_IDS.size() - 1)]
-		Inventory.add_ingredient(bonus_id, 1)
+		Inventory.add_ingredient(bonus_id, 1, quality_tier)
 		ingredients[bonus_id] = ingredients.get(bonus_id, 0) + 1
 
 	_active_node_id = ""

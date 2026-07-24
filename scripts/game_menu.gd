@@ -114,7 +114,7 @@ func build() -> void:
 
 	_show_section("satchel")
 
-	Inventory.ingredient_changed.connect(func(_id: String, _qty: int) -> void: update_inventory())
+	Inventory.ingredient_changed.connect(func(_id: String, _tier: int, _qty: int) -> void: update_inventory())
 	Inventory.potion_added.connect(func(_id: String, _potency: float, _ease: float) -> void: update_inventory())
 	Skills.xp_gained.connect(func(_id: String, _xp: int, _level: int) -> void: update_skills())
 	Skills.leveled_up.connect(func(_id: String, _level: int) -> void: update_skills())
@@ -319,23 +319,41 @@ func update_inventory() -> void:
 
 	var entries: Array[Dictionary] = []
 	for ingredient in ContentRegistry.ingredients:
-		var count := Inventory.ingredient_count(ingredient.id)
-		if count > 0:
-			entries.append({"name": ingredient.display_name, "subtitle": "x%d" % count, "color": _color_for_id(ingredient.id), "icon": ingredient.icon})
+		var tiers := Inventory.ingredient_tiers(ingredient.id)
+		for tier in tiers:
+			var count: int = tiers[tier]
+			if count <= 0:
+				continue
+			var type_label := "%s Ingredient" % IngredientDef.Category.keys()[ingredient.category].capitalize()
+			entries.append({
+				"name": ingredient.display_name,
+				"quality": IngredientQuality.label(tier),
+				"type": type_label,
+				"quantity": count,
+				"color": _color_for_id(ingredient.id),
+				"icon": ingredient.icon,
+			})
 
 	var potion_counts: Dictionary = {}
 	for potion in Inventory.potions:
 		var potion_id: String = potion.potion_id
 		potion_counts[potion_id] = potion_counts.get(potion_id, 0) + 1
 	for potion_id in potion_counts:
-		entries.append({"name": String(potion_id).capitalize(), "subtitle": "x%d" % potion_counts[potion_id], "color": _color_for_id(potion_id), "icon": null})
+		entries.append({
+			"name": String(potion_id).capitalize(),
+			"quality": "",
+			"type": "Potion",
+			"quantity": potion_counts[potion_id],
+			"color": _color_for_id(potion_id),
+			"icon": null,
+		})
 
 	for i in GRID_COLUMNS * GRID_ROWS:
 		var slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
 		_inventory_grid.add_child(slot)
 		if i < entries.size():
 			var entry: Dictionary = entries[i]
-			slot.populate(entry.name, entry.subtitle, entry.color, entry.icon)
+			slot.populate_item(entry.name, entry.quality, entry.type, entry.quantity, entry.color, entry.icon)
 		else:
 			slot.clear()
 

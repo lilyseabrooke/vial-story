@@ -16,4 +16,4 @@ var purchased: bool = true
 ## Alembic's manager without any scene-graph lookups at brew time.
 var lab_manager_id: String = ""
 
-var stored_ingredients: Dictionary = {}   # ingredient_id -> int
+var stored_ingredients: Dictionary = {}   # ingredient_id -> {IngredientQuality.Tier -> int}

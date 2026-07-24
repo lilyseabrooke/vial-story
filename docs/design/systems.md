@@ -119,6 +119,20 @@ Ingredient
   an axis absent from an ingredient's list is implicitly 0. `IngredientDef` stores
   both as parallel arrays (`characteristic_ids`/`characteristic_values`), same
   convention as `RecipeDef`'s `ingredient_ids`/`ingredient_quantities`.
+- **Quality tiers [BUILT]**: every ingredient stack also carries a quality tier —
+  Poor, Normal, Good, Excellent, or Perfect (`IngredientQuality.Tier`,
+  `scripts/data/ingredient_quality.gd`) — Stardew-Valley style: a tier is a property
+  of the *stack*, not the `IngredientDef`, so the same id at two different tiers is
+  tracked as two separate counts (`Inventory.ingredient_counts[id]` is
+  `{tier -> count}`) with identical category/weight/characteristics either way. Tier
+  only matters to Brewing (system 4) — it never affects the discovery puzzle's stat
+  checks. Quality is produced by whatever collection method yielded the ingredient:
+  Herbalism harvests roll a tier weighted by Herbalism skill level, and Demonology
+  writs / Ley Line channeling map their existing continuous quality/performance
+  score onto a tier via the same shared `IngredientQuality.tier_for_fraction()`
+  curve (see systems 7, 17, 20). Ingredients from other sources (shop purchases,
+  Draconology, Summoning, Transmutation, Academy rewards) are always granted at
+  Normal tier for now.
 
 ---
 
@@ -287,6 +301,15 @@ BrewJob
   `potency_range`/`ease_range` (`PotionDef`, system 3 — not per-recipe data), and each stat then
   gets its own small independent quiet `+/- STAT_VARIANCE` wobble (`Rng.range_f`) so
   potency and ease aren't identical despite sharing one quality roll.
+- **Ingredient quality bonus [BUILT]**: `_consume_for_brew()` drains every required
+  ingredient highest-quality-tier-first (both linked Pantries and carried Inventory —
+  `Inventory._drain_tiers()`), then returns the quantity-weighted average of
+  `IngredientQuality.brew_bonus(tier)` across everything actually consumed. That
+  average is added directly onto `rolled_potency`/`rolled_ease` after the dice-roll
+  lerp and the `STAT_VARIANCE` wobble (then re-clamped to `[0, 100]`) — it's a pure
+  post-roll shift, so the roll itself (crit success/failure, botch) stays governed
+  only by skill/station modifiers, never by ingredient quality. See system 2 for
+  where tiers come from.
 - The roll's *natural* die faces (not the modified total) decide the outcome, not the
   pass/fail-vs-DC result: a natural 1 on either die is a critical failure and botches
   the brew — it fails immediately rather than occupying the station for the brew
@@ -584,6 +607,14 @@ WaterPump
   `base_yield + Skills.get_bonus("grow_yield")` total, mirroring how
   `Brewing._linked_pantries()` finds Pantries sharing a station's Alchemy Lab
   Manager (`Herbalism._linked_water_pumps()`, matched by `lab_manager_id`).
+- **Harvest quality [BUILT]**: `harvest()` rolls one quality tier per harvest call
+  (the whole batch shares it, same granularity as the yield formula) —
+  `clampf(randf() + Skills.level("herbalism") * QUALITY_SKILL_FACTOR, 0.0, 1.0)`
+  mapped through `IngredientQuality.tier_for_fraction()` (system 2) — so a higher
+  Herbalism level skews harvests toward Good/Excellent/Perfect without touching the
+  separate yield-quantity formula above. This is the one quality-producing system
+  with no pre-existing performance/score value to hook into (unlike Demonology's
+  writ quality or the Ley Line minigame's performance), so it's a dedicated roll.
 - CommonGarden (the always-reachable Garden Back room, system 12) currently
   has 5 Grow Plots (2 free, 3 purchasable at escalating Materials cost) plus
   one Garden Manager and one Water Pump; Garden (the magic_garden-exclusive
@@ -1407,7 +1438,12 @@ Demonology (autoload)
     + Skills.get_bonus("demon_yield")`, granted from `DEMONIC_INGREDIENT_IDS` (currently
     `imp_ash`, `brimstone_shard` — the first two `IngredientDef.Category.DEMONIC`
     resources; `source_methods = [SourceMethod.SUMMON]`, `buy_price = 0` since they're
-    only obtainable through a writ, never bought).
+    only obtainable through a writ, never bought). **Ingredient quality [BUILT]** —
+    the same `quality` (clamped `[0, 200]` — see `_roll_initial_quality()`) also
+    picks the tier every granted unit is minted at, via
+    `IngredientQuality.tier_for_fraction(quality / 200.0)` (system 2): a botched,
+    low-quality writ yields Poor demonic ingredients, a strong one Excellent/Perfect.
+    One tier per submission, shared by every unit that grant produces.
   - **Drawback count** — `_drawback_count_for_quality()`: 0 at/above `quality
     100`, climbing to `MAX_DRAWBACKS` (4) well below `70`. Each rolled drawback is one
     of `ConsequenceType` (`RESOLVE_LOSS`, `REPUTATION_LOSS`, `CLASS_PERFORMANCE_LOSS`,
@@ -1877,7 +1913,11 @@ LeyLines (autoload)
   [SourceMethod.FORAGE]`, `buy_price = 0`, only obtainable this way). Grants `XP_PER_MINIGAME` (20)
   Arcane History XP — the skill's `leyline_ease`/`leyline_yield`/`learn_speed_spectral` triplet is
   now consumed by the first two (`learn_speed_spectral` remains **[STUB]**, same as every other
-  category's ingredient-learning effect).
+  category's ingredient-learning effect). **Ingredient quality [BUILT]** — `performance` is already
+  0.0–1.0, so it's reused directly (no rescaling) as the quality fraction fed to
+  `IngredientQuality.tier_for_fraction()` (system 2): both the tier reward and any bonus-mote
+  ingredients from that resolution are granted at the resulting tier, so a stronger channel yields
+  ingredients that are both more numerous (the count tier above) and higher quality.
 - **Aborting grants nothing** — `abort_minigame()` throws the session away with no ingredients and
   no XP, same "walking away costs everything" shape as `Draconology.cancel_stash()`, just triggered
   by the player choosing to quit the minigame (or closing the menu by any route — Esc, the close

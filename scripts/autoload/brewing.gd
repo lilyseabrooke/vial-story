@@ -148,7 +148,7 @@ func available_ingredient_count(station_id: String, ingredient_id: String) -> in
 	if station == null:
 		return total
 	for pantry in _linked_pantries(station):
-		total += pantry.stored_ingredients.get(ingredient_id, 0)
+		total += Inventory.pantry_ingredient_count(pantry.id, ingredient_id)
 	return total
 
 
@@ -161,22 +161,31 @@ func has_ingredients_for(station_id: String, recipe: RecipeDef) -> bool:
 
 ## Drains linked pantries first (so stocked-up Pantry supply goes before the
 ## player's carried buffer), then falls back to Inventory.consume_ingredient
-## for any remainder.
-func _consume_for_brew(station: StationInstance, recipe: RecipeDef) -> void:
+## for any remainder. Both draws are highest-quality-first (Inventory's own
+## draining order); returns the quantity-weighted average quality bonus
+## across everything consumed, for start_brew() to apply to the roll.
+func _consume_for_brew(station: StationInstance, recipe: RecipeDef) -> float:
 	var linked := _linked_pantries(station)
+	var bonus_total := 0.0
+	var bonus_weight := 0
 	for i in recipe.ingredient_ids.size():
 		var id := recipe.ingredient_ids[i]
 		var need := recipe.ingredient_quantities[i]
 		for pantry in linked:
 			if need <= 0:
 				break
-			var have: int = pantry.stored_ingredients.get(id, 0)
+			var have := Inventory.pantry_ingredient_count(pantry.id, id)
 			var take := mini(have, need)
 			if take > 0:
-				Inventory.consume_from_pantry(pantry.id, id, take)
+				for record in Inventory.consume_from_pantry(pantry.id, id, take):
+					bonus_total += IngredientQuality.brew_bonus(record["tier"]) * record["quantity"]
+					bonus_weight += record["quantity"]
 				need -= take
 		if need > 0:
-			Inventory.consume_ingredient(id, need)
+			for record in Inventory.consume_ingredient_records(id, need):
+				bonus_total += IngredientQuality.brew_bonus(record["tier"]) * record["quantity"]
+				bonus_weight += record["quantity"]
+	return bonus_total / bonus_weight if bonus_weight > 0 else 0.0
 
 
 ## Returns "" on success, or a short reason string on failure (station busy,
@@ -195,7 +204,7 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 	if not has_ingredients_for(station_id, recipe):
 		return "Not enough ingredients."
 
-	_consume_for_brew(station, recipe)
+	var quality_bonus := _consume_for_brew(station, recipe)
 
 	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency") + _upgrade_bonus(station, "potion_potency")
 	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease") + _upgrade_bonus(station, "potion_ease")
@@ -224,8 +233,8 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 	job.ready_timestamp = job.start_timestamp + brew_minutes
 
 	var t := clampf(inverse_lerp(2.0, 30.0, roll.total), 0.0, 1.0)
-	job.rolled_potency = clampf(lerp(potion.potency_range.x, potion.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
-	job.rolled_ease = clampf(lerp(potion.ease_range.x, potion.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE), 0.0, 100.0)
+	job.rolled_potency = clampf(lerp(potion.potency_range.x, potion.potency_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE) + quality_bonus, 0.0, 100.0)
+	job.rolled_ease = clampf(lerp(potion.ease_range.x, potion.ease_range.y, t) + Rng.range_f(-STAT_VARIANCE, STAT_VARIANCE) + quality_bonus, 0.0, 100.0)
 	job.potion_count = 2 if roll.critical_success else 1
 	job.status = BrewJob.Status.BREWING
 

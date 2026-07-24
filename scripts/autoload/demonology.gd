@@ -218,10 +218,13 @@ func _grant_ingredients(quality: float) -> Dictionary:
 	var yield_bonus := Skills.get_bonus("demon_yield")
 	var count := int(BASE_INGREDIENT_COUNT + floor(quality / QUALITY_INGREDIENT_DIVISOR) + yield_bonus)
 	count = maxi(count, 1)
+	# quality is clamped [0, 200] (see _roll_initial_quality) -- every unit
+	# from this grant shares the tier that quality maps to.
+	var tier := IngredientQuality.tier_for_fraction(quality / 200.0)
 	var granted: Dictionary = {}
 	for i in count:
 		var id: String = DEMONIC_INGREDIENT_IDS[Rng.range_i(0, DEMONIC_INGREDIENT_IDS.size() - 1)]
-		Inventory.add_ingredient(id, 1)
+		Inventory.add_ingredient(id, 1, tier)
 		granted[id] = granted.get(id, 0) + 1
 	return granted
 

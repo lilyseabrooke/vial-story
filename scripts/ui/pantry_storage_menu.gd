@@ -75,11 +75,13 @@ func _rebuild_carried() -> void:
 		child.queue_free()
 	var any := false
 	for ingredient in ContentRegistry.ingredients:
-		var count := Inventory.ingredient_count(ingredient.id)
-		if count <= 0:
-			continue
-		any = true
-		_carried_list.add_child(_build_row(ingredient, count, "Store", _on_store_pressed.bind(ingredient.id)))
+		var tiers := Inventory.ingredient_tiers(ingredient.id)
+		for tier in tiers:
+			var count: int = tiers[tier]
+			if count <= 0:
+				continue
+			any = true
+			_carried_list.add_child(_build_row(ingredient, tier, count, "Store", _on_store_pressed.bind(ingredient.id, tier)))
 	if not any:
 		_carried_list.add_child(_empty_label("Nothing carried."))
 
@@ -87,27 +89,30 @@ func _rebuild_carried() -> void:
 func _rebuild_stored() -> void:
 	for child in _stored_list.get_children():
 		child.queue_free()
-	var pantry := Inventory.get_pantry(_pantry_id)
 	var any := false
-	if pantry != null:
+	if Inventory.get_pantry(_pantry_id) != null:
 		for ingredient in ContentRegistry.ingredients:
-			var count: int = pantry.stored_ingredients.get(ingredient.id, 0)
-			if count <= 0:
-				continue
-			any = true
-			_stored_list.add_child(_build_row(ingredient, count, "Take", _on_take_pressed.bind(ingredient.id)))
+			var tiers := Inventory.pantry_ingredient_tiers(_pantry_id, ingredient.id)
+			for tier in tiers:
+				var count: int = tiers[tier]
+				if count <= 0:
+					continue
+				any = true
+				_stored_list.add_child(_build_row(ingredient, tier, count, "Take", _on_take_pressed.bind(ingredient.id, tier)))
 	if not any:
 		_stored_list.add_child(_empty_label("Empty — store some ingredients."))
 
 
-func _build_row(ingredient: IngredientDef, count: int, action_text: String, action: Callable) -> Control:
+func _build_row(ingredient: IngredientDef, tier: int, count: int, action_text: String, action: Callable) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 
 	var chip := INGREDIENT_CHIP_SCENE.instantiate()
 	row.add_child(chip)
+	var subtitle := IngredientQuality.label(tier) if tier != IngredientQuality.Tier.NORMAL else ""
+	var accent := IngredientQuality.color(tier) if tier != IngredientQuality.Tier.NORMAL else UiPalette.TEXT_PRIMARY
 	chip.populate(ingredient.icon, IngredientDef.CATEGORY_COLORS[ingredient.category],
-		"×%d" % count, "", UiPalette.TEXT_PRIMARY, ingredient.display_name)
+		"×%d" % count, subtitle, accent, ingredient.display_name)
 
 	var button := Button.new()
 	button.text = action_text
@@ -126,13 +131,13 @@ func _empty_label(text: String) -> Label:
 	return label
 
 
-func _on_store_pressed(ingredient_id: String) -> void:
-	if not Inventory.deposit_to_pantry(_pantry_id, ingredient_id, 1):
+func _on_store_pressed(ingredient_id: String, tier: int) -> void:
+	if not Inventory.deposit_to_pantry(_pantry_id, ingredient_id, tier, 1):
 		notice.emit("Couldn't store that.")
 	refresh()
 
 
-func _on_take_pressed(ingredient_id: String) -> void:
-	if not Inventory.withdraw_from_pantry(_pantry_id, ingredient_id, 1):
+func _on_take_pressed(ingredient_id: String, tier: int) -> void:
+	if not Inventory.withdraw_from_pantry(_pantry_id, ingredient_id, tier, 1):
 		notice.emit("Couldn't take that.")
 	refresh()
