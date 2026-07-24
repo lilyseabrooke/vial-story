@@ -12,13 +12,15 @@ extends Node
 ## Arcane History check against the Surge's DC just resets the bar to keep
 ## meditating (see _resolve_meditation()), while a passed check erases the
 ## job and hands the Surge's own difficulty/size/speed/rounds/rewards to the
-## minigame phase, which is unchanged from before: MenuScene already pauses
-## Clock and freezes the player, so once the minigame starts there's nothing
-## left to tick or tether. LeyLineNodeInteractable.interact() hands off to
-## start_meditation() and otherwise does nothing further; hud.gd opens the
-## minigame panel (LeyLineMinigamePanel) in response to minigame_started, and
-## that panel calls back into resolve_minigame()/abort_minigame() once the
-## player finishes or bails. No get_save_data()/load_save_data() -- active
+## minigame phase. LeyLineArenaOverlay (not MenuScene) pauses Clock and
+## freezes the player for that phase, and is deliberately escape-proof --
+## there's no close button and Esc is blocked outright (see main.gd) -- so
+## once a Surge's DC check passes, the only way out is finishing all rounds;
+## there is no abort_minigame(), only resolve_minigame(). LeyLineNodeInteractable
+## .interact() hands off to start_meditation() and otherwise does nothing
+## further; hud.gd shows the minigame panel (LeyLineMinigamePanel) in response
+## to minigame_started, and that panel calls back into resolve_minigame() once
+## the player finishes. No get_save_data()/load_save_data() -- active
 ## meditation and minigame sessions are deliberately not persisted, the same
 ## as Draconology's stash jobs and Transmutation's scrap jobs.
 
@@ -44,9 +46,8 @@ signal meditation_bar_full(node_id: String)
 ## reported here too, immediately followed by minigame_started.
 signal meditation_check_rolled(node_id: String, surge_id: String, roll: Dictionary)
 
-signal minigame_started(node_id: String, difficulty: float, rounds: int)
+signal minigame_started(node_id: String, difficulty: float, rounds: int, size: float, speed: float)
 signal minigame_resolved(node_id: String, performance: float, tier: String, ingredients: Dictionary)
-signal minigame_aborted(node_id: String)
 
 ## Performance is a single 0.0-1.0 float the minigame reports back --
 ## these are the cutoffs between reward tiers, checked from the top down.
@@ -73,8 +74,9 @@ var _meditation_jobs: Dictionary = {}   # node_id -> LeyLineMeditationJob
 var _active_node_id: String = ""
 var _active_difficulty: float = 0.0
 var _active_rounds: int = 0
-## Stubbed -- carried through from the triggering Surge for whenever the
-## minigame arena reads them, but nothing consumes them yet.
+## Carried through from the triggering Surge and forwarded to the minigame via
+## minigame_started -- LeyArena is what clamps/applies them (size floor 1.0,
+## speed dividing round_time, both floored at 1.0 when <= 0).
 var _active_size: float = 0.0
 var _active_speed: float = 0.0
 ## The triggering Surge's own rewards table (Array of [ingredient_id, likelihood]
@@ -193,8 +195,10 @@ func _pick_surge(surge_ids: Array[String], surge_weights: Array[float]) -> Strin
 
 
 ## Applies leyline_ease (Arcane History) to soften the triggering Surge's own
-## difficulty, then hands its rounds/size/speed/rewards to the minigame --
-## size/speed are stashed for later, nothing reads them yet.
+## difficulty, then hands its rounds/size/speed/rewards to the minigame.
+## size/speed are passed through raw (unclamped) -- LeyLineMinigamePanel/
+## LeyArena is what applies the "below 1.0 clamps to 1.0" floor for both, same
+## as it owns every other difficulty/skill curve.
 func _launch_minigame(node_id: String, surge: LeyLineSurgeDef) -> void:
 	var ease_bonus := Skills.get_bonus("leyline_ease")
 	_active_node_id = node_id
@@ -203,7 +207,7 @@ func _launch_minigame(node_id: String, surge: LeyLineSurgeDef) -> void:
 	_active_size = surge.size
 	_active_speed = surge.speed
 	_active_rewards = surge.rewards
-	minigame_started.emit(node_id, _active_difficulty, _active_rounds)
+	minigame_started.emit(node_id, _active_difficulty, _active_rounds, _active_size, _active_speed)
 
 
 ## Called by the minigame (LeyLineMinigamePanel) with a single 0.0-1.0
@@ -240,22 +244,6 @@ func resolve_minigame(performance: float, bonus_ingredients: int = 0) -> void:
 
 	_clear_active_session()
 	minigame_resolved.emit(node_id, p, tier if tier != "" else "failure", ingredients)
-
-
-## Bailing on the minigame mid-run -- no ingredients, no XP, session just
-## thrown away. Same "walking away costs everything" shape as
-## Draconology.cancel_stash(), just triggered by the player choosing to quit
-## the minigame (or closing the menu) instead of leaving the node's
-## proximity, since MenuScene already freezes the player in place for the
-## whole session. The meditation job that led here was already erased the
-## moment the DC check passed, so the player has to start meditating from
-## scratch again, same as if they'd never rolled a Surge at all.
-func abort_minigame() -> void:
-	if not is_active():
-		return
-	var node_id := _active_node_id
-	_clear_active_session()
-	minigame_aborted.emit(node_id)
 
 
 func _clear_active_session() -> void:

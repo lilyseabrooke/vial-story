@@ -1843,8 +1843,8 @@ short minigame if the surge is caught. Meditation is player-tethered like the Dr
 `LeyLines.cancel_meditation()`, which throws the whole bar away, forcing a restart from empty —
 unlike a stash, the node itself is never destroyed, so meditating there is repeatable indefinitely.
 Only once a surge is rolled and caught does control hand off to the synchronous minigame phase,
-where (same as before) `MenuScene` pauses `Clock` and freezes the player, so there's nothing left
-to tick or tether for that part.
+hosted in its own dedicated `LeyLineArenaOverlay` (not `MenuScene`) that pauses `Clock` and freezes
+the player, so there's nothing left to tick or tether for that part.
 
 ```
 LeyLines (autoload)
@@ -1852,8 +1852,8 @@ LeyLines (autoload)
   - _active_node_id: String             # "" when no minigame is running
   - _active_difficulty: float           # surge.difficulty - leyline_ease, floored at 0
   - _active_rounds: int                 # surge.rounds
-  - _active_size: float                 # surge.size — STUB, nothing reads it yet
-  - _active_speed: float                # surge.speed — STUB, nothing reads it yet
+  - _active_size: float                 # surge.size, raw — LeyArena floors it to 1.0
+  - _active_speed: float                # surge.speed, raw — LeyArena floors non-positive to 1.0
   - _active_rewards: Array              # surge.rewards, consumed by resolve_minigame()
 
 LeyLineMeditationJob (scripts/data/ley_line_meditation_job.gd, RefCounted)
@@ -1865,7 +1865,7 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   data/ley_line_surges.json — same "variable-shape JSON catalog" shape as AlembicUpgradeDef, see
   system 4)
   - id: String
-  - difficulty: float, size: float (STUB), speed: float (STUB)
+  - difficulty: float, size: float, speed: float
   - dc: int, rounds: int
   - rewards: Array   # [[ingredient_id: String, likelihood: float], ...]
 ```
@@ -1898,22 +1898,43 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   `_launch_minigame()`.
 - **`_launch_minigame()`** applies `Skills.get_bonus("leyline_ease")` against the triggering Surge's
   own `difficulty` before handing it to the minigame, stashes `size`/`speed`/`rewards` on the active
-  session, then emits `minigame_started(node_id, difficulty, rounds)` — the signal's own shape is
-  unchanged from before, so `hud.gd`'s "autoload signal → HUD opens a panel" wiring didn't need to
-  change, it just now fires from a Surge instead of a fixed per-node constant.
+  session, then emits `minigame_started(node_id, difficulty, rounds, size, speed)` — `hud.gd` forwards
+  all five straight into `LeyLineMinigamePanel.show_for()`.
 - **The minigame** (`scripts/ui/ley_line_minigame_panel.gd`, `LeyLineMinigamePanel`) is a real-time
-  positioning game hosted in `MenuScene`. Its outer `VBoxContainer` owns only a status/hint label;
-  the play itself lives in the inner `LeyArena extends Control`, kept in the same file so the whole
-  minigame stays a single swappable unit. A big circle is the ley line node — *everything* in it is
-  dangerous except a few small glowing safe zones. The player steers a small icon (WASD or arrow
-  keys, polled in `_process` — `MenuScene` only flips `Clock.is_paused`, it never pauses the
-  SceneTree, so `_process`/`_draw` run normally) around the arena. Each round a **resonance ring**
-  collapses from the wall to the center; when it snaps shut the game measures, via circle-circle lens
-  area, what fraction of the icon overlaps the best-covering safe zone. **Movement is velocity-based**
-  (acceleration + friction, clamped to a max speed, with a solid wall at the arena edge) so it has
-  weight but stays responsive — feel is the priority.
+  positioning game hosted in a dedicated `LeyLineArenaOverlay`
+  (`scripts/ui/ley_line_arena_overlay.gd`), not `MenuScene` — unlike every other minigame/menu, it's
+  deliberately chromeless: a `CanvasLayer` holding one full-screen dimming `ColorRect` and the arena
+  itself, nothing else (no frame, no title, no round/difficulty text, no bonus-mote tracker, no close
+  button). `LeyLineMinigamePanel` is now just a thin wrapper `extends Control` that owns the arena,
+  forwards the inspector-exported tunables into it, and relays `LeyArena.finished` to
+  `LeyLines.resolve_minigame()` — the play itself lives in the inner `LeyArena extends Control`, kept
+  in the same file so the whole minigame stays a single swappable unit. There is deliberately no way
+  to back out once the minigame starts: it has no close button, and Esc is blocked outright while
+  `LeyLines.is_active()` (`main.gd`'s `_unhandled_input` skips `hud.toggle_game_menu()` entirely rather
+  than opening the game menu over top of the arena) — the only exit is finishing every round, so
+  `LeyLines` has no `abort_minigame()`/`minigame_aborted` at all, only `resolve_minigame()`. The arena
+  is natively 880×880 (`LeyArena.ARENA_SIZE`/`ARENA_RADIUS`, doubled from an earlier 440×440 pass) —
+  deliberately *not* a `Control.scale` rendering transform: a transform scale is free for vector draw
+  calls (everything the arena draws today) but would degrade any future illustrated sprite art, since a
+  texture is sampled at its native resolution and then stretched by the transform like any other bitmap
+  upscale. Every spatial tunable (radii, drift/movement speeds, the placement/clash padding constants)
+  is authored directly at this real 880×880 scale, so a sprite dropped in later at its intended
+  on-screen size renders natively with no resampling; purely temporal values and dimensionless ratios
+  are unchanged. `LeyLineArenaOverlay` centers the popup using `LeyLineMinigamePanel.get_effective_size()`
+  (just the arena's own `custom_minimum_size`, exposed as its own accessor so the overlay's centering
+  math doesn't need to know the arena's actual dimensions). A big circle is the ley line node —
+  *everything* in it is dangerous except a few small glowing safe zones. The
+  player steers a small icon (WASD or arrow keys, polled in `_process` — `LeyLineArenaOverlay` only
+  flips `Clock.is_paused`, it never pauses the SceneTree, so `_process`/`_draw` run normally) around
+  the arena. Each round a **resonance ring** collapses from the wall to the center; when it snaps shut
+  the game measures, via circle-circle lens area, what fraction of the icon overlaps the
+  best-covering safe zone. **Movement is velocity-based** (acceleration + friction, clamped to a max
+  speed, with a solid wall at the arena edge) so it has weight but stays responsive — feel is the
+  priority.
 - **Difficulty and Arcane History are separate levers.** The `difficulty` handed in (already softened
-  by `leyline_ease` upstream) is normalised over `difficulty_span` (3.0) and, as it rises, shrinks
+  by `leyline_ease` upstream) is normalised over `difficulty_span` (10.0, matching the game's usual
+  ~0-10 difficulty scale — raw values at or beyond the span just clamp to the hardest tier rather than
+  escalating further) and, as it rises, shrinks
   the safe zones, shortens the round timer, drops the zone count (3→1), and makes the zones **drift
   and shrink as the ring collapses** — the high-skill element is tracking that moving, shrinking
   target and arriving centered. Arcane History (`Skills.level("arcane_history")`, curved over
@@ -1926,6 +1947,42 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   the inspector on `scenes/ui/LeyLineMinigamePanel.tscn` — hud.gd instances that scene (rather than
   `.new()`ing the script, as the other menu panels do) so the tunables are inspector-editable, and
   `build()` forwards them into the inner `LeyArena` (whose own `@export`s Godot wouldn't surface).
+- **Safe-zone radius has a hard floor, `zone_radius_min`** (default 40px) — no matter how high
+  `difficulty_norm` climbs, neither the base radius (`_zone_base_r`, in `start_run()`) nor its further
+  in-round shrink toward the ring snap (`_zone_r_now`, in `_update_zones()`) can go below it; both are
+  `maxf()`'d against the same flat, unscaled-by-`size` pixel value. Difficulty that would otherwise
+  keep shrinking zones past that point instead spends itself on **obstacles**: solid hazards
+  (`obstacle_count`, 0→4 by default) that the icon physically can't pass through, rather than one more
+  twist of the zone-shrink knob. Each obstacle has `obstacle_moving_chance` (0→50%) of drifting like a
+  safe zone (same wall-bounce-off-the-arena-edge shape as `_update_zones()`'s zone drift, via its own
+  `_update_obstacles()`) instead of sitting still — drawn gray when stationary, amber when moving, so
+  the player can read at a glance which ones will still be where they are next frame. Radius is
+  independently rolled per obstacle off `obstacle_radius_variance` (0.6×-1.5× `obstacle_radius` by
+  default) in `_generate_obstacles()`, so a single run has a mix of sizes rather than identical
+  hazards; placement clash checks against zones/other obstacles use each obstacle's own rolled radius.
+  Drawn as a
+  jagged two-bar crystal-shard cluster (`_shard_bar_points()`, two rotated rectangles crossed at a
+  random 55°-125° angle per obstacle) rather than a circle, so it reads as visually distinct from the
+  round safe zones/mote/icon at a glance — collision is still a plain circle against `r` for now, an
+  explicit placeholder for a future sprite with its own fitted collision shape.
+  `_generate_obstacles()` places them clear of the player and safe zones (a few placement tries each,
+  same "give up and accept the last try" shape as `_generate_zones()`), and `_resolve_obstacle_collisions()`
+  runs every movement frame in `_update_movement()`: an icon overlapping an obstacle gets shoved back out
+  to its edge with the inward velocity component reflected (`wall_bounce`-damped), the same physical
+  response as the arena's own outer wall, so running into one is a recoverable mistake, not a stop
+  dead against a stuck wall. Obstacle radius scales with a triggering Surge's `size` the same as the
+  icon/zones/mote do; `obstacle_count`/`obstacle_moving_chance`/`obstacle_speed` are curved by
+  `difficulty_norm` like every other difficulty-driven value here.
+- **A triggering Surge's `size`/`speed` are the last two per-run levers, applied in
+  `LeyArena.start_run()` after the difficulty/Arcane-History curves above are resolved.** `size`
+  divides the icon, safe-zone, and bonus-mote radii — the arena's own canvas (`ARENA_SIZE`/
+  `ARENA_RADIUS`) never changes, so a bigger `size` just makes everything already placed on it
+  smaller relative to that fixed canvas, i.e. more distance to cover and less margin for error, the
+  same effect a genuinely larger arena would have without redrawing the arena itself. `speed` divides
+  `_round_time` (the resonance ring's own collapse timer) directly — a `speed` of 2.0 halves how long
+  the player has before the ring snaps. Both floor rather than shrink the challenge: `size` below 1.0
+  clamps to 1.0 (1.0 is already the arena's minimum/baseline size) and a non-positive `speed` clamps
+  to 1.0 (no change), so a Surge can only ever make a run harder along these two axes, never easier.
 - **Resolve is charged per round, at each snap**, proportional to the danger fraction (`1 - safe`)
   and weighted up by difficulty (`max_resolve_per_round` 12 × `0.6 + 0.6·norm`) — the minigame calls
   `Resolve.spend()` directly, the same "a mishap event charges Resolve" shape Brewing's botch uses,
@@ -1944,10 +2001,7 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
 - After the last round the arena averages the per-round safe fractions into a single `performance` and,
   after a short on-screen grade readout (which also shows any `+N bonus`), reports it via
   `LeyLines.resolve_minigame(performance, bonus_ingredients)` — the `performance` half is the same
-  0.0–1.0 contract the old placeholder satisfied and `bonus_ingredients` defaults to 0, so
-  `LeyLineNodeInteractable`, `hud.gd`'s signal wiring, and the abort-on-close guard were untouched.
-  `abort_minigame()` (Esc/close) still bails with no reward, and any Resolve already spent during the
-  run stays spent.
+  0.0–1.0 contract the old placeholder satisfied and `bonus_ingredients` defaults to 0.
 - **Performance maps to a reward tier**, not a continuous formula like Draconology's quality/divisor
   — `great` (≥0.85) / `good` (≥0.6) / `poor` (≥0.25) / below that, nothing. A non-failure tier rolls
   the *triggering Surge's own* `rewards` table via `LeyLines._roll_rewards()` — this replaced the old
@@ -1969,13 +2023,11 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   fraction fed to `IngredientQuality.tier_for_fraction()` (system 2): both the Surge-rolled tier
   reward and any bonus-mote ingredients from that resolution are granted at the resulting tier, so a
   stronger channel yields ingredients that are both more numerous and higher quality.
-- **Aborting grants nothing** — `abort_minigame()` throws the session away with no ingredients and
-  no XP, same "walking away costs everything" shape as `Draconology.cancel_stash()`, just triggered
-  by the player choosing to quit the minigame (or closing the menu by any route — Esc, the close
-  button) rather than leaving the node's proximity, since the player can't physically walk away
-  mid-session anyway. `hud.gd` wires `MenuScene.closed` to check `LeyLines.is_active()` and call
-  `abort_minigame()` if a session is still open when the menu closes for any reason, so an Esc-press
-  mid-minigame can't leave a dangling session.
+- **There is no way to abort a run.** `LeyLineArenaOverlay` has no close button and Esc is blocked
+  outright while `LeyLines.is_active()`, so once a Surge's DC check passes the only way out of the
+  minigame is finishing every round — `LeyLines` accordingly has no `abort_minigame()`; the *previous*
+  phase (meditation) is still the only place the player can walk away and lose progress, exactly as
+  before.
 - **No save contract.** Same as Transmutation, there's no state that outlives a single synchronous
   interaction — `LeyLines` has no `get_save_data()`/`load_save_data()` and isn't in
   `SaveManager._SAVE_ORDER`.

@@ -202,7 +202,9 @@ func fail_rift_minigame(rift_id: String) -> void:
 
 ## The player left the minigame without finishing (Esc / closing the menu) --
 ## no job, no Resolve cost, session just thrown away. Same "walking away from a
-## synchronous session" shape as LeyLines.abort_minigame().
+## synchronous session" shape as Draconology.cancel_stash() -- this one fires
+## on the minigame's own MenuScene close event rather than a player_exited
+## proximity signal.
 func abort_rift_minigame() -> void:
 	if not is_minigame_active():
 		return

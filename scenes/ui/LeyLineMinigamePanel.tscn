@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scripts/ui/ley_line_minigame_panel.gd" id="1"]
 
-[node name="LeyLineMinigamePanel" type="VBoxContainer"]
+[node name="LeyLineMinigamePanel" type="Control"]
 script = ExtResource("1")

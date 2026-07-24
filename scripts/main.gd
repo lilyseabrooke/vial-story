@@ -88,7 +88,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			if not hud.is_menu_open():
 				Clock.is_paused = not Clock.is_paused
 		KEY_ESCAPE:
-			hud.toggle_game_menu()
+			# The Ley Line minigame is deliberately escape-proof once started --
+			# see LeyLineArenaOverlay -- so Esc does nothing at all while it's
+			# open, rather than opening the game menu over top of it.
+			if not LeyLines.is_active():
+				hud.toggle_game_menu()
 		KEY_E:
 			_on_interact_pressed()
 		KEY_R:

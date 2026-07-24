@@ -174,7 +174,7 @@ func build_rooms() -> void:
 	# rest of the game. _sync_ley_line_indicator() sees get_meditation_job()
 	# return null and hides it via clear_meditation_indicator(), same as any
 	# other "job's gone" case.
-	LeyLines.minigame_started.connect(func(node_id: String, _difficulty: float, _rounds: int) -> void: _sync_ley_line_indicator(node_id))
+	LeyLines.minigame_started.connect(func(node_id: String, _difficulty: float, _rounds: int, _size: float, _speed: float) -> void: _sync_ley_line_indicator(node_id))
 	for node_id in _ley_line_nodes:
 		_sync_ley_line_indicator(node_id)
 

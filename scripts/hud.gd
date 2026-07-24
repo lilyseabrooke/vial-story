@@ -41,6 +41,7 @@ var _pantry_tween: Tween
 var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
+var _ley_line_overlay: LeyLineArenaOverlay
 var _rift_panel: PlanarRiftMinigamePanel
 
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
@@ -180,8 +181,13 @@ func build(starting_ingredients: Dictionary) -> void:
 	# Instanced from a scene (not .new()) so its minigame tunables are
 	# editable in the inspector on LeyLineMinigamePanel.tscn; build() still
 	# constructs the panel's children in code, same as the other HUD panels.
+	# Hosted in its own chromeless LeyLineArenaOverlay rather than MenuScene --
+	# see that class's doc header for why.
 	_ley_line_panel = LEY_LINE_MINIGAME_PANEL_SCENE.instantiate()
 	_ley_line_panel.build()
+	_ley_line_overlay = LeyLineArenaOverlay.new()
+	_ley_line_overlay.build(_ley_line_panel)
+	add_child(_ley_line_overlay)
 
 	# Instanced from a scene (not .new()) so its portal-timer tunables are
 	# editable in the inspector on PlanarRiftMinigamePanel.tscn, same as the
@@ -250,14 +256,10 @@ func build(starting_ingredients: Dictionary) -> void:
 
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
-	# LeyLines has no walk-away tether (MenuScene already freezes the player
-	# for the whole session) -- closing the menu by any route (Esc, the
-	# close button, or the panel's own Abort button after it's already
-	# resolved) is what stands in for "leaving mid-minigame", so a still-
-	# active session here means the player bailed without finishing.
+	# The Ley Line minigame no longer goes through MenuScene at all (see
+	# LeyLineArenaOverlay) -- it has no Esc/close-button route to walk away
+	# from once started, so there's nothing for this handler to guard for it.
 	_menu_scene.closed.connect(func() -> void:
-		if LeyLines.is_active():
-			LeyLines.abort_minigame()
 		# Same walk-away guard for the Planar Rift minigame: closing the menu
 		# by any route while a session is still open (i.e. the player hadn't
 		# matched a sequence or timed out yet) counts as leaving it.
@@ -420,13 +422,13 @@ func _connect_autoload_signals() -> void:
 			log_message("A surge of %s ripples through the ley line -- you can't quite grasp it. Meditation continues." % surge_id)
 		print("Ley line Surge rolled: %s -- passed %s" % [surge_id, roll.get("passed", false)])
 	)
-	LeyLines.minigame_started.connect(func(node_id: String, difficulty: float, rounds: int) -> void:
-		_ley_line_panel.show_for(node_id, difficulty, rounds)
-		open_menu(_ley_line_panel, "Ley Line Node")
+	LeyLines.minigame_started.connect(func(node_id: String, difficulty: float, rounds: int, size: float, speed: float) -> void:
+		_ley_line_panel.show_for(node_id, difficulty, rounds, size, speed)
+		_ley_line_overlay.show_panel()
 		log_message("The ley line surges, ready to resonate...")
 	)
 	LeyLines.minigame_resolved.connect(func(_node_id: String, _performance: float, tier: String, ingredients: Dictionary) -> void:
-		close_menu()
+		_ley_line_overlay.hide_panel()
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -436,9 +438,6 @@ func _connect_autoload_signals() -> void:
 			log_message("The ley line settles (%s)! Received: %s." % [tier, ", ".join(ingredient_summary)])
 		print("Ley line minigame resolved -- tier %s, ingredients: %s" % [tier, ingredient_summary])
 		update_ingredients_label()
-	)
-	LeyLines.minigame_aborted.connect(func(_node_id: String) -> void:
-		log_message("You break away from the ley line -- no ingredients gathered.")
 	)
 	Summoning.rift_minigame_requested.connect(func(rift_id: String) -> void:
 		_rift_panel.show_for(rift_id)
