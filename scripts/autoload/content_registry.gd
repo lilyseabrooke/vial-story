@@ -34,9 +34,9 @@ const INGREDIENT_PATHS := [
 ]
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",
-	"res://data/upgrades/alembic_tune_up.tres",
-	"res://data/upgrades/quick_brew_coil.tres",
 ]
+## Alembic upgrades are JSON, not .tres — see AlembicUpgradeDef for why.
+const ALEMBIC_UPGRADE_CATALOG_PATH := "res://data/alembic_upgrades.json"
 const SEED_PATHS := [
 	"res://data/seeds/moonpetal_seed.tres",
 ]
@@ -70,6 +70,7 @@ var recipes: Array[RecipeDef] = []
 var potions: Array[PotionDef] = []
 var ingredients: Array[IngredientDef] = []
 var upgrades: Array[UpgradeDef] = []
+var alembic_upgrades: Array[AlembicUpgradeDef] = []
 var seeds: Array[SeedDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
@@ -80,6 +81,7 @@ var _recipes_by_id: Dictionary = {}        # id -> RecipeDef
 var _potions_by_id: Dictionary = {}        # id -> PotionDef
 var _ingredients_by_id: Dictionary = {}    # id -> IngredientDef
 var _upgrades_by_id: Dictionary = {}       # id -> UpgradeDef
+var _alembic_upgrades_by_id: Dictionary = {}  # id -> AlembicUpgradeDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
@@ -104,6 +106,12 @@ func _ready() -> void:
 		var def := load(path) as UpgradeDef
 		upgrades.append(def)
 		_upgrades_by_id[def.id] = def
+	var catalog_text := FileAccess.get_file_as_string(ALEMBIC_UPGRADE_CATALOG_PATH)
+	var catalog: Array = JSON.parse_string(catalog_text)
+	for entry in catalog:
+		var def := AlembicUpgradeDef.from_dict(entry)
+		alembic_upgrades.append(def)
+		_alembic_upgrades_by_id[def.id] = def
 	for path in SEED_PATHS:
 		var def := load(path) as SeedDef
 		seeds.append(def)
@@ -140,6 +148,10 @@ func get_ingredient(id: String) -> IngredientDef:
 
 func get_upgrade(id: String) -> UpgradeDef:
 	return _upgrades_by_id.get(id)
+
+
+func get_alembic_upgrade(id: String) -> AlembicUpgradeDef:
+	return _alembic_upgrades_by_id.get(id)
 
 
 func get_seed(id: String) -> SeedDef:

@@ -19,6 +19,7 @@ var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 var class_panel: VBoxContainer
+var alchemy_lab_panel: AlchemyLabMenu
 
 var _station_id: String = ""
 var _starting_ingredients: Dictionary = {}
@@ -42,8 +43,7 @@ var _rift_panel: PlanarRiftMinigamePanel
 var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
 
-func build(station_id: String, starting_ingredients: Dictionary) -> void:
-	_station_id = station_id
+func build(starting_ingredients: Dictionary) -> void:
 	_starting_ingredients = starting_ingredients
 
 	# Resolve meter — top-left, drawn as a filling potion vial.
@@ -191,6 +191,10 @@ func build(station_id: String, starting_ingredients: Dictionary) -> void:
 		upgrade_button.pressed.connect(on_buy_upgrade_button_pressed.bind(upgrade))
 		_upgrade_buttons[upgrade.id] = upgrade_button
 		supply_panel.add_child(upgrade_button)
+
+	alchemy_lab_panel = AlchemyLabMenu.new()
+	alchemy_lab_panel.build()
+	alchemy_lab_panel.notice.connect(log_message)
 
 	class_panel = VBoxContainer.new()
 	class_panel.add_child(MenuKeyNav.new())
@@ -532,16 +536,28 @@ func toggle_game_menu() -> void:
 		_menu_scene.open(_game_menu, "Menu")
 
 
-## Opens (refreshing first) or closes the brew menu. The brew station only lets
-## the menu open when it has no job running, so there's no collect action here —
-## a finished brew is auto-collected on interact instead (BrewStationInteractable).
-func toggle_brew_menu() -> void:
-	if _menu_scene.has_content(brew_panel) and _menu_scene.is_open():
+## Opens (refreshing first) or closes the brew menu for a specific station —
+## multiple Alembics each need their own start_brew() target, so the station
+## being managed is tracked per-open rather than fixed at boot. The brew
+## station only lets the menu open when it has no job running, so there's no
+## collect action here — a finished brew is auto-collected on interact
+## instead (BrewStationInteractable).
+func toggle_brew_menu(station_id: String) -> void:
+	if _menu_scene.has_content(brew_panel) and _menu_scene.is_open() and _station_id == station_id:
 		_menu_scene.close()
 	else:
+		_station_id = station_id
 		brew_panel.refresh()
 		open_menu(brew_panel, "Brewing")
 		_show_pantry()
+
+
+## Opens the Alchemy Lab menu (refreshing first) for the given manager's
+## linked stations. No toggle-to-close: re-entering the interactable and
+## pressing E again just re-opens with fresh data.
+func open_alchemy_lab_menu(station_ids: Array[String]) -> void:
+	alchemy_lab_panel.open_for(station_ids)
+	open_menu(alchemy_lab_panel, "Alchemy Lab")
 
 
 ## Reveals the detached pantry window and parks it just to the left of the brew

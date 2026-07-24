@@ -230,6 +230,7 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
 	if interactable is BrewStationInteractable:
+		Brewing.register_station(interactable.target_id, interactable.display_name, "alembic", interactable.cost)
 		_station_nodes[interactable.target_id] = interactable
 	elif interactable is ContractBookInteractable:
 		_contract_nodes[interactable.target_id] = interactable

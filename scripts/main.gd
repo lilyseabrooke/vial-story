@@ -12,7 +12,6 @@ extends Node2D
 ## granted, a loaded game already has Inventory restored and must not get
 ## them twice.
 
-const STATION_ID := "alembic_1"
 const STARTING_INGREDIENTS := {
 	"moonpetal": 3,
 	"iron_filings": 3,
@@ -49,7 +48,7 @@ func _start_game(player_color: Color) -> void:
 
 	hud = GameHud.new()
 	add_child(hud)
-	hud.build(STATION_ID, STARTING_INGREDIENTS)
+	hud.build(STARTING_INGREDIENTS)
 
 	Herbalism.ready_to_harvest.connect(_on_ready_to_harvest)
 	Herbalism.harvested.connect(_on_harvested)

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "smogburner",
+    "display_name": "Smogburner Coil",
+    "cost": 1000,
+    "effects": { "brew_speed": 0.25, "potion_ease": -0.10 },
+    "tags": [],
+    "excludes": []
+  },
+  {
+    "id": "reinforced_vials",
+    "display_name": "Reinforced Vials",
+    "cost": 1500,
+    "effects": {},
+    "tags": ["ignore_critical_failure"],
+    "excludes": []
+  },
+  {
+    "id": "purity_concentrator",
+    "display_name": "Purity Concentrator",
+    "cost": 4000,
+    "effects": { "potion_ease": 0.30 },
+    "tags": [],
+    "excludes": ["smogburner"]
+  }
+]

@@ -247,10 +247,12 @@ Recipe                              # RecipeDef, scripts/data/recipe_def.gd
 Station
   - id
   - station_type
-  - tier
-  - potency_modifier               # from tier/upgrades
-  - ease_modifier                  # from tier/upgrades
+  - potency_modifier               # from Skills bonuses + equipped upgrade effects
+  - ease_modifier                  # from Skills bonuses + equipped upgrade effects
   - speed_modifier
+  - cost                           # Materials to purchase at its linked Alchemy Lab Manager; 0 = already owned
+  - purchased: bool
+  - upgrade_ids: [String]          # currently-equipped AlembicUpgradeDef ids
 
 BrewJob
   - recipe_id
@@ -347,6 +349,35 @@ BrewJob
   safe because the world is paused whenever a menu is open.
 - **Quick slots** (1/2/3) are session-only (held on the `BrewMenu` instance, not
   saved) and self-clear if their recipe becomes unlearned (`_validate_quick_slots`).
+- **Alembic purchasing & upgrades.** Alembics are hand-placed
+  `BrewStationInteractable` nodes (not runtime-spawned) — each one carries its own
+  `cost` (0 = already owned) and a `lab_manager_path` `NodePath` pointing at the
+  `AlchemyLabManagerInteractable` node that sells it. `Brewing.register_station()`
+  creates a `StationInstance` for every placed Alembic as `RoomBuilder` wires its
+  room (so a station exists whether or not it's purchased yet), replacing the old
+  hardcoded single-station boot-up. Interacting with an unpurchased Alembic refuses
+  to open the brew menu. The Lab Manager discovers its linked Alembics by scanning
+  the `"alembic_interactables"` group for nodes whose `lab_manager_path` resolves
+  back to itself (link direction is Alembic → Manager), rather than holding a list.
+  Opening it (`AlchemyLabMenu`, `scripts/ui/alchemy_lab_menu.gd`) shows a grid of its
+  stations; selecting an unpurchased one offers a Purchase button
+  (`Brewing.purchase_station`), a purchased one lists every
+  `AlembicUpgradeDef` from the catalog with Buy/Remove buttons
+  (`Brewing.purchase_alembic_upgrade`/`remove_alembic_upgrade`) — removing an
+  upgrade gives no refund, so it's a respec cost, not a return.
+- **Alembic upgrade catalog** (`data/alembic_upgrades.json`, loaded by
+  `ContentRegistry` into `AlembicUpgradeDef`s) is deliberately JSON rather than the
+  rest of the repo's `.tres`/`Resource` convention — each entry's `effects`
+  (effect_target → float, e.g. `brew_speed`/`potion_ease`/`potion_potency`, summed
+  into the station's modifiers alongside `Skills.get_bonus()`), `tags` (e.g.
+  `ignore_critical_failure` — downgrades a rolled critical failure to a normal
+  result instead of spending Resolve/botching), and `excludes` (mutually-exclusive
+  upgrade ids, checked both directions at purchase time) are variable-shape lists
+  that are painful to hand-author as parallel typed-array `.tres` exports. This is a
+  one-off exception scoped to that shape, not a precedent for every future data
+  type. The same station/menu/JSON-catalog shape is intended to extend to the other
+  five resource-producing interactables (grow plots, planar rifts, contract books,
+  etc.) later — out of scope for now.
 
 ---
 

@@ -7,6 +7,9 @@ signal brew_ready(station_id: String, recipe_id: String)
 signal brew_collected(station_id: String, recipe_id: String, potency: float, ease_value: float)
 signal brew_botched(station_id: String, recipe_id: String)
 signal brew_roll_resolved(station_id: String, recipe_id: String, roll: Dictionary)
+signal station_purchased(station_id: String)
+signal alembic_upgrade_purchased(station_id: String, upgrade_id: String)
+signal alembic_upgrade_removed(station_id: String, upgrade_id: String)
 
 const XP_PER_BREW := 20
 const BOTCH_RESOLVE_COST := 15
@@ -18,15 +21,6 @@ var stations: Array[StationInstance] = []
 
 func _ready() -> void:
 	Clock.minute_tick.connect(_on_minute_tick)
-	_setup_default_stations()
-
-
-func _setup_default_stations() -> void:
-	var station := StationInstance.new()
-	station.id = "alembic_1"
-	station.display_name = "Alembic I"
-	station.station_type = "alembic"
-	stations.append(station)
 
 
 func get_station(station_id: String) -> StationInstance:
@@ -34,6 +28,93 @@ func get_station(station_id: String) -> StationInstance:
 		if station.id == station_id:
 			return station
 	return null
+
+
+## Idempotent — called by RoomBuilder as each hand-placed BrewStationInteractable
+## is wired, so a station exists as soon as its Alembic node loads regardless of
+## whether it's purchased yet. Returns the existing station if `id` is already
+## registered (e.g. a save was already loaded before rooms wired) rather than
+## clobbering its live purchased/upgrade state.
+func register_station(id: String, display_name: String, station_type: String, cost: int) -> StationInstance:
+	var existing := get_station(id)
+	if existing != null:
+		return existing
+	var station := StationInstance.new()
+	station.id = id
+	station.display_name = display_name
+	station.station_type = station_type
+	station.cost = cost
+	station.purchased = cost <= 0
+	stations.append(station)
+	return station
+
+
+## Returns "" on success, or a short reason string on failure.
+func purchase_station(station_id: String) -> String:
+	var station := get_station(station_id)
+	if station == null:
+		return "No such station."
+	if station.purchased:
+		return "Already purchased."
+	if not Inventory.spend_materials(station.cost):
+		return "Not enough Materials."
+	station.purchased = true
+	station_purchased.emit(station_id)
+	return ""
+
+
+## Returns "" on success, or a short reason string on failure. Mutual
+## exclusion is checked both directions — the new upgrade's own `excludes`
+## against what's owned, and each owned upgrade's `excludes` against the new
+## id — so it doesn't matter which of an exclusive pair was bought first.
+func purchase_alembic_upgrade(station_id: String, upgrade_id: String) -> String:
+	var station := get_station(station_id)
+	if station == null:
+		return "No such station."
+	if not station.purchased:
+		return "Station hasn't been purchased yet."
+	if upgrade_id in station.upgrade_ids:
+		return "Already purchased."
+	var upgrade := ContentRegistry.get_alembic_upgrade(upgrade_id)
+	if upgrade == null:
+		return "No such upgrade."
+	for owned_id in station.upgrade_ids:
+		if owned_id in upgrade.excludes:
+			return "Conflicts with an equipped upgrade."
+		var owned := ContentRegistry.get_alembic_upgrade(owned_id)
+		if owned != null and upgrade_id in owned.excludes:
+			return "Conflicts with an equipped upgrade."
+	if not Inventory.spend_materials(upgrade.cost):
+		return "Not enough Materials."
+	station.upgrade_ids.append(upgrade_id)
+	alembic_upgrade_purchased.emit(station_id, upgrade_id)
+	return ""
+
+
+## No refund — removing an upgrade is a respec, not a return.
+func remove_alembic_upgrade(station_id: String, upgrade_id: String) -> void:
+	var station := get_station(station_id)
+	if station == null:
+		return
+	station.upgrade_ids.erase(upgrade_id)
+	alembic_upgrade_removed.emit(station_id, upgrade_id)
+
+
+func _upgrade_bonus(station: StationInstance, effect_target: String) -> float:
+	var total := 0.0
+	for upgrade_id in station.upgrade_ids:
+		var upgrade := ContentRegistry.get_alembic_upgrade(upgrade_id)
+		if upgrade != null:
+			total += upgrade.effects.get(effect_target, 0.0)
+	return total
+
+
+func _has_tag(station: StationInstance, tag: String) -> bool:
+	for upgrade_id in station.upgrade_ids:
+		var upgrade := ContentRegistry.get_alembic_upgrade(upgrade_id)
+		if upgrade != null and tag in upgrade.tags:
+			return true
+	return false
 
 
 ## Returns "" on success, or a short reason string on failure (station busy,
@@ -54,16 +135,18 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 
 	Inventory.consume_ingredients_for(recipe)
 
-	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency")
-	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease")
+	var potency_modifier := station.potency_modifier + Skills.get_bonus("station_potency") + _upgrade_bonus(station, "potion_potency")
+	var ease_modifier := station.ease_modifier + Skills.get_bonus("station_ease") + _upgrade_bonus(station, "potion_ease")
 
 	var modifier := (potency_modifier + ease_modifier) / 2.0
 	var roll := Rng.roll_2d10(modifier, DICE_DC)
 	brew_roll_resolved.emit(station.id, recipe.id, roll)
 
 	# A critical failure never occupies the station -- it fails right away
-	# instead of consuming the full brew time first.
-	if roll.critical_failure:
+	# instead of consuming the full brew time first. The "ignore_critical_failure"
+	# upgrade tag (e.g. Reinforced Vials) downgrades a critical failure to a
+	# normal result instead, so the station stays usable and Resolve is spared.
+	if roll.critical_failure and not _has_tag(station, "ignore_critical_failure"):
 		Resolve.spend(BOTCH_RESOLVE_COST, "botched brew: %s" % recipe.display_name)
 		brew_botched.emit(station.id, recipe.id)
 		return ""
@@ -72,7 +155,7 @@ func start_brew(station_id: String, recipe: RecipeDef) -> String:
 	job.recipe = recipe
 	job.start_timestamp = Clock.get_timestamp()
 
-	var speed_modifier := station.speed_modifier + Skills.get_bonus("station_speed")
+	var speed_modifier := station.speed_modifier + Skills.get_bonus("station_speed") + _upgrade_bonus(station, "brew_speed")
 	var brew_minutes := potion.brew_time_minutes
 	if speed_modifier > 0.0:
 		brew_minutes = int(brew_minutes / speed_modifier)
@@ -141,6 +224,9 @@ func get_save_data() -> Dictionary:
 			"potency_modifier": station.potency_modifier,
 			"ease_modifier": station.ease_modifier,
 			"speed_modifier": station.speed_modifier,
+			"cost": station.cost,
+			"purchased": station.purchased,
+			"upgrade_ids": station.upgrade_ids.duplicate(),
 			"current_job": job_data,
 		})
 	return {"stations": station_data}
@@ -160,6 +246,11 @@ func load_save_data(data: Dictionary) -> void:
 		station.potency_modifier = entry.get("potency_modifier", 0.0)
 		station.ease_modifier = entry.get("ease_modifier", 0.0)
 		station.speed_modifier = entry.get("speed_modifier", 1.0)
+		station.cost = entry.get("cost", 0)
+		station.purchased = entry.get("purchased", true)
+		var upgrade_ids: Array[String] = []
+		upgrade_ids.assign(entry.get("upgrade_ids", []))
+		station.upgrade_ids = upgrade_ids
 
 		var job_data = entry.get("current_job")
 		if job_data != null:

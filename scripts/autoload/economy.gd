@@ -5,8 +5,6 @@ extends Node
 signal upgrade_purchased(upgrade_id: String)
 signal ingredient_bought(ingredient_id: String, quantity: int)
 
-const STATION_ID := "alembic_1"   # only station in the prototype; upgrades target it directly
-
 var purchased_upgrade_ids: Array[String] = []
 
 
@@ -52,12 +50,6 @@ func _apply_effect(upgrade: UpgradeDef) -> void:
 	match upgrade.effect_target:
 		"shop_capacity":
 			Shop.capacity += int(upgrade.effect_amount)
-		"station_potency":
-			Brewing.get_station(STATION_ID).potency_modifier += upgrade.effect_amount
-		"station_ease":
-			Brewing.get_station(STATION_ID).ease_modifier += upgrade.effect_amount
-		"station_speed":
-			Brewing.get_station(STATION_ID).speed_modifier += upgrade.effect_amount
 		_:
 			push_warning("Unknown upgrade effect_target: %s" % upgrade.effect_target)
 
