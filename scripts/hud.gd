@@ -20,6 +20,7 @@ var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 var class_panel: VBoxContainer
 var alchemy_lab_panel: AlchemyLabMenu
+var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
 
 var _station_id: String = ""
@@ -197,6 +198,10 @@ func build(starting_ingredients: Dictionary) -> void:
 	alchemy_lab_panel = AlchemyLabMenu.new()
 	alchemy_lab_panel.build()
 	alchemy_lab_panel.notice.connect(log_message)
+
+	garden_panel = GardenMenu.new()
+	garden_panel.build()
+	garden_panel.notice.connect(log_message)
 
 	pantry_storage_panel = PantryStorageMenu.new()
 	pantry_storage_panel.build()
@@ -565,6 +570,13 @@ func toggle_brew_menu(station_id: String) -> void:
 func open_alchemy_lab_menu(items: Array[Dictionary]) -> void:
 	alchemy_lab_panel.open_for(items)
 	open_menu(alchemy_lab_panel, "Alchemy Lab")
+
+
+## Opens the Garden menu (refreshing first) for the given manager's linked
+## Grow Plots/Water Pumps. No toggle-to-close, same as open_alchemy_lab_menu().
+func open_garden_menu(items: Array[Dictionary]) -> void:
+	garden_panel.open_for(items)
+	open_menu(garden_panel, "Garden")
 
 
 ## Opens (refreshing first) or closes the Pantry storage menu for a specific

@@ -6,8 +6,11 @@ extends Node2D
 ## Rooms are hand-authored scenes under scenes/rooms/ (Room-scripted Node2D
 ## with Floor/Walls TileMapLayers, a SpawnPoint marker, and pre-placed
 ## Interactables); this script loads them, wires their signals, and
-## (de)activates them, plus code-instances the one thing that can't be
-## authored up front — runtime grow-plot Interactables. The camera is a
+## (de)activates them, plus code-instances the handful of Interactables that
+## spawn dynamically at runtime (Dragon's Stashes, Scrap Heaps). Grow plots
+## used to be one of those runtime-instanced exceptions but are now
+## hand-placed like everything else — see _wire_interactable()'s
+## GrowPlotInteractable/WaterPumpInteractable branches. The camera is a
 ## child of the player (see build_rooms()) so it follows automatically;
 ## switch_room() clamps it to each room's Room.room_size.
 
@@ -33,7 +36,6 @@ const LEY_LINE_FISSURE_SCENE := preload("res://scenes/rooms/LeyLineFissure.tscn"
 const CONFLUENCE_ZONE_SCENE := preload("res://scenes/rooms/ConfluenceZone.tscn")
 const FORMER_RELIQUARY_SCENE := preload("res://scenes/rooms/FormerReliquary.tscn")
 const UNDERBELLY_SCENE := preload("res://scenes/rooms/Underbelly.tscn")
-const GROW_PLOT_SCENE := preload("res://scenes/interactables/GrowPlotInteractable.tscn")
 const DRAGON_STASH_SCENE := preload("res://scenes/interactables/DragonStashInteractable.tscn")
 const SCRAP_HEAP_SCENE := preload("res://scenes/interactables/ScrapHeapInteractable.tscn")
 
@@ -58,10 +60,11 @@ const ORRERY_ROOM_ID := "orrery"
 ## (RavenCanopy/LeyLineFissure/ConfluenceZone/FormerReliquary/Underbelly).
 ## Garden is the same shape: GARDEN_SCENE is the magic_garden-exclusive Shop
 ## Back room, and COMMON_GARDEN_SCENE (below) is the always-reachable
-## counterpart every other origin uses instead -- see
-## _active_garden_room_id() for how grow-plot instancing picks between them,
-## since Herbalism's plot list is one global pool that has to land in
-## whichever of the two rooms is actually reachable for this playthrough.
+## counterpart every other origin uses instead. Unlike the other five pairs,
+## both Garden rooms carry their own hand-placed Grow Plots (Herbalism no
+## longer owns a shared plot pool) -- only CommonGarden has a Garden Manager/
+## Water Pump so far, but a magic_garden playthrough still gets its own
+## (unmanaged) plots in Garden.tscn.
 const SHOP_BACK_ROOM_BY_ORIGIN := {
 	"magic_garden": GARDEN_ROOM_ID,
 	"raven_canopy": "raven_canopy",
@@ -120,11 +123,6 @@ func build_rooms() -> void:
 
 	switch_room(SHOP_ROOM_ID, _spawn_points[SHOP_ROOM_ID])
 
-	for i in Herbalism.plots.size():
-		var plot: GrowPlotInstance = Herbalism.plots[i]
-		add_grow_plot_interactable(plot.id, Vector2(350, 100 + i * 120))
-
-	Herbalism.plot_added.connect(_on_plot_added)
 	Herbalism.planted.connect(_on_planted)
 
 	Brewing.brew_started.connect(func(station_id: String, _recipe_id: String) -> void: _sync_station_indicator(station_id))
@@ -210,15 +208,6 @@ func _load_room(scene: PackedScene) -> void:
 ## shop_origin is empty/unrecognized (e.g. a test scene run without going
 ## through character creation) rather than leaving the door pointed at
 ## whatever placeholder target_room the .tscn happens to have.
-## Grow plots are one global Herbalism-driven pool, so they can only live in
-## one room's Plots container -- this picks which of the two Garden rooms
-## that is, the same magic_garden check _wire_shop_back_door() uses, so a
-## magic_garden playthrough finds its plots behind the Shop and every other
-## playthrough finds them in the always-reachable CommonGarden instead.
-func _active_garden_room_id() -> String:
-	return GARDEN_ROOM_ID if PlayerProfile.shop_origin == "magic_garden" else COMMON_GARDEN_ROOM_ID
-
-
 func _wire_shop_back_door() -> void:
 	var target_room_id: String = SHOP_BACK_ROOM_BY_ORIGIN.get(PlayerProfile.shop_origin, GARDEN_ROOM_ID)
 	var door: StairsInteractable = _rooms[SHOP_ROOM_ID].get_node("Interactables/StairsToShopBack")
@@ -238,6 +227,16 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 		var pantry_manager := interactable.get_node_or_null(interactable.lab_manager_path)
 		var pantry_manager_id: String = pantry_manager.target_id if pantry_manager != null else ""
 		Inventory.register_pantry(interactable.target_id, interactable.display_name, interactable.cost, pantry_manager_id)
+	elif interactable is GrowPlotInteractable:
+		var plot_manager := interactable.get_node_or_null(interactable.lab_manager_path)
+		var plot_manager_id: String = plot_manager.target_id if plot_manager != null else ""
+		Herbalism.register_plot(interactable.target_id, interactable.display_name, interactable.cost, plot_manager_id)
+		_plot_nodes[interactable.target_id] = interactable
+		update_plot_label(interactable.target_id)
+	elif interactable is WaterPumpInteractable:
+		var pump_manager := interactable.get_node_or_null(interactable.lab_manager_path)
+		var pump_manager_id: String = pump_manager.target_id if pump_manager != null else ""
+		Herbalism.register_water_pump(interactable.target_id, interactable.display_name, interactable.cost, pump_manager_id)
 	elif interactable is ContractBookInteractable:
 		_contract_nodes[interactable.target_id] = interactable
 		# Walking away always pauses the writ (design: movement pauses
@@ -275,30 +274,23 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 			interactable.player_exited.connect(func(_i: InteractableBase) -> void: Transmutation.cancel_heap(interactable.target_id))
 
 
-func add_grow_plot_interactable(plot_id: String, pos: Vector2) -> void:
-	var interactable: GrowPlotInteractable = GROW_PLOT_SCENE.instantiate()
-	interactable.target_id = plot_id
-	interactable.prompt_text = "plant/harvest"
-	interactable.display_name = plot_id
-	interactable.visual_color = Color(0.3, 0.6, 0.3)
-	interactable.position = pos
-	_rooms[_active_garden_room_id()].get_node("Plots").add_child(interactable)
-	_wire_interactable(interactable)
-	_plot_nodes[plot_id] = interactable
-	update_plot_label(plot_id)
-
-
+## Drives a Grow Plot Interactable's status label from Herbalism's current
+## state -- called once at wiring time and on interact()/planted. An
+## unpurchased plot shows as inert the same way an unpurchased Alembic does.
 func update_plot_label(plot_id: String) -> void:
 	var interactable: GrowPlotInteractable = _plot_nodes.get(plot_id)
 	if interactable == null:
 		return
 	var plot := Herbalism.get_plot(plot_id)
 	var status_text := "empty"
-	match plot.status:
-		GrowPlotInstance.Status.GROWING:
-			status_text = "growing %s" % plot.planted_seed.display_name
-		GrowPlotInstance.Status.READY_TO_HARVEST:
-			status_text = "ready to harvest (%s)" % plot.planted_seed.display_name
+	if not plot.purchased:
+		status_text = "not yet purchased"
+	else:
+		match plot.status:
+			GrowPlotInstance.Status.GROWING:
+				status_text = "growing %s" % plot.planted_seed.display_name
+			GrowPlotInstance.Status.READY_TO_HARVEST:
+				status_text = "ready to harvest (%s)" % plot.planted_seed.display_name
 	interactable.set_status_text("%s\n%s" % [plot_id, status_text])
 
 
@@ -307,8 +299,7 @@ func update_plot_label(plot_id: String) -> void:
 ## and parents it under that same spawner node -- the spawner already knows
 ## where (spawn_zone) and how often (max_stashes/avg_days_to_max), so this is
 ## purely "build the node and wire it the same way every other Interactable
-## is," the same "code-instanced, not hand-placed" exception
-## add_grow_plot_interactable() is for grow plots.
+## is."
 func _on_stash_spawn_requested(stash_id: String, pos: Vector2, spawner: DragonStashSpawnerNode) -> void:
 	var interactable: DragonStashInteractable = DRAGON_STASH_SCENE.instantiate()
 	interactable.target_id = stash_id
@@ -483,11 +474,6 @@ func _on_heap_resolved(heap_id: String, _roll: Dictionary, _scrap_granted: int, 
 		node.player_exited.disconnect(connection.callable)
 	interactable_destroyed.emit(node)
 	node.queue_free()
-
-
-func _on_plot_added(plot_id: String) -> void:
-	var index := Herbalism.plots.size() - 1
-	add_grow_plot_interactable(plot_id, Vector2(350, 100 + index * 120))
 
 
 func _on_planted(plot_id: String, _seed_id: String) -> void:

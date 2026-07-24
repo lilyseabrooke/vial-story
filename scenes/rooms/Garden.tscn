@@ -1,7 +1,8 @@
-[gd_scene format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/GrowPlotInteractable.tscn" id="3"]
 
 [node name="Garden" type="Node2D"]
 script = ExtResource("1")
@@ -25,4 +26,16 @@ prompt_text = "head back to the Shop"
 display_name = "Shop Doorway"
 visual_color = Color(0.5, 0.5, 0.55, 1)
 
-[node name="Plots" type="Node2D" parent="."]
+[node name="GrowPlot1" parent="Interactables" instance=ExtResource("3")]
+position = Vector2(150, 180)
+target_id = "garden_plot_1"
+prompt_text = "plant/harvest"
+display_name = "Grow Plot I"
+visual_color = Color(0.3, 0.6, 0.3, 1)
+
+[node name="GrowPlot2" parent="Interactables" instance=ExtResource("3")]
+position = Vector2(150, 260)
+target_id = "garden_plot_2"
+prompt_text = "plant/harvest"
+display_name = "Grow Plot II"
+visual_color = Color(0.3, 0.6, 0.3, 1)

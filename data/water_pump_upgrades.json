@@ -1,0 +1,8 @@
+[
+  {
+    "id": "reinforced_piping",
+    "display_name": "Reinforced Piping",
+    "cost": 1500,
+    "effects": { "grow_yield_bonus": 0.10 }
+  }
+]

@@ -421,9 +421,10 @@ BrewJob
   same combined total via the same helper — the player-facing "Pantry" is
   meant to read as one shared pool, not two separate displays.
   The same station/menu/JSON-catalog shape (Pantries currently have no JSON
-  catalog of their own — just cost/purchased/storage) is intended to extend to
-  the remaining four resource-producing interactables (grow plots, planar
-  rifts, contract books, etc.) later — out of scope for now.
+  catalog of their own — just cost/purchased/storage) is now also used by
+  Grow Plots/the Water Pump through the Garden Manager (system 7), and is
+  intended to extend to the remaining resource-producing interactables
+  (planar rifts, contract books, etc.) later — out of scope for now.
 
 ---
 
@@ -538,14 +539,59 @@ GrowPlot
   - planted_timestamp
   - ready_timestamp                # planted_timestamp + growth_time, modified by Herbalism level
   - status: Empty | Growing | ReadyToHarvest
+  - cost                           # Materials to purchase at its linked Garden Manager; 0 = already owned
+  - purchased: bool
+  - lab_manager_id: String         # linked Garden Manager's target_id, "" if none
+
+WaterPump
+  - id
+  - cost                           # Materials to purchase at its linked Garden Manager; 0 = already owned
+  - purchased: bool
+  - upgrade_ids: [String]          # currently-equipped WaterPumpUpgradeDef ids
+  - lab_manager_id: String         # linked Garden Manager's target_id
 ```
 
 - Growth resolves by absolute timestamp comparison, same as brew jobs — checked on
   any relevant tick and swept during `TimeSkip` (overnight, or across a skipped
   class window).
-- Plots live in the Garden map, not the Shop (see system 12) — there is no
-  Materials-purchasable way to add more in the prototype; the plot count is
-  fixed at `STARTING_PLOT_COUNT`.
+- Plots live in the Garden map, not the Shop (see system 12).
+- **Grow Plot purchasing, the Garden Manager, and the Water Pump** are the
+  Herbalism equivalent of Alembics/Pantries/the Alchemy Lab Manager (system
+  4) — same hand-placed-node + `cost`/`lab_manager_path` template. Grow Plots
+  are hand-placed `GrowPlotInteractable` nodes (not runtime-spawned — this
+  replaced an earlier shared-pool/`Herbalism.add_plots()` design), each
+  carrying its own `cost` (0 = already owned) and a `lab_manager_path`
+  pointing at the `GardenManagerInteractable` node that sells it.
+  `Herbalism.register_plot()` creates a `GrowPlotInstance` for every placed
+  plot as `RoomBuilder` wires its room, the same idempotent
+  refresh-scene-fields shape as `Brewing.register_station()`/
+  `Inventory.register_pantry()`. Interacting with an unpurchased plot refuses
+  to plant/harvest, same as an unpurchased Alembic. The Garden Manager
+  discovers its linked Grow Plots/Water Pumps by scanning the
+  `"grow_plot_interactables"`/`"water_pump_interactables"` groups for nodes
+  whose `lab_manager_path` resolves back to itself, opening `GardenMenu`
+  (`scripts/ui/garden_menu.gd`) the same grid+detail shape as
+  `AlchemyLabMenu`; a purchased Grow Plot just confirms it's owned (no
+  upgrade catalog — deliberately out of scope this pass), a purchased Water
+  Pump lists its `WaterPumpUpgradeDef` catalog (`data/water_pump_upgrades.json`,
+  same JSON-not-`.tres` reasoning as Alembic upgrades) with Buy/Remove
+  buttons, no refund on removal.
+- **Water Pump yield bonus.** A purchased Water Pump boosts every harvest
+  yield from Grow Plots sharing its Garden Manager by
+  `Herbalism.WATER_PUMP_BASE_YIELD_BONUS` (20%), plus any owned upgrades'
+  `grow_yield_bonus` effect (e.g. Reinforced Piping, +10%) — applied as a
+  multiplier (`Herbalism._yield_multiplier()`) on top of the existing flat
+  `base_yield + Skills.get_bonus("grow_yield")` total, mirroring how
+  `Brewing._linked_pantries()` finds Pantries sharing a station's Alchemy Lab
+  Manager (`Herbalism._linked_water_pumps()`, matched by `lab_manager_id`).
+- CommonGarden (the always-reachable Garden Back room, system 12) currently
+  has 5 Grow Plots (2 free, 3 purchasable at escalating Materials cost) plus
+  one Garden Manager and one Water Pump; Garden (the magic_garden-exclusive
+  Shop Back room) has the same 2 free Grow Plots but no Garden Manager/Water
+  Pump yet — its plots simply have no `lab_manager_id` and read as
+  permanently-owned/unmanaged. The link is fully data-driven per-node, so
+  dropping a `GardenManagerInteractable` into Garden.tscn later (with plots/
+  a pump wired to it) needs no code changes.
 
 ---
 
@@ -707,14 +753,16 @@ CurseState
   interactable instances configured entirely via the Inspector.
   `RoomBuilder.build_rooms()` (`scripts/room_builder.gd`) loads all fourteen
   scenes up front, reads each room's markers, and wires every pre-placed
-  interactable's signals; grow-plot interactables, Dragons' Ground stashes,
-  and Scrap Yard heaps are the exceptions and stay code-instanced (each
-  parented under its own spawner node, or — for grow plots — the Garden's
-  `Plots` container, rather than a room's `Interactables` container) since
-  they come from runtime `Herbalism`/`Draconology`/`Transmutation` data
-  rather than being hand-placed — see system 19 for how the Dragons' Ground
-  spawns and places its stashes, and system 18's Scrap Heap subsection for
-  the Scrap Yard's identically-shaped `ScrapHeapSpawnerNode`. Only one room
+  interactable's signals; Dragons' Ground stashes and Scrap Yard heaps are
+  the exceptions and stay code-instanced (each parented under its own
+  spawner node rather than a room's `Interactables` container) since they
+  come from runtime `Draconology`/`Transmutation` data rather than being
+  hand-placed — see system 19 for how the Dragons' Ground spawns and places
+  its stashes, and system 18's Scrap Heap subsection for the Scrap Yard's
+  identically-shaped `ScrapHeapSpawnerNode`. Grow plots used to be a third
+  code-instanced exception (one global `Herbalism`-driven pool) but are now
+  hand-placed `GrowPlotInteractable`s like everything else — see system 7.
+  Only one room
   is active at a time — `switch_room()` toggles `visible`/`process_mode` on
   the room scenes (inactive rooms are `PROCESS_MODE_DISABLED`, which also
   stops their interactable areas from firing enter/exit signals while
@@ -748,7 +796,8 @@ CurseState
   `spawn_position` in the destination room, the same per-instance-config
   pattern as every other interactable. The Bed lives in the Bedroom; the
   Shop's brew station/stock box/supply shelf/class door stay in the Shop;
-  the grow plots live in the Garden (its only other content is the stairs
+  the grow plots live in the Garden rooms (CommonGarden also holds the
+  Garden Manager/Water Pump; Garden's only other content is the stairs
   back); the Dragons' Ground has nothing but its stashes and a stairs back;
   the Scrap Yard is the same shape as the Dragons' Ground but with a
   `ScrapHeapSpawner` in place of the `DragonSpawner`/`DragonStashSpawner`
@@ -788,21 +837,21 @@ CurseState
   `wyrmling`/`drake`-only roster and `count_min`/`count_max` of 1–2 — "a few
   low-level dragons" rather than the Dragons' Ground's full roster/count).
   The sixth, `magic_garden`, is the same "own dedicated room" shape as the
-  other five, just without a duplicated interactable — grow plots are one
-  global `Herbalism`-driven pool, so `Garden.tscn` (`GARDEN_ROOM_ID`) is
-  magic_garden's exclusive Shop Back room and a second scene,
-  `CommonGarden.tscn` (`COMMON_GARDEN_ROOM_ID`), is the always-reachable
-  counterpart every other origin uses instead of `Garden.tscn` — Shop's
-  `StairsToCommonGarden` (the always-present door, alongside `StairsUp`/
-  `StairsToDragonsGround`/`StairsToScrapYard`/`StairsToAltar`/etc.) points at
-  `CommonGarden`, not `Garden`. `RoomBuilder._active_garden_room_id()` picks
-  which of the two rooms' `Plots` container the code-instanced grow-plot
-  Interactables actually land in, based on the same `shop_origin ==
-  "magic_garden"` check `_wire_shop_back_door()` uses — so a magic_garden
-  playthrough finds its plots behind the Shop and every other playthrough
-  finds them in the always-reachable `CommonGarden` instead. Only one of the
-  two rooms ever holds live plots in a given playthrough; the other's
-  `Plots` container just stays empty.
+  other five: `Garden.tscn` (`GARDEN_ROOM_ID`) is magic_garden's exclusive
+  Shop Back room and a second scene, `CommonGarden.tscn`
+  (`COMMON_GARDEN_ROOM_ID`), is the always-reachable counterpart every other
+  origin uses instead of `Garden.tscn` — Shop's `StairsToCommonGarden` (the
+  always-present door, alongside `StairsUp`/`StairsToDragonsGround`/
+  `StairsToScrapYard`/`StairsToAltar`/etc.) points at `CommonGarden`, not
+  `Garden`. Unlike the other five pairs, both Garden rooms hold their own
+  hand-placed Grow Plots (`Herbalism` no longer owns a single shared plot
+  pool — see system 7) rather than one duplicated interactable: `Garden.tscn`
+  has 2 free, unmanaged plots; `CommonGarden.tscn` has 5 plots plus a Garden
+  Manager and Water Pump. Both rooms are always loaded (`build_rooms()` loads
+  every room regardless of origin), so both sets of plots exist in
+  `Herbalism.plots` at once — only the active room's plots are ever reachable
+  in a given playthrough, the same as any other room's Interactables while
+  its room is inactive.
 
 ---
 
@@ -1718,7 +1767,7 @@ scenes/spawners/DragonStashSpawner.tscn)
   *before* `add_child(room)` triggers the room's `_ready()` (connecting after would miss the
   initial re-placement burst) and `_on_stash_spawn_requested()` does the actual
   instantiate-and-wire, parenting the new Interactable under the spawner node itself — the same
-  "code-instanced, not hand-placed" exception `add_grow_plot_interactable()` is for grow plots.
+  "code-instanced, not hand-placed" shape `_on_heap_spawn_requested()` uses for Scrap Heaps.
 - **Where a stash can land is drawn, not painted.** A spawner's `spawn_zone_path` points at a
   container of one or more `Polygon2D` nodes — reshape or add a dig zone by dragging its points in the 2D
   editor, the same way a `CollisionPolygon2D` is authored, rather than a tileset terrain parameter.
@@ -1727,8 +1776,8 @@ scenes/spawners/DragonStashSpawner.tscn)
   (`Geometry2D.is_point_in_polygon`), rerolling if it lands too close to an already-placed stash
   from the same spawner (`min_separation`). The position is seeded from `hash(stash_id)` rather
   than stored anywhere, so a stash lands in the same spot whether it's being freshly placed this
-  session or re-placed after a save load — the same "derived, not persisted" shape
-  `add_grow_plot_interactable()`'s index-based formula uses for plots.
+  session or re-placed after a save load — a "derived, not persisted" position, same principle
+  as any other seeded-by-id placement in the prototype.
 - **Each spawner approaches its own stash limit instead of filling up outright.**
   `Draconology._on_day_started()` (wired to `Clock.day_started`, i.e. every sleep/collapse) loops
   every registered spawner and makes up to `max_stashes` independent rolls, each attempt's chance
@@ -1888,7 +1937,7 @@ DragonSpawnerNode (scripts/dragon_spawner_node.gd, Node2D; scenes/spawners/Drago
   "no autoload owns this, the node owns its own behavior" shape `player.gd` uses for movement.
   `DragonSpawnerNode.setup(def, spawn_position)` configures the placeholder `Visual`/
   `CollisionShape2D` size and color from the def and anchors `home_position` for roaming, the same
-  runtime-instancing shape `add_grow_plot_interactable()` uses for grow plots.
+  runtime-instancing shape `_on_stash_spawn_requested()` uses for Dragon's Stashes.
 - **Spawning is owned by `DragonSpawnerNode`, one per zone.** Drop a
   `scenes/spawners/DragonSpawner.tscn` instance into any room scene, link `spawn_zone_path` to a
   `Node2D` whose `Polygon2D` children mark the roaming area, populate `roster`, and set
