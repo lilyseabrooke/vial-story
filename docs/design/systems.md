@@ -1837,27 +1837,70 @@ scenes/spawners/DragonStashSpawner.tscn)
 
 ## 20. Ley Line Node System **[BUILT]**
 
-Gathering spectral ingredients by interacting with a Ley Line Node and playing a short minigame at
-it. Unlike the Contract Book or Dragon's Stash, there's no background timer or tether: `MenuScene`
-already pauses `Clock` and freezes the player for as long as it's open, so the whole interaction is
-synchronous — nothing to tick, nothing that needs to survive the player walking away.
+Gathering spectral ingredients by meditating at a Ley Line Node until it surges, then playing a
+short minigame if the surge is caught. Meditation is player-tethered like the Dragon's Stash
+(system 19): `RoomBuilder` wires the node's `player_exited` straight to
+`LeyLines.cancel_meditation()`, which throws the whole bar away, forcing a restart from empty —
+unlike a stash, the node itself is never destroyed, so meditating there is repeatable indefinitely.
+Only once a surge is rolled and caught does control hand off to the synchronous minigame phase,
+where (same as before) `MenuScene` pauses `Clock` and freezes the player, so there's nothing left
+to tick or tether for that part.
 
 ```
 LeyLines (autoload)
-  - _active_node_id: String       # "" when no minigame is running
-  - _active_difficulty: float     # base_difficulty - leyline_ease, floored at 0
-  - _active_rounds: int
+  - _meditation_jobs: Dictionary        # node_id -> LeyLineMeditationJob, tethered like a stash job
+  - _active_node_id: String             # "" when no minigame is running
+  - _active_difficulty: float           # surge.difficulty - leyline_ease, floored at 0
+  - _active_rounds: int                 # surge.rounds
+  - _active_size: float                 # surge.size — STUB, nothing reads it yet
+  - _active_speed: float                # surge.speed — STUB, nothing reads it yet
+  - _active_rewards: Array              # surge.rewards, consumed by resolve_minigame()
+
+LeyLineMeditationJob (scripts/data/ley_line_meditation_job.gd, RefCounted)
+  - node_id: String
+  - minutes_elapsed / minutes_required: int
+  - surge_ids: Array[String] / surge_weights: Array[float]   # copied from the node at start
+
+LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
+  data/ley_line_surges.json — same "variable-shape JSON catalog" shape as AlembicUpgradeDef, see
+  system 4)
+  - id: String
+  - difficulty: float, size: float (STUB), speed: float (STUB)
+  - dc: int, rounds: int
+  - rewards: Array   # [[ingredient_id: String, likelihood: float], ...]
 ```
 
 - **`LeyLineNodeInteractable`** (`scripts/ley_line_node_interactable.gd`) carries its own
-  per-instance `difficulty: float` and `rounds: int` exports — different nodes can be tuned
-  harder/longer with no code change. `interact()` calls `LeyLines.start_minigame(target_id,
-  difficulty, rounds)` and otherwise does nothing; it has no progress meter and needs no wiring in
-  `RoomBuilder`, unlike the Dragon's Stash.
-- **`start_minigame()`** applies `Skills.get_bonus("leyline_ease")` against the node's base
-  difficulty before handing it to the minigame, then emits `minigame_started(node_id, difficulty,
-  rounds)`. `hud.gd` reacts by opening a minigame content `Control` in `MenuScene`, the same
-  "autoload signal → HUD opens a panel" shape `AttemptPuzzlePanel` uses.
+  per-instance `meditation_minutes: int` and `surge_ids: Array[String]` /
+  `surge_weights: Array[float]` exports (parallel arrays, not a `Dictionary`, so they're
+  hand-authorable in the inspector — same convention as `IngredientDef`'s
+  `characteristic_ids`/`characteristic_values`) — different nodes can be tuned to fill faster/slower
+  or favor different Surges with no code change. `interact()` calls `LeyLines.start_meditation(
+  target_id, meditation_minutes, surge_ids, surge_weights)` if the node has no job running yet and no
+  minigame is active anywhere; it carries its own `ProgressBar` meter (`MeditationProgressContainer`),
+  the same chrome shape as `DragonStashInteractable`'s stash meter, driven by `RoomBuilder`'s
+  `_sync_ley_line_indicator()` off `LeyLines.meditation_started`/`meditation_progress`/
+  `meditation_cancelled`.
+- **The meditation bar fills on `Clock.minute_tick`**, same "background timer, real in-game minutes"
+  shape as `Draconology`'s stash dig — `LeyLines._on_minute_tick()` advances every active
+  `LeyLineMeditationJob` by one minute and, once `minutes_elapsed >= minutes_required`, calls
+  `_resolve_meditation()`.
+- **`_resolve_meditation()` rolls a Surge**, weighted by the node's own `surge_ids`/`surge_weights`
+  (`_pick_surge()` draws uniformly across their total, which doesn't need to sum to 1.0 — any
+  unclaimed fraction just never rolls, and an empty table or all-zero weights fall back to `"none"`).
+  Drawing `"none"` resets `minutes_elapsed` to 0 and meditation continues at the same node — no job
+  lost. Drawing a real Surge id rolls an Arcane History check (`Rng.roll_2d10(Skills.level(
+  "arcane_history"), surge.dc)`) against that Surge's own `dc`; a failed check resets the bar exactly
+  like `"none"` does. Both outcomes emit `meditation_check_rolled(node_id, surge_id, roll)` — `roll`
+  is an empty `Dictionary` for `"none"` (nothing to show) and a real `Rng.roll_2d10()` result
+  otherwise, which `hud.gd` forwards to the message wall via `add_dice_result()`. A **passed** check
+  erases the meditation job outright (a Surge only gets one shot per bar-fill) and calls
+  `_launch_minigame()`.
+- **`_launch_minigame()`** applies `Skills.get_bonus("leyline_ease")` against the triggering Surge's
+  own `difficulty` before handing it to the minigame, stashes `size`/`speed`/`rewards` on the active
+  session, then emits `minigame_started(node_id, difficulty, rounds)` — the signal's own shape is
+  unchanged from before, so `hud.gd`'s "autoload signal → HUD opens a panel" wiring didn't need to
+  change, it just now fires from a Surge instead of a fixed per-node constant.
 - **The minigame** (`scripts/ui/ley_line_minigame_panel.gd`, `LeyLineMinigamePanel`) is a real-time
   positioning game hosted in `MenuScene`. Its outer `VBoxContainer` owns only a status/hint label;
   the play itself lives in the inner `LeyArena extends Control`, kept in the same file so the whole
@@ -1906,18 +1949,26 @@ LeyLines (autoload)
   `abort_minigame()` (Esc/close) still bails with no reward, and any Resolve already spent during the
   run stays spent.
 - **Performance maps to a reward tier**, not a continuous formula like Draconology's quality/divisor
-  — `great` (≥0.85) / `good` (≥0.6) / `poor` (≥0.25) / below that, nothing. Each tier has a base
-  spectral-ingredient count (3/2/1), with `Skills.get_bonus("leyline_yield")` (Arcane History) added
-  on top before ingredients are granted from `SPECTRAL_INGREDIENT_IDS` (`glimmer_dust`,
-  `echo_shard` — the first two `IngredientDef.Category.SPECTRAL` resources; `source_methods =
-  [SourceMethod.FORAGE]`, `buy_price = 0`, only obtainable this way). Grants `XP_PER_MINIGAME` (20)
-  Arcane History XP — the skill's `leyline_ease`/`leyline_yield`/`learn_speed_spectral` triplet is
-  now consumed by the first two (`learn_speed_spectral` remains **[STUB]**, same as every other
-  category's ingredient-learning effect). **Ingredient quality [BUILT]** — `performance` is already
-  0.0–1.0, so it's reused directly (no rescaling) as the quality fraction fed to
-  `IngredientQuality.tier_for_fraction()` (system 2): both the tier reward and any bonus-mote
-  ingredients from that resolution are granted at the resulting tier, so a stronger channel yields
-  ingredients that are both more numerous (the count tier above) and higher quality.
+  — `great` (≥0.85) / `good` (≥0.6) / `poor` (≥0.25) / below that, nothing. A non-failure tier rolls
+  the *triggering Surge's own* `rewards` table via `LeyLines._roll_rewards()` — this replaced the old
+  fixed per-tier `SPECTRAL_INGREDIENT_IDS` count entirely, so which ingredients (and how many) a run
+  can yield now depends on which Surge was caught, not just how well the minigame went.
+  `_roll_rewards()` walks each `[ingredient_id, likelihood]` pair independently: while `likelihood >=
+  1.0` a grant is guaranteed, then the (now-fractional, halving-after-every-success) `likelihood` is
+  rolled as a probability — so `2.0` means two guaranteed grants, then a 50% chance of a third, 25% of
+  a fourth, and so on until a roll fails. If an entire pass over every reward in the table grants
+  nothing, the whole table is rolled again until something is (an empty table or every likelihood at
+  0 short-circuits to `{}` up front instead, so that retry loop can never hang). Grants
+  `XP_PER_MINIGAME` (20) Arcane History XP on any non-failure tier — the skill's
+  `leyline_ease`/`leyline_yield`/`learn_speed_spectral` triplet is now down to just the first
+  (`leyline_yield` and `learn_speed_spectral` remain **[STUB]**, since yield is now entirely a
+  per-Surge `rewards` design lever rather than a skill bonus). **Bonus motes are unrelated to the
+  triggering Surge** — they still draw from the fixed `SPECTRAL_INGREDIENT_IDS` pool
+  (`glimmer_dust`, `echo_shard`), granted regardless of tier, same as before. **Ingredient quality
+  [BUILT]** — `performance` is already 0.0–1.0, so it's reused directly (no rescaling) as the quality
+  fraction fed to `IngredientQuality.tier_for_fraction()` (system 2): both the Surge-rolled tier
+  reward and any bonus-mote ingredients from that resolution are granted at the resulting tier, so a
+  stronger channel yields ingredients that are both more numerous and higher quality.
 - **Aborting grants nothing** — `abort_minigame()` throws the session away with no ingredients and
   no XP, same "walking away costs everything" shape as `Draconology.cancel_stash()`, just triggered
   by the player choosing to quit the minigame (or closing the menu by any route — Esc, the close

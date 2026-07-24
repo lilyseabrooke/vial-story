@@ -10,8 +10,10 @@ room_id = "ley_line_outcropping"
 room_size = Vector2(704, 576)
 
 [node name="Floor" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="Walls" type="TileMapLayer" parent="."]
+texture_filter = 0
 
 [node name="SpawnPoint" type="Marker2D" parent="."]
 position = Vector2(120, 100)
@@ -28,8 +30,9 @@ visual_color = Color(0.5, 0.5, 0.55, 1)
 
 [node name="LeyLineNode" parent="Interactables" instance=ExtResource("3")]
 position = Vector2(350, 300)
-difficulty = 2.0
-rounds = 3
+meditation_minutes = 10
+surge_ids = Array[String](["none", "echo_storm", "diamond_veil", "dust_shower", "nightfall", "hammer_stone"])
+surge_weights = Array[float]([0.5, 0.1, 0.02, 0.25, 0.03, 0.1])
 target_id = "ley_line_node_1"
 prompt_text = "commune with the ley line"
 display_name = "Ley Line Node"

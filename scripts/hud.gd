@@ -49,18 +49,25 @@ var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 func build(starting_ingredients: Dictionary) -> void:
 	_starting_ingredients = starting_ingredients
 
-	# Resolve meter — top-left, drawn as a filling potion vial.
+	# Resolve meter — top-left, drawn as a filling potion vial. Doubled in
+	# size to match the 2x world-camera zoom; pivot stays at the default
+	# top-left corner (already the pinned corner here) so it grows down-right
+	# in place.
 	_resolve_vial = RESOLVE_VIAL_SCENE.instantiate()
 	_resolve_vial.position = Vector2(16, 16)
+	_resolve_vial.scale = Vector2(2.0, 2.0)
 	add_child(_resolve_vial)
 	UiFx.add_drop_shadow(_resolve_vial, 0.4, 5, Vector2(0, 4))
 
 	# Almanac clock + materials pouch — top-right, stacked in a right-pinned
-	# column (fixed 200px wide, 16px from the top/right corner, growing down).
+	# column (fixed 400px wide — doubled to match the 2x world-camera zoom via
+	# AlmanacClock/MaterialsPouch's own real font sizes, not a Control.scale
+	# transform, which just stretches already-rasterized glyphs and blurs —
+	# 16px from the top/right corner, growing down).
 	var top_right := VBoxContainer.new()
 	top_right.anchor_left = 1.0
 	top_right.anchor_right = 1.0
-	top_right.offset_left = -216.0
+	top_right.offset_left = -416.0
 	top_right.offset_right = -16.0
 	top_right.offset_top = 16.0
 	top_right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -86,13 +93,17 @@ func build(starting_ingredients: Dictionary) -> void:
 	help_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	help_button.position = Vector2(16, -52)
 	help_button.custom_minimum_size = Vector2(36, 36)
+	# Doubled in size to match the 2x world-camera zoom. Pivot is set to the
+	# button's bottom-left corner (its fixed anchor point) so it grows
+	# up-right in place instead of drifting past the bottom of the screen.
+	help_button.pivot_offset = Vector2(0.0, 36.0)
+	help_button.scale = Vector2(2.0, 2.0)
 	add_child(help_button)
 
 	var help_popover := PanelContainer.new()
 	help_popover.theme_type_variation = &"SmallFramedPanel"
 	help_popover.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	help_popover.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	help_popover.position = Vector2(16, -96)
 	help_popover.visible = false
 	add_child(help_popover)
 	UiFx.add_drop_shadow(help_popover, 0.4, 5, Vector2(0, 4))
@@ -100,9 +111,24 @@ func build(starting_ingredients: Dictionary) -> void:
 	var help_label := Label.new()
 	help_label.theme_type_variation = &"CaptionLabel"
 	help_label.text = "WASD move · E interact · Esc menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
-	help_label.custom_minimum_size = Vector2(240, 0)
+	help_label.custom_minimum_size = Vector2(480, 0)
 	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	help_label.add_theme_font_size_override("font_size", 24)
 	help_popover.add_child(help_label)
+
+	# Doubled to match the help button, and repositioned from the button's
+	# actual (already-doubled) top edge rather than a hardcoded offset — the
+	# old fixed "-96" was tuned for the button's pre-doubling height and
+	# started overlapping once the button grew. Pivoted at its own bottom-left
+	# corner (get_combined_minimum_size() is synchronous, so this is valid
+	# immediately, no need to wait a frame) so it grows upward from a fixed
+	# gap above the button instead of drifting into it.
+	const BUTTON_POPOVER_GAP := 16.0
+	var button_top := help_button.position.y - help_button.pivot_offset.y * (help_button.scale.y - 1.0)
+	var popover_size := help_popover.get_combined_minimum_size()
+	help_popover.position = Vector2(16, button_top - BUTTON_POPOVER_GAP - popover_size.y)
+	help_popover.pivot_offset = Vector2(0.0, popover_size.y)
+	help_popover.scale = Vector2(2.0, 2.0)
 
 	help_button.pressed.connect(func() -> void:
 		help_popover.visible = not help_popover.visible
@@ -134,6 +160,11 @@ func build(starting_ingredients: Dictionary) -> void:
 	_interact_prompt_label = Label.new()
 	_interact_prompt_label.theme_type_variation = &"SubheadingLabel"
 	_interact_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Doubled via font size rather than Control.scale — this pill already
+	# uses scale.y for its unfurl/collapse animation (see set_prompt()) and
+	# resizes width to fit its text each time, so a transform scale would
+	# fight both the animation and the anchor-centered pivot math.
+	_interact_prompt_label.add_theme_font_size_override("font_size", 32)
 	_interact_prompt.add_child(_interact_prompt_label)
 
 	# Everything else lives in the Escape menu instead of the HUD. Not added
@@ -240,6 +271,12 @@ func build(starting_ingredients: Dictionary) -> void:
 	)
 
 	_message_wall = MESSAGE_WALL_SCENE.instantiate()
+	# Doubled in size to match the 2x world-camera zoom. Pivot is set to the
+	# wall's bottom-right corner (its fixed anchor point, per its .tscn
+	# offsets) so it grows up-left in place instead of overshooting past the
+	# bottom-right of the screen.
+	_message_wall.pivot_offset = Vector2(260.0, 260.0)
+	_message_wall.scale = Vector2(2.0, 2.0)
 	add_child(_message_wall)
 
 	_connect_autoload_signals()
@@ -369,10 +406,24 @@ func _connect_autoload_signals() -> void:
 		print("Dragon's Stash resolved at %s -- ingredients: %s" % [stash_id, ingredient_summary])
 		update_ingredients_label()
 	)
+	LeyLines.meditation_started.connect(func(_node_id: String) -> void:
+		log_message("You settle into meditation at the ley line...")
+	)
+	LeyLines.meditation_cancelled.connect(func(_node_id: String) -> void:
+		log_message("You break from meditation -- the ley line's rhythm is lost.")
+	)
+	LeyLines.meditation_check_rolled.connect(func(_node_id: String, surge_id: String, roll: Dictionary) -> void:
+		if surge_id == "none":
+			return
+		_message_wall.add_dice_result(roll, "Arcane History: %s" % surge_id)
+		if not roll.get("passed", false):
+			log_message("A surge of %s ripples through the ley line -- you can't quite grasp it. Meditation continues." % surge_id)
+		print("Ley line Surge rolled: %s -- passed %s" % [surge_id, roll.get("passed", false)])
+	)
 	LeyLines.minigame_started.connect(func(node_id: String, difficulty: float, rounds: int) -> void:
 		_ley_line_panel.show_for(node_id, difficulty, rounds)
 		open_menu(_ley_line_panel, "Ley Line Node")
-		log_message("The ley line stirs, ready to resonate...")
+		log_message("The ley line surges, ready to resonate...")
 	)
 	LeyLines.minigame_resolved.connect(func(_node_id: String, _performance: float, tier: String, ingredients: Dictionary) -> void:
 		close_menu()

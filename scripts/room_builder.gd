@@ -86,6 +86,7 @@ var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
 var _heap_nodes: Dictionary = {}        # heap_id -> ScrapHeapInteractable
+var _ley_line_nodes: Dictionary = {}    # node_id -> LeyLineNodeInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -118,6 +119,7 @@ func build_rooms() -> void:
 	# limits (set in switch_room) keep it from showing past the walls.
 	_camera = Camera2D.new()
 	_camera.position_smoothing_enabled = true
+	_camera.zoom = Vector2(2.0, 2.0) # >1 magnifies; halves the visible world area at 2x scale
 	player.add_child(_camera)
 	_camera.make_current()
 
@@ -152,6 +154,29 @@ func build_rooms() -> void:
 	Draconology.stash_resolved.connect(_on_stash_resolved)
 	for stash_id in _stash_nodes:
 		_sync_stash_indicator(stash_id)
+
+	LeyLines.meditation_started.connect(func(node_id: String) -> void: _sync_ley_line_indicator(node_id))
+	LeyLines.meditation_progress.connect(func(node_id: String) -> void: _sync_ley_line_indicator(node_id))
+	LeyLines.meditation_cancelled.connect(func(node_id: String) -> void: _sync_ley_line_indicator(node_id))
+	# Fired the instant a bar fills, strictly before LeyLines resets or erases
+	# the job -- snaps the meter to a true 1.0 with no tween so the reset (or,
+	# on a passed check, minigame_started below) has something real to animate
+	# away from/replace instead of racing an in-flight tween. See
+	# LeyLines.meditation_bar_full's own doc comment.
+	LeyLines.meditation_bar_full.connect(func(node_id: String) -> void:
+		var node: LeyLineNodeInteractable = _ley_line_nodes.get(node_id)
+		if node != null:
+			node.snap_meditation_full()
+	)
+	# A passed check erases the meditation job outright rather than cancelling
+	# it, so meditation_cancelled never fires for this case -- without this,
+	# the meter would stay stuck at the meditation_bar_full snap above for the
+	# rest of the game. _sync_ley_line_indicator() sees get_meditation_job()
+	# return null and hides it via clear_meditation_indicator(), same as any
+	# other "job's gone" case.
+	LeyLines.minigame_started.connect(func(node_id: String, _difficulty: float, _rounds: int) -> void: _sync_ley_line_indicator(node_id))
+	for node_id in _ley_line_nodes:
+		_sync_ley_line_indicator(node_id)
 
 	Summoning.rift_started.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
 	Summoning.rift_ready.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
@@ -272,6 +297,13 @@ func _wire_interactable(interactable: InteractableBase) -> void:
 			# Dragon's Stash) -- Transmutation.cancel_heap() erases the job
 			# outright rather than freezing it for a later resume.
 			interactable.player_exited.connect(func(_i: InteractableBase) -> void: Transmutation.cancel_heap(interactable.target_id))
+	elif interactable is LeyLineNodeInteractable:
+		_ley_line_nodes[interactable.target_id] = interactable
+		# A ley line node is never destroyed or single-use like a Dragon's
+		# Stash/Scrap Heap -- only the tether is the same: walking away throws
+		# the meditation job away outright (LeyLines.cancel_meditation()),
+		# forcing a restart from an empty bar next time.
+		interactable.player_exited.connect(func(_i: InteractableBase) -> void: LeyLines.cancel_meditation(interactable.target_id))
 
 
 ## Drives a Grow Plot Interactable's status label from Herbalism's current
@@ -478,3 +510,20 @@ func _on_heap_resolved(heap_id: String, _roll: Dictionary, _scrap_granted: int, 
 
 func _on_planted(plot_id: String, _seed_id: String) -> void:
 	update_plot_label(plot_id)
+
+
+## Drives a Ley Line Node Interactable's meditation bar from LeyLines' current
+## state -- called on meditation_started/meditation_progress/meditation_cancelled.
+## Same "no Clock.minute_tick polling needed" shape as _sync_stash_indicator();
+## unlike a stash the node itself is never destroyed, meditation_check_rolled
+## resetting the bar back to 0 (see LeyLines._resolve_meditation()) shows up
+## here too since it still fires meditation_progress right after.
+func _sync_ley_line_indicator(node_id: String) -> void:
+	var node: LeyLineNodeInteractable = _ley_line_nodes.get(node_id)
+	if node == null:
+		return
+	var job := LeyLines.get_meditation_job(node_id)
+	if job == null:
+		node.clear_meditation_indicator()
+	else:
+		node.set_meditation_progress(job.progress_fraction())
