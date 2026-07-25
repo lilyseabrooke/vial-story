@@ -10,13 +10,11 @@ layout_mode = 2
 
 [node name="NameLabel" type="Label" parent="HeaderRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
 
 [node name="TurnInButton" type="Button" parent="HeaderRow"]
 layout_mode = 2
 text = "Turn In"
 visible = false
-theme_override_font_sizes/font_size = 30
 
 [node name="DescriptionLabel" type="Label" parent="."]
 layout_mode = 2

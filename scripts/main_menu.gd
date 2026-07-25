@@ -58,25 +58,21 @@ func _build_root_menu() -> void:
 
 	var new_game_button := Button.new()
 	new_game_button.text = "New Game"
-	new_game_button.add_theme_font_size_override("font_size", 30)
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	vbox.add_child(new_game_button)
 
 	var load_game_button := Button.new()
 	load_game_button.text = "Load Game"
-	load_game_button.add_theme_font_size_override("font_size", 30)
 	load_game_button.pressed.connect(_on_load_game_pressed)
 	vbox.add_child(load_game_button)
 
 	var settings_button := Button.new()
 	settings_button.text = "Settings"
-	settings_button.add_theme_font_size_override("font_size", 30)
 	settings_button.pressed.connect(_on_settings_pressed)
 	vbox.add_child(settings_button)
 
 	var quit_button := Button.new()
 	quit_button.text = "Quit"
-	quit_button.add_theme_font_size_override("font_size", 30)
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	vbox.add_child(quit_button)
 
@@ -152,7 +148,6 @@ func _build_load_menu() -> void:
 	var title := Label.new()
 	title.text = "Load Game"
 	title.theme_type_variation = &"HeadingLabel"
-	title.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
@@ -161,27 +156,23 @@ func _build_load_menu() -> void:
 	if games.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "No saved games yet."
-		empty_label.add_theme_font_size_override("font_size", 30)
 		vbox.add_child(empty_label)
 	else:
 		for meta in games:
 			var button := Button.new()
 			var day: int = meta.get("latest_day_number", 0)
 			button.text = "%s — Day %d" % [meta.get("character_name", "?"), day]
-			button.add_theme_font_size_override("font_size", 30)
 			button.pressed.connect(_on_load_slot_pressed.bind(meta.get("game_id", "")))
 			vbox.add_child(button)
 
 	_load_status_label = Label.new()
 	_load_status_label.modulate = UiPalette.DANGER
-	_load_status_label.add_theme_font_size_override("font_size", 30)
 	vbox.add_child(_load_status_label)
 
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
 	back_button.text = "Back (Esc/Q)"
-	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_load_back_pressed)
 	vbox.add_child(back_button)
 
@@ -241,7 +232,6 @@ func _build_settings_menu() -> void:
 	var title := Label.new()
 	title.text = "Settings"
 	title.theme_type_variation = &"HeadingLabel"
-	title.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(title)
 
 	vbox.add_child(HSeparator.new())
@@ -261,7 +251,6 @@ func _build_settings_menu() -> void:
 
 	var back_button := Button.new()
 	back_button.text = "Back (Esc/Q)"
-	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_settings_back_pressed)
 	vbox.add_child(back_button)
 

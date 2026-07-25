@@ -121,7 +121,6 @@ func build() -> void:
 	_nav_tip = Label.new()
 	_nav_tip.theme_type_variation = &"CaptionLabel"
 	_nav_tip.text = RAIL_TIP
-	_nav_tip.add_theme_font_size_override("font_size", 24)
 	_rail.add_child(_nav_tip)
 
 	_show_section("satchel")
@@ -167,7 +166,6 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	button.button_group = _rail_group
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", 30)
 	button.pressed.connect(_show_section.bind(id))
 	_rail.add_child(button)
 	_rail_buttons[id] = button
@@ -180,7 +178,6 @@ func _add_section(id: String, label: String, content: Control) -> void:
 	var heading := Label.new()
 	heading.text = label
 	heading.theme_type_variation = &"HeadingLabel"
-	heading.add_theme_font_size_override("font_size", 44)
 	titled.add_child(heading)
 	titled.add_child(HSeparator.new())
 
@@ -406,7 +403,6 @@ func _build_classes_tab() -> Control:
 	var root := VBoxContainer.new()
 	_report_card_label = Label.new()
 	_report_card_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_report_card_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_report_card_label)
 	return root
 
@@ -425,11 +421,9 @@ func _build_shop_tab() -> Control:
 	var root := VBoxContainer.new()
 
 	_shop_reputation_label = Label.new()
-	_shop_reputation_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_shop_reputation_label)
 
 	_shop_coffers_label = Label.new()
-	_shop_coffers_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_shop_coffers_label)
 
 	root.add_child(HSeparator.new())
@@ -512,7 +506,6 @@ func update_recipes() -> void:
 		var header := Label.new()
 		header.theme_type_variation = &"SubheadingLabel"
 		header.text = potion.display_name
-		header.add_theme_font_size_override("font_size", 32)
 		_recipes_list.add_child(header)
 
 		var learned_recipes: Array[RecipeDef] = []
@@ -564,7 +557,6 @@ func update_journal() -> void:
 		var empty_label := Label.new()
 		empty_label.text = "No quests yet."
 		empty_label.modulate = UiPalette.TEXT_MUTED
-		empty_label.add_theme_font_size_override("font_size", 30)
 		_journal_list.add_child(empty_label)
 
 
@@ -575,7 +567,6 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 	var header := Label.new()
 	header.text = section_title
 	header.theme_type_variation = &"SubheadingLabel"
-	header.add_theme_font_size_override("font_size", 32)
 	_journal_list.add_child(header)
 
 	for quest_id in quest_ids:
@@ -603,24 +594,20 @@ func _build_settings_tab() -> Control:
 
 	var save_button := Button.new()
 	save_button.text = "Save Game"
-	save_button.add_theme_font_size_override("font_size", 30)
 	save_button.pressed.connect(_on_save_button_pressed)
 	root.add_child(save_button)
 
 	_save_status_label = Label.new()
 	_save_status_label.modulate = UiPalette.TEXT_MUTED
-	_save_status_label.add_theme_font_size_override("font_size", 30)
 	root.add_child(_save_status_label)
 
 	var return_button := Button.new()
 	return_button.text = "Return to Main Screen"
-	return_button.add_theme_font_size_override("font_size", 30)
 	return_button.pressed.connect(_on_return_button_pressed)
 	root.add_child(return_button)
 
 	var quit_button := Button.new()
 	quit_button.text = "Quit"
-	quit_button.add_theme_font_size_override("font_size", 30)
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	root.add_child(quit_button)
 	return root

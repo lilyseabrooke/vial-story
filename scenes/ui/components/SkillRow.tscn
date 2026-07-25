@@ -15,12 +15,10 @@ visible = false
 [node name="NameLabel" type="Label" parent="."]
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
 
 [node name="LevelLabel" type="Label" parent="."]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
 
 [node name="Progress" type="ProgressBar" parent="."]
 custom_minimum_size = Vector2(240, 40)
@@ -28,4 +26,3 @@ layout_mode = 2
 
 [node name="ProgressLabel" type="Label" parent="."]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30

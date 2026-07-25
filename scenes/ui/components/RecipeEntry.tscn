@@ -17,7 +17,6 @@ visible = false
 
 [node name="HeaderLabel" type="Label" parent="HeaderRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
 
 [node name="IngredientsLabel" type="Label" parent="."]
 layout_mode = 2

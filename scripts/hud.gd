@@ -8,7 +8,6 @@ extends CanvasLayer
 ## (e.g. Herbalism harvest signals updating a grow-plot Interactable) stay
 ## wired in main.gd instead, which orchestrates both this and RoomBuilder.
 
-const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
 const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
@@ -114,7 +113,6 @@ func build(starting_ingredients: Dictionary) -> void:
 	help_label.text = "WASD move · E interact · Esc/Q menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
 	help_label.custom_minimum_size = Vector2(480, 0)
 	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	help_label.add_theme_font_size_override("font_size", 24)
 	help_popover.add_child(help_label)
 
 	# Doubled to match the help button, and repositioned from the button's
@@ -137,6 +135,10 @@ func build(starting_ingredients: Dictionary) -> void:
 
 	# Game Over — stays directly on screen (terminal state), not in the menu.
 	_game_over_label = Label.new()
+	# Not CaptionLabel -- that variation's font_color has reduced alpha, which
+	# would fight the DANGER modulate below and mute this message instead of
+	# making it read as urgent. Font size just happens to match CaptionLabel's
+	# (24) coincidentally, so it's a plain override rather than a shared type.
 	_game_over_label.add_theme_font_size_override("font_size", 24)
 	_game_over_label.modulate = UiPalette.DANGER
 	_game_over_label.visible = false
@@ -165,7 +167,6 @@ func build(starting_ingredients: Dictionary) -> void:
 	# uses scale.y for its unfurl/collapse animation (see set_prompt()) and
 	# resizes width to fit its text each time, so a transform scale would
 	# fight both the animation and the anchor-centered pivot math.
-	_interact_prompt_label.add_theme_font_size_override("font_size", 32)
 	_interact_prompt.add_child(_interact_prompt_label)
 
 	# Everything else lives in the Escape menu instead of the HUD. Not added
@@ -294,10 +295,10 @@ func _connect_autoload_signals() -> void:
 	Clock.minute_tick.connect(func(_timestamp: int) -> void:
 		update_clock_label()
 	)
-	Clock.day_started.connect(func(day_number: int, day_type: int) -> void:
-		log_message("Day %d (%s) begins." % [day_number, DAY_TYPE_NAMES[day_type]])
+	Clock.day_started.connect(func(day_number: int, _day_type: int) -> void:
+		log_message("Day %d (%s) begins." % [day_number, Clock.day_name()])
 		update_clock_label()
-		print("Day %d (%s) begins." % [day_number, DAY_TYPE_NAMES[day_type]])
+		print("Day %d (%s) begins." % [day_number, Clock.day_name()])
 	)
 	Clock.day_ended.connect(func(reason: int) -> void:
 		log_message("Day ended: %s" % END_REASON_NAMES[reason])

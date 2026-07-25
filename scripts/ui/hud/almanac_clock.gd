@@ -1,12 +1,11 @@
 class_name AlmanacClock
 extends PanelContainer
-## Top-right HUD card: a cozy almanac day-page. Shows "Day N · Weekday/Weekend",
+## Top-right HUD card: a cozy almanac day-page. Shows "Day N · Monday",
 ## the clock time with a sun/moon time-of-day icon, and the Sims-style speed
 ## toggle (1x/1.5x/2x). Replaces hud.gd's inline calendar/time labels + speed
 ## buttons; hud.gd calls update_time() on Clock ticks and sync_speed() on
 ## speed_level_changed.
 
-const DAY_TYPE_NAMES := ["Weekday", "Weekend"]
 # Daytime window for the sun/moon icon: 6:00 AM (360) – 6:00 PM (1080).
 const DAY_START_MINUTE := 360
 const DAY_END_MINUTE := 1080
@@ -29,7 +28,6 @@ func build() -> void:
 
 	_day_label = Label.new()
 	_day_label.theme_type_variation = &"HeadingLabel"
-	_day_label.add_theme_font_size_override("font_size", 44)
 	vbox.add_child(_day_label)
 
 	var time_row := HBoxContainer.new()
@@ -44,7 +42,6 @@ func build() -> void:
 	_time_label = Label.new()
 	_time_label.theme_type_variation = &"NumericLabel"
 	_time_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_time_label.add_theme_font_size_override("font_size", 34)
 	time_row.add_child(_time_label)
 
 	var speed_hbox := HBoxContainer.new()
@@ -60,7 +57,6 @@ func build() -> void:
 		speed_button.button_group = speed_group
 		speed_button.button_pressed = (i == Clock.speed_level)
 		speed_button.custom_minimum_size = Vector2(92, 0)
-		speed_button.add_theme_font_size_override("font_size", 30)
 		speed_button.pressed.connect(func() -> void:
 			Clock.set_speed_level(i)
 		)
@@ -69,7 +65,7 @@ func build() -> void:
 
 
 func update_time() -> void:
-	_day_label.text = "Day %d · %s" % [Clock.day_number, DAY_TYPE_NAMES[Clock.day_type()]]
+	_day_label.text = "Day %d · %s" % [Clock.day_number, Clock.day_name()]
 	_time_label.text = "%s%s" % [Clock.get_clock_string(), "   (paused)" if Clock.is_paused else ""]
 	var minute := Clock.minute_of_day()
 	_tod_icon.set_day(minute >= DAY_START_MINUTE and minute < DAY_END_MINUTE)
