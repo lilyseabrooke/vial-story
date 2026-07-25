@@ -14,6 +14,8 @@ extends RefCounted
 ## already consumes that shape directly.
 
 const _OPTION_ARROW := "->"
+## Valid `nameplate <position>` values -- see DialogueBox's Nameplate node.
+const _NAMEPLATE_POSITIONS := ["left", "center-left", "center", "center-right", "right"]
 
 
 ## Returns {"scene_id": String, "instructions": Array[Dictionary]} on success,
@@ -56,6 +58,15 @@ static func compile(source: String) -> Dictionary:
 
 		if line.begins_with("background "):
 			instructions.append({"op": "STAGE_BACKGROUND", "name": line.substr(11).strip_edges()})
+			continue
+
+		if line.begins_with("nameplate "):
+			var nameplate_position: String = line.substr(10).strip_edges()
+			if nameplate_position not in _NAMEPLATE_POSITIONS:
+				push_error("VNScriptCompiler: line %d: unknown nameplate position '%s' (expected one of %s)" % [line_number, nameplate_position, _NAMEPLATE_POSITIONS])
+				had_error = true
+				continue
+			instructions.append({"op": "STAGE_NAMEPLATE", "position": nameplate_position})
 			continue
 
 		if line.begins_with("move "):

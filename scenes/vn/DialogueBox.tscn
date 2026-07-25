@@ -1,0 +1,76 @@
+[gd_scene format=3 uid="uid://bdsditfyu0dva"]
+
+[ext_resource type="Script" uid="uid://cq5b004r377pm" path="res://scripts/vn/dialogue_box.gd" id="1"]
+
+[node name="DialogueBox" type="CanvasLayer" unique_id=1681917691]
+layer = 20
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1365663686]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0)
+
+[node name="Stage" type="Control" parent="." unique_id=1423744094]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="DialoguePanel" type="PanelContainer" parent="." unique_id=1918220191]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = -381.0
+offset_right = -32.0
+offset_bottom = -32.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_type_variation = &"FramedPanel"
+
+[node name="Margin" type="MarginContainer" parent="DialoguePanel" unique_id=-1913019580]
+layout_mode = 2
+clip_contents = true
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBox" type="VBoxContainer" parent="DialoguePanel/Margin" unique_id=160411450]
+layout_mode = 2
+
+[node name="TextLabel" type="RichTextLabel" parent="DialoguePanel/Margin/VBox" unique_id=827083447]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+scroll_active = false
+
+[node name="ChoiceBox" type="VBoxContainer" parent="DialoguePanel/Margin/VBox" unique_id=624701933]
+layout_mode = 2
+
+[node name="Nameplate" type="PanelContainer" parent="." unique_id=1546823207]
+mouse_filter = 2
+theme_type_variation = &"FramedPanelDark"
+
+[node name="Margin" type="MarginContainer" parent="Nameplate" unique_id=-403939652]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 8
+
+[node name="NameplateLabel" type="Label" parent="Nameplate/Margin" unique_id=-573868841]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0.98, 0.953, 0.906, 1)
+
+[node name="RevealTimer" type="Timer" parent="." unique_id=468304607]
+wait_time = 0.03

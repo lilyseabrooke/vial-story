@@ -1,0 +1,16 @@
+scene alchemist_and_mira
+enter Alchemist at 250,300
+enter Mira at 1750,300
+nameplate left
+Alchemist: "Morning, Mira. Shelves look tidy today."
+nameplate right
+Mira: "Someone has to keep this place from turning into a compost heap."
+nameplate left
+Alchemist: "Fair. Anything come in overnight?"
+nameplate right
+Mira: "A crate of moonpetal, mostly bruised. I set the good stems aside for you."
+nameplate left
+Alchemist: "You're a lifesaver."
+nameplate right
+Mira: "I know."
+end_scene
