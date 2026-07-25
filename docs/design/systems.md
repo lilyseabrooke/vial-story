@@ -20,7 +20,7 @@ skipping class to handle a time-sensitive brew).
 ```
 Clock
   - day_number: int
-  - day_type: Weekday | Weekend
+  - day_type: Weekday | Weekend        # gates class days; HUD shows the actual weekday name instead
   - minutes_since_midnight: int      # continuous, e.g. 360 = 6:00 AM
   - tick_rate: game-minutes per real-second (tunable)
   - is_paused: bool                  # true during menus/dialogue/minigames
@@ -1047,6 +1047,18 @@ NPC-to-NPC scenes fall out of this for free — the runtime doesn't care whether
 the speaker changes every line or stays the same, and a scene the player only
 observes is just lines where neither active speaker is the player.
 
+One direction *does* use a fixed slot rather than an arbitrary position:
+`nameplate <position>` (`left`, `center-left`, `center`, `center-right`, or
+`right`) sets which of five horizontal spots along `DialoguePanel`'s top
+border the speaker-name tag (`DialogueBox`'s `Nameplate` node) sits at,
+compiling to a `STAGE_NAMEPLATE` instruction. Unlike `enter`/`move`'s free
+`x,y` coordinates, the nameplate is a small UI tag clipped onto the dialogue
+panel's frame, not a staged sprite in the scene — a slot enum reads better
+there than a pixel position an author would have to eyeball against the
+panel's (window-size-dependent) actual width. Persists across lines like
+`background` does until changed again; scripts that never set one default to
+`"center"`.
+
 Placeholder art: plain colored rectangles + labels, same as the room's
 placeholder art — since VN sprites fill most of the screen rather than being a
 small player-sized block, this is expected to read clearly as "VN scene" without
@@ -1069,31 +1081,147 @@ needing portrait-shaped placeholders.
   test scene: both choice branches, the `if has_item(...)` true/false paths,
   and the resulting `LoveInterests`/`Inventory` side effects (affection +5,
   `clarity_tonic` consumed) all confirmed correct.
-- `DialogueBox` (`scripts/vn/dialogue_box.gd`) — **built.** A code-built
-  `CanvasLayer` (not `MenuScene`-based — VN scenes are full-screen, not a
-  chrome-and-content panel), owning its own `DialogueRunner` internally
+- `DialogueBox` (`scripts/vn/dialogue_box.gd` + `scenes/vn/DialogueBox.tscn`)
+  — **built.** A `CanvasLayer` scene (layout lives in the `.tscn`, not built
+  in code like `MenuScene` — the dialogue panel is one framed window among
+  possible full-scene staging, not chrome wrapping arbitrary bespoke
+  content), owning its own `DialogueRunner` internally
   (`open(compiled_scene)` constructs one, connects all four signals, calls
-  `start()`). Background and character sprites are placeholder colored
-  rectangles (deterministic hash-to-hue for backgrounds by name, a small
-  fixed palette cycled per character), with a name+expression label instead
-  of real art; the currently-speaking character is full-opacity, everyone
-  else present is dimmed. Dialogue text reveals with a typewriter effect
-  (`Timer`-driven, seconds-per-character scaled by `Settings.text_speed_multiplier`
-  — the Settings screens' Text Speed dropdown, `scripts/autoload/settings.gd`;
+  `start()`). `visible = false` lives in `_ready()` rather than baked into
+  the scene file's `visible` property — a `CanvasLayer.visible` set in the
+  `.tscn` hides the node in the editor preview too, not just at runtime, so
+  it has to be code-side to keep the scene editable. The background
+  `ColorRect` behind everything defaults to fully transparent and stays that
+  way for the rest of the scene unless a `background <name>` stage direction
+  sets one (reset to transparent on every `open()` so a previous scene's
+  background never bleeds into the next) — most conversations (a quick NPC
+  exchange) play out overlaid on the room the player is standing in; scenes
+  that want the traditional full-screen VN look just add a `background`
+  line. Character sprites are still placeholder colored rectangles
+  (deterministic hash-to-hue for backgrounds by name, a small fixed palette
+  cycled per character), with a name+expression label instead of real art;
+  the currently-speaking character is full-opacity, everyone else present is
+  dimmed. The dialogue text panel is a `PanelContainer` with
+  `theme_type_variation = "FramedPanel"` (the same wood-frame
+  `StyleBoxTexture` every other menu/panel in the game uses —
+  `theme/ui_theme.tres`), anchored to the bottom of the screen with a 32px
+  gap from every edge so it reads as an overlaid window rather than chrome
+  flush against the frame. Its `RichTextLabel` gets its color/size from
+  `ui_theme.tres`' own `RichTextLabel/*` theme entry (a project-wide default,
+  since `RichTextLabel` isn't a `Label` subtype and so isn't covered by the
+  theme's blanket `Label/colors/font_color`, and this is currently the only
+  `RichTextLabel` in the project) rather than a per-instance override.
+  Dialogue text reveals with a typewriter effect (`Timer`-driven,
+  seconds-per-character scaled by `Settings.text_speed_multiplier` — the
+  Settings screens' Text Speed dropdown, `scripts/autoload/settings.gd`;
   "Instant" skips the timer and reveals the whole line immediately); clicking
-  anywhere on the background while a line is still revealing completes it instantly
-  instead of advancing, and only a second click calls `DialogueRunner.advance()`
-  — the click handler lives on the full-screen background `ColorRect`, with
-  the character layer and each character rectangle set to
-  `MOUSE_FILTER_IGNORE` so clicks fall through to it, while choice buttons
-  (default `STOP` filter) still take priority when clicked directly. Choice
-  options render as dynamically-built `Button`s; pressing one calls
-  `DialogueRunner.choose(index)`. `scene_ended()` closes the box and
-  un-pauses `Clock`, mirroring how `MenuScene` pauses/unpauses on open/close.
+  anywhere on the background (or pressing the `select` GameInput action,
+  consumed in `_input()` so it can't also reach `MainScene`'s interact
+  handling) while a line is still revealing completes it instantly instead
+  of advancing, and only a second click/press calls
+  `DialogueRunner.advance()` — the click handler lives on the full-rect
+  background `ColorRect`, with the character layer and each character
+  rectangle set to `MOUSE_FILTER_IGNORE` so clicks fall through to it, while
+  choice buttons (default `STOP` filter) still take priority when clicked
+  directly. Choice options render as dynamically-built `Button`s; pressing
+  one calls `DialogueRunner.choose(index)`. `scene_ended()` closes the box
+  and un-pauses `Clock`, mirroring how `MenuScene` pauses/unpauses on
+  open/close.
+
+  The speaker name renders in `Nameplate`, a separate node overlaid
+  straddling `DialoguePanel`'s top border (half above it, half below — added
+  to the scene *after* `DialoguePanel` so it draws on top) rather than a
+  label living inside the panel's own content flow. It uses
+  `theme_type_variation = "FramedPanelDark"` (the same wood-frame texture as
+  `FramedPanel`, dark-interior variant — `StyleBoxTexture_WoodFrame.tres`)
+  with its `Label`'s `font_color` overridden to a light cream
+  (`Color(0.98, 0.953, 0.906, 1)`), since the dark interior needs light text
+  where the rest of the game's light-parchment panels need dark text.
+  `_position_nameplate()` re-measures and repositions it on every line (via
+  `Control.reset_size()` against whatever text was just set, then a
+  fraction-of-`DialoguePanel`'s-width offset for the requested slot), so an
+  overly-long name never gets clipped by a stale size from the previous
+  speaker. Horizontal slot is per-line data from the `.vnscript`'s
+  `nameplate <position>` stage direction (see "Dialogue script format"
+  above) — `STAGE_NAMEPLATE`, handled like every other stage instruction,
+  just records the requested position rather than applying it immediately,
+  since applying happens at `_on_line_shown` (after the new speaker's text is
+  set) rather than at the stage-direction instruction itself, precisely to
+  avoid that stale-measurement issue when a `nameplate` line precedes a
+  `SHOW_LINE` in the same uninterrupted `_run()` burst.
+
   Verified via a throwaway test scene simulating real clicks and button
   presses through the `kaelith_greeting` sample, including the `background`
-  stage direction, both choice branches, and the resulting affection/inventory
-  side effects.
+  stage direction, both choice branches, and the resulting
+  affection/inventory side effects; the nameplate/`STAGE_NAMEPLATE` addition
+  was verified separately via a scripted `NPCDialogue.talk_to()` smoke test
+  confirming all five slots position without error and the default
+  (`"center"`) applies when a script never sets one.
+
+  `"Alchemist"` is a reserved speaker/character id meaning the player —
+  scripts write `enter Alchemist at x,y` / `Alchemist: "text"` exactly like
+  any other character (so `enter`/`Speaker:` lines stay static, authorable
+  text), but `DialogueBox._resolve_display_name()` swaps it for
+  `PlayerProfile.character_name` everywhere a name actually renders
+  (nameplate, the small label over a character rectangle), falling back to
+  the literal word "Alchemist" if the player hasn't named their character
+  yet. Internal bookkeeping (the `_characters` dict key, `_set_active_speaker`'s
+  dimming match) still keys off the raw id, since name substitution is a
+  presentation-layer concern only. `data/vn_scenes/alchemist_and_mira.vnscript`
+  is a short reference scene exercising this alongside `enter`/`nameplate`
+  positioning (Alchemist left, Mira right) — a sample of the format, same
+  spirit as `kaelith_greeting`. Verified via a scripted playthrough with
+  `PlayerProfile.character_name` set to a throwaway test name, confirming
+  the nameplate alternates between that name and "Mira" correctly across all
+  six lines and the scene ends cleanly.
+
+  **Opening animation** (`_begin_open_animation()`, called from `open()`):
+  `DialoguePanel` grows from a thin strip at its top edge down to its
+  authored resting rect — top-down, matching every other window's open
+  animation in this game (`MenuScene._begin_open_animation()`) even though
+  `DialoguePanel` itself is bottom-docked: `offset_top` is pinned to its
+  final value for the whole animation and only `offset_bottom` moves, rather
+  than the reverse. Simpler than `MenuScene`'s version either way:
+  `DialoguePanel`'s rect is fixed/known up front here (anchored with static
+  offsets, not sized from its content the way `MenuScene`'s centered panel
+  is), so there's no need for `MenuScene`'s decoupled ghost-frame trick to
+  avoid a stale-rect flash — this just tweens the real panel's
+  `offset_bottom` directly from a collapsed value (`_panel_target_offset_top
+  + _OPEN_COLLAPSED_HEIGHT`, a 56px strip, same constant `MenuScene` uses) up
+  to `_panel_target_offset_bottom` — both the panel's authored `offset_top`
+  and `offset_bottom`, read once in `_ready()` before any animation touches
+  them, rather than duplicated as hardcoded literals, so resizing the panel
+  in the editor doesn't also require updating an animation constant
+  elsewhere. `DialoguePanel/Margin` has `clip_contents = true` to mask the
+  transient overflow while the panel is still small — the same job
+  `MenuScene`'s ghost+clipper pairing does, just via one property instead of
+  a parallel frame.
+
+  `Nameplate`'s Y position (`_position_nameplate()`) is computed from
+  `_panel_target_offset_top` directly (plus live viewport height), not from
+  `DialoguePanel`'s *live* rect — `DialoguePanel` has `grow_vertical =
+  GROW_DIRECTION_BEGIN` (so genuinely long content pushes the panel's top
+  edge further up rather than overflowing off-screen), and during the
+  collapsed phase the content's real minimum height (~170px, from
+  `TextLabel`'s own minimum plus `Margin`'s) is well over the 56px collapsed
+  height, so Godot forcibly shoves the *live* rect's top edge upward to
+  satisfy that minimum for as long as the panel is smaller than its content
+  needs — even though the authored `offset_top` itself was never touched.
+  Reading the live rect for Y would put `Nameplate` in the wrong spot for
+  the whole collapsed phase (an earlier version of this tried hiding it and
+  correcting once the tween finished instead, but that just traded a wrong
+  position for a visible blink-in partway through). Since
+  `_panel_target_offset_top` is authoritative and never affected by that
+  transient shove, computing straight from it keeps `Nameplate` correctly
+  pinned to the top border from the very first frame — visible immediately,
+  appearing to ride along as the panel extends downward beneath it, no
+  hide/catch-up dance needed. X still reads from the live rect
+  (`position.x`/`size.x`), since only vertical growth is ever forced this
+  way. Verified via a scripted `open()` call: `Nameplate` is already visible
+  and at its final, correct Y on the very same frame `open()` runs, before
+  the panel has grown at all, and stays at that same Y for the whole
+  animation while `DialoguePanel`'s `offset_bottom` visibly grows from
+  collapsed to its authored target beneath it.
 
 ### Scene triggering **[BUILT]**
 
@@ -1165,6 +1293,61 @@ SceneTriggerDef
   No nested scenes.
 - Non-repeatable scenes mark themselves played via the same `Story` flag store
   (`has_flag("scene_played_" + scene_id)`) rather than separate "seen" bookkeeping.
+
+### NPC interaction **[BUILT — one demo NPC]**
+
+The player-initiated counterpart to auto-triggered scenes above: walking up to
+an NPC and pressing the interact key, rather than a condition being satisfied
+in the background. Deliberately built as a thin layer on top of the same
+engine rather than a second dialogue system.
+
+- `NPCInteractable` (`scripts/npc_interactable.gd`, an `InteractableBase`
+  subclass like every other world object — see system 12) is a hand-placed
+  world node carrying one field, `npc_id`, matching a registered
+  `CharacterDef.id`. `interact()` just calls `NPCDialogue.talk_to(npc_id)`.
+  Placement is static — hand-placed in a room's `Interactables` container
+  exactly like furniture — since live movement/scheduling is future work;
+  this task only wires the *data model and condition surface* (place, time,
+  relationship) that movement/scheduling will eventually plug into, without
+  touching dialogue-selection or presentation code when it lands.
+- `NPCLineSetDef` (`scripts/data/npc_line_set_def.gd`, a `Resource`) is one
+  candidate conversation: `id`, `npc_id`, `script_path` (a `.vnscript`),
+  `condition` (same expression-language source as everywhere else),
+  `priority` (`LOW/NORMAL/HIGH/MAX`, same bucket convention as
+  `SceneTriggerDef`), `repeatable`. Several exist per `npc_id` under
+  `data/npc_dialogue/<npc_id>/`.
+- `NPCDialogue` autoload registers every `NPCLineSetDef` listed in its
+  `NPC_LINE_PATHS` const (same explicit-path-list convention as
+  `Characters`/`SceneDirector`), parsing the condition and compiling the
+  script up front. `talk_to(npc_id)` picks the highest-priority satisfied,
+  not-already-played candidate for that NPC (identical selection rule to
+  `SceneDirector.recheck()`) and hands the compiled scene to
+  `SceneDirector.play_external()` — the one shared `DialogueBox`/
+  `_is_scene_playing` guard now used by both auto-triggered scenes and
+  NPC-initiated ones, so the two can never open two dialogue boxes at once.
+  A `.vnscript` played once via either path shares the same
+  `scene_played_<scene_id>` `Story` flag. If nothing matches, `talk_to()`
+  warns rather than inventing filler text — every NPC is expected to author
+  a `condition = "true"`, `priority = LOW` fallback entry.
+- New condition-language functions this needed, added to
+  `VNExpressionEvaluator._call_function()`: `current_room()` (reads
+  `GameFlow.current_room_id`, mirrored there from `RoomBuilder.switch_room()`
+  since `RoomBuilder` itself isn't reachable from a static evaluator),
+  `minute_of_day()` / `day_name()` / `is_weekend()` (thin wrappers over
+  existing `Clock` methods), and `is_dating(id)` / `set_dating(id)` (a new
+  single-partner ledger on `LoveInterests`, alongside its existing affection
+  dictionary, persisted the same way).
+- `DialogueBox` now also advances on the `select` GameInput action (consumed
+  in `_input()`, not `_unhandled_input()`, so it can't leak through to
+  `MainScene`'s own interact handling), not just a mouse click — talking to
+  NPCs is a repeated core interaction now, not a rare unconditional cutscene,
+  so gamepad/keyboard-only play needed to keep working.
+- One demo NPC (`data/characters/mira.tres`, not a love interest — proves the
+  system isn't romance-only) is hand-placed in the Shop
+  (`scenes/rooms/Shop.tscn`) with two candidate lines
+  (`data/npc_dialogue/mira/default.tres` and `evening.tres`, the latter
+  gated on `minute_of_day() >= 1080`) to prove condition-based selection
+  actually discriminates, not just always firing the first entry.
 
 ---
 

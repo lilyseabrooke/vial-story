@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="NPCLineSetDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/npc_line_set_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mira_evening"
+npc_id = "mira"
+script_path = "res://data/vn_scenes/mira_evening.vnscript"
+condition = "minute_of_day() >= 1080"
+priority = 1
+repeatable = true

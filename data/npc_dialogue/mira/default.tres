@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="NPCLineSetDef" format=3 uid="uid://b5fmtgbtn7jet"]
+
+[ext_resource type="Script" uid="uid://c2yv63w0rcqg6" path="res://scripts/data/npc_line_set_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "alchemist_and_mira"
+npc_id = "mira"
+script_path = "res://data/vn_scenes/alchemist_and_mira.vnscript"
+priority = 0
+repeatable = true

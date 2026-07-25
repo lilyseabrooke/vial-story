@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/ScrapHeapInteractable.tscn" id="13"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/AlchemyLabManagerInteractable.tscn" id="14"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PantryInteractable.tscn" id="15"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/NPCInteractable.tscn" id="16"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
 script = ExtResource("1")
@@ -170,6 +171,13 @@ spawn_position = Vector2(120, 100)
 prompt_text = "head out to the Orrery"
 display_name = "Orrery Doorway"
 visual_color = Color(0.15, 0.65, 0.65, 1)
+
+[node name="Mira" parent="Interactables" unique_id=1284917335 instance=ExtResource("16")]
+position = Vector2(470, 200)
+npc_id = "mira"
+prompt_text = "talk to Mira"
+display_name = "Mira"
+visual_color = Color(0.35, 0.55, 0.75, 1)
 
 [node name="StairsToShopBack" parent="Interactables" unique_id=1629299919 instance=ExtResource("6")]
 position = Vector2(250, 486)

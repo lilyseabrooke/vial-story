@@ -368,6 +368,7 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 		previous_room.process_mode = Node.PROCESS_MODE_DISABLED
 
 	current_room_id = room_id
+	GameFlow.set_current_room(room_id)
 	var room: Room = _rooms[room_id]
 	room.visible = true
 	room.process_mode = Node.PROCESS_MODE_INHERIT

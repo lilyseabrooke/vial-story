@@ -19,6 +19,8 @@ signal scene_finished(scene_id: String)
 ## gating condition.
 const TRIGGER_PATHS: Array[String] = []
 
+const _DIALOGUE_BOX_SCENE := preload("res://scenes/vn/DialogueBox.tscn")
+
 var _entries: Array[Dictionary] = []   # {"trigger", "condition_ast", "compiled"}, registration order
 var _dialogue_box: DialogueBox
 var _is_scene_playing: bool = false
@@ -26,7 +28,7 @@ var _current_scene_id: String = ""
 
 
 func _ready() -> void:
-	_dialogue_box = DialogueBox.new()
+	_dialogue_box = _DIALOGUE_BOX_SCENE.instantiate()
 	add_child(_dialogue_box)
 	_dialogue_box.closed.connect(_on_dialogue_box_closed)
 
@@ -67,7 +69,7 @@ func recheck() -> void:
 	var best: Dictionary = {}
 	for entry in _entries:
 		var trigger: SceneTriggerDef = entry.trigger
-		if not trigger.repeatable and Story.has_flag(_played_flag(entry.compiled.scene_id)):
+		if not trigger.repeatable and Story.has_flag(played_flag(entry.compiled.scene_id)):
 			continue
 		if menu_blocked and not trigger.show_from_menu:
 			continue
@@ -84,15 +86,26 @@ func is_scene_playing() -> bool:
 	return _is_scene_playing
 
 
-func _fire(entry: Dictionary) -> void:
-	var trigger: SceneTriggerDef = entry.trigger
-	var compiled: Dictionary = entry.compiled
+## Plays an already-compiled scene through the one shared DialogueBox,
+## regardless of who compiled it -- SceneDirector's own trigger list, or an
+## external caller like NPCDialogue. Returns false (no-op) if a scene is
+## already playing, so callers never end up with two DialogueBoxes/flags
+## fighting each other.
+func play_external(compiled: Dictionary, repeatable: bool) -> bool:
+	if _is_scene_playing:
+		return false
 	_is_scene_playing = true
 	_current_scene_id = compiled.scene_id
-	if not trigger.repeatable:
-		Story.set_flag(_played_flag(compiled.scene_id))
+	if not repeatable:
+		Story.set_flag(played_flag(compiled.scene_id))
 	scene_started.emit(compiled.scene_id)
 	_dialogue_box.open(compiled)
+	return true
+
+
+func _fire(entry: Dictionary) -> void:
+	var trigger: SceneTriggerDef = entry.trigger
+	play_external(entry.compiled, trigger.repeatable)
 
 
 func _on_dialogue_box_closed() -> void:
@@ -103,5 +116,5 @@ func _on_dialogue_box_closed() -> void:
 	recheck()
 
 
-func _played_flag(scene_id: String) -> String:
+func played_flag(scene_id: String) -> String:
 	return "scene_played_" + scene_id

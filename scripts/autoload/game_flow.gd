@@ -9,3 +9,13 @@ extends Node
 
 var game_id: String = ""
 var is_new_game: bool = false
+
+## Mirrors RoomBuilder.current_room_id -- RoomBuilder isn't an autoload, so
+## this is how VNExpressionEvaluator's current_room() condition function
+## reaches it. Not part of the save payload -- switch_room() re-sets it the
+## moment a loaded game restores the player's room.
+var current_room_id: String = ""
+
+
+func set_current_room(room_id: String) -> void:
+	current_room_id = room_id

@@ -78,6 +78,19 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 		"start_quest":
 			QuestManager.start_quest(args[0])
 			return null
+		"current_room":
+			return GameFlow.current_room_id
+		"minute_of_day":
+			return Clock.minute_of_day()
+		"day_name":
+			return Clock.day_name()
+		"is_weekend":
+			return Clock.day_type() == Clock.DayType.WEEKEND
+		"is_dating":
+			return LoveInterests.is_dating(args[0])
+		"set_dating":
+			LoveInterests.set_dating(args[0])
+			return null
 		_:
 			push_warning("VNExpressionEvaluator: unknown function '%s'" % function_name)
 			return null

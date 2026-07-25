@@ -14,6 +14,10 @@ const DAY_START_MINUTE := 360      # 6:00 AM
 const DAY_LENGTH_MINUTES := 1200   # forced collapse 20 hours later, i.e. 2:00 AM
 const MINUTES_PER_CALENDAR_DAY := 1440
 const WEEKEND_DAY_INDICES := [5, 6]
+# Index 0 aligns with day_number 0, and with WEEKEND_DAY_INDICES above.
+const DAY_NAMES: Array[String] = [
+	"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+]
 
 # Sims-style speed buttons: index 0/1/2 = 1x/1.5x/2x, multiplying the base rate.
 const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.5, 2.0]
@@ -72,6 +76,10 @@ func _tick_one_minute() -> void:
 
 func day_type() -> DayType:
 	return DayType.WEEKEND if (day_number % 7) in WEEKEND_DAY_INDICES else DayType.WEEKDAY
+
+
+func day_name() -> String:
+	return DAY_NAMES[day_number % 7]
 
 
 ## Absolute, monotonically increasing timestamp for BrewJob/GrowPlot deadlines.
