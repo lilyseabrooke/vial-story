@@ -61,21 +61,34 @@ func range_i(from: int, to: int) -> int:
 ## a natural 10 on either die is a critical success, and a natural 1+10 pair
 ## overrides both into an inflection point (no mechanics attached here --
 ## it's on callers to decide what, if anything, that means).
+##
+## degrees_of_success/degrees_of_failure count how far the total lands past
+## the DC in either direction: one degree for beating/missing the DC, plus
+## one more per full 5 beyond that (a 10-14 on a DC10 roll is 1 DoS, 15-19 is
+## 2 DoS, ... a 5-9 miss is 1 DoF, 0-4 is 2 DoF, ...). Exactly one of the two
+## is nonzero for any given roll. No mechanics attached here -- it's on
+## callers to decide what, if anything, a given degree count does.
 func roll_2d10(modifier: float, dc: float) -> Dictionary:
 	var die_a := _rng.randi_range(1, DICE_SIDES)
 	var die_b := _rng.randi_range(1, DICE_SIDES)
 	var total: float = die_a + die_b + modifier
 	var inflection_point := (die_a == 1 and die_b == DICE_SIDES) or (die_a == DICE_SIDES and die_b == 1)
+	var passed := total >= dc
+	var margin := total - dc
+	var degrees_of_success := (floori(margin / 5.0) + 1) if passed else 0
+	var degrees_of_failure := (floori((-margin - 1) / 5.0) + 1) if not passed else 0
 	return {
 		"die_a": die_a,
 		"die_b": die_b,
 		"modifier": modifier,
 		"total": total,
 		"dc": dc,
-		"passed": total >= dc,
+		"passed": passed,
 		"inflection_point": inflection_point,
 		"critical_failure": not inflection_point and (die_a == 1 or die_b == 1),
 		"critical_success": not inflection_point and (die_a == DICE_SIDES or die_b == DICE_SIDES),
+		"degrees_of_success": degrees_of_success,
+		"degrees_of_failure": degrees_of_failure,
 	}
 
 
