@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="NPCScheduleBlockDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/npc_schedule_block_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "zara_weekday_morning_training"
+npc_id = "zara"
+room_id = "scrap_yard"
+day_type_filter = 1
+start_minute = 360
+end_minute = 720
+condition = "true"
+priority = 1

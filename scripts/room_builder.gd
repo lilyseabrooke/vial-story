@@ -195,6 +195,14 @@ func build_rooms() -> void:
 	for heap_id in _heap_nodes:
 		_sync_heap_indicator(heap_id)
 
+	var npc_director := NPCDirector.new()
+	add_child(npc_director)
+	npc_director.setup(self)
+
+
+func get_room(room_id: String) -> Room:
+	return _rooms.get(room_id)
+
 
 ## Instantiates a room scene, registers its spawn marker, connects
 ## every pre-placed Interactable's signals, and resolves stairs' spawn
@@ -221,7 +229,7 @@ func _load_room(scene: PackedScene) -> void:
 	_spawn_points[room.room_id] = room.get_node("SpawnPoint").position
 
 	for interactable in room.get_node("Interactables").get_children():
-		_wire_interactable(interactable)
+		wire_interactable(interactable)
 		if interactable is StairsInteractable and _spawn_points.has(interactable.target_room):
 			interactable.spawn_position = _spawn_points[interactable.target_room]
 
@@ -240,7 +248,7 @@ func _wire_shop_back_door() -> void:
 	door.spawn_position = _spawn_points[target_room_id]
 
 
-func _wire_interactable(interactable: InteractableBase) -> void:
+func wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
 	if interactable is BrewStationInteractable:
@@ -340,7 +348,7 @@ func _on_stash_spawn_requested(stash_id: String, pos: Vector2, spawner: DragonSt
 	interactable.visual_color = Color(0.5, 0.08, 0.2, 1)
 	interactable.position = pos
 	spawner.add_child(interactable)
-	_wire_interactable(interactable)
+	wire_interactable(interactable)
 
 
 ## Instances a Scrap Heap Interactable in response to a ScrapHeapSpawnerNode's
@@ -355,7 +363,7 @@ func _on_heap_spawn_requested(heap_id: String, pos: Vector2, spawner: ScrapHeapS
 	interactable.visual_color = Color(0.72, 0.55, 0.22, 1)
 	interactable.position = pos
 	spawner.add_child(interactable)
-	_wire_interactable(interactable)
+	wire_interactable(interactable)
 
 
 ## The one place rooms get (de)activated: toggles visibility + processing on

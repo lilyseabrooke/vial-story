@@ -91,6 +91,12 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 		"set_dating":
 			LoveInterests.set_dating(args[0])
 			return null
+		"npc_mood":
+			return NPCState.get_mood(args[0])
+		"npc_funds":
+			return NPCState.get_funds(args[0])
+		"npc_relationship":
+			return NPCState.get_relationship(args[0], args[1])
 		_:
 			push_warning("VNExpressionEvaluator: unknown function '%s'" % function_name)
 			return null

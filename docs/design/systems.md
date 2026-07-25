@@ -89,7 +89,10 @@ Clock
     skipping class for a time-sensitive brew a real, legible tradeoff.
   - **Shop open hours** = Ambient window. While current time falls inside it, the
     shop-stock sale-roll (system 5) just runs continuously in the background.
-  - Love-interest schedules will reuse this same struct later (see system 13, stub).
+  - Love-interest schedules ended up as `NPCScheduleBlockDef` rather than a
+    literal reuse of this struct (day_type filter + start/end minute is the
+    same shape, but with room_id/condition/priority instead of a single
+    trigger_type) — see system 13's "Love-interest schedule & movement".
 - **TimeSkip** is the one utility both class-attendance and sleep/collapse call:
   given `(from_time, to_time, day_delta)`, it resolves everything that would have
   happened across that span — brew jobs and grow plots flip to Ready if their
@@ -1294,7 +1297,7 @@ SceneTriggerDef
 - Non-repeatable scenes mark themselves played via the same `Story` flag store
   (`has_flag("scene_played_" + scene_id)`) rather than separate "seen" bookkeeping.
 
-### NPC interaction **[BUILT — one demo NPC]**
+### NPC interaction **[BUILT — one demo NPC, 5 love interests scheduled/roaming]**
 
 The player-initiated counterpart to auto-triggered scenes above: walking up to
 an NPC and pressing the interact key, rather than a condition being satisfied
@@ -1302,14 +1305,13 @@ in the background. Deliberately built as a thin layer on top of the same
 engine rather than a second dialogue system.
 
 - `NPCInteractable` (`scripts/npc_interactable.gd`, an `InteractableBase`
-  subclass like every other world object — see system 12) is a hand-placed
-  world node carrying one field, `npc_id`, matching a registered
-  `CharacterDef.id`. `interact()` just calls `NPCDialogue.talk_to(npc_id)`.
-  Placement is static — hand-placed in a room's `Interactables` container
-  exactly like furniture — since live movement/scheduling is future work;
-  this task only wires the *data model and condition surface* (place, time,
-  relationship) that movement/scheduling will eventually plug into, without
-  touching dialogue-selection or presentation code when it lands.
+  subclass like every other world object — see system 12) carries `npc_id`
+  matching a registered `CharacterDef.id`. `interact()` just calls
+  `NPCDialogue.talk_to(npc_id)`. Mira (the demo NPC) is still hand-placed
+  statically in `Shop.tscn`; the 5 love interests are instead spawned once
+  and moved between rooms at runtime — see "Love-interest schedule &
+  movement" below. Either way `interact()`/`NPCDialogue.talk_to()` work
+  identically, since dialogue selection never cared how the node got there.
 - `NPCLineSetDef` (`scripts/data/npc_line_set_def.gd`, a `Resource`) is one
   candidate conversation: `id`, `npc_id`, `script_path` (a `.vnscript`),
   `condition` (same expression-language source as everywhere else),
@@ -1348,6 +1350,66 @@ engine rather than a second dialogue system.
   (`data/npc_dialogue/mira/default.tres` and `evening.tres`, the latter
   gated on `minute_of_day() >= 1080`) to prove condition-based selection
   actually discriminates, not just always firing the first entry.
+
+**Love-interest schedule & movement.** The 5 love interests (callie,
+larissa, haerin, zara, lyra) each roam between rooms on their own rather
+than sitting in one hand-placed spot, driven by a schedule resolved from
+day type, time of day, and hidden per-NPC state — the `ScheduledWindow` stub
+mentioned in system 1 became this concretely.
+
+- `NPCScheduleBlockDef` (`scripts/data/npc_schedule_block_def.gd`, a
+  `Resource`) is one candidate schedule row: `id`, `npc_id`, `room_id` (a
+  `RoomBuilder` room id), `day_type_filter` (`ANY/WEEKDAY/WEEKEND`),
+  `start_minute`/`end_minute` (inclusive, compared against
+  `Clock.minute_of_day()`, no midnight-wrap support), `condition` (same
+  expression language as `NPCLineSetDef`), `priority`
+  (`LOW/NORMAL/HIGH/MAX`) — the same condition/priority shape as
+  `NPCLineSetDef`, deliberately duplicated rather than shared. Several exist
+  per `npc_id` under `data/npc_schedules/<npc_id>/`.
+- `NPCScheduler` autoload registers every block listed in its
+  `NPC_SCHEDULE_PATHS` const (same explicit-path-list convention as
+  `NPCDialogue`), parsing each condition up front. `resolve_all()` re-picks
+  each NPC's target room using the identical highest-priority-satisfied-wins
+  rule `NPCDialogue.talk_to()`/`SceneDirector.recheck()` use, and emits
+  `npc_room_changed(npc_id, room_id)` only when the resolved room actually
+  changes. Runs off `Clock.day_started` and a throttled `Clock.minute_tick`
+  (every 5 in-game minutes — schedule windows are hour-plus granularity, so
+  nothing is lost). Every NPC needs a `condition = "true"`, full-day,
+  `priority = LOW` fallback block, same convention as `NPCDialogue`.
+- `NPCState` autoload holds hidden state no UI shows: per-NPC `mood`,
+  `funds` (both 0-100), and pairwise `relationships` with the other 4 love
+  interests (-100..100). Rolled with small random deltas (via the seeded
+  `Rng` autoload, for save-determinism) once per `Clock.day_started` —
+  `_roll_overnight()` is a deliberately small, isolated, doc-commented seam
+  for replacing placeholder randomness with real logic (job income, mood
+  from dates/gifts, jealousy) later without touching any caller. Exposed to
+  the condition language as `npc_mood(id)`, `npc_funds(id)`,
+  `npc_relationship(id, other_id)` (`VNExpressionEvaluator._call_function`).
+  Persisted via `SaveManager`.
+- `NPCDirector` (`scripts/npc_director.gd`, a plain `Node`, code-instanced
+  by `RoomBuilder.build_rooms()` the same way `RoomBuilder` itself is
+  code-instanced by `MainScene`) spawns each love interest's
+  `NPCInteractable` once, for the game's lifetime, and reparents it between
+  rooms' `Interactables` containers on `NPCScheduler.npc_room_changed` —
+  proximity signal connections (`RoomBuilder.wire_interactable()`) are made
+  once at spawn and survive the reparent untouched, since Godot signal
+  connections live on the node instance, not its tree position.
+- Within whichever room it's currently in, an `NPCInteractable` meanders on
+  its own: `_physics_process` walks toward a random point inside
+  `meander_bounds` (that room's `room_size`, inset by a margin — no
+  authored per-room roam zones), idles, repeats. No physics body and no
+  pathfinding — it's a plain `Area2D` like every other interactable, and
+  since inactive rooms already have `process_mode = PROCESS_MODE_DISABLED`
+  (system 12), an NPC's movement automatically only runs while its current
+  room is the one the player is in, for free.
+- Placeholder schedule content covers all 5 love interests across 7 rooms
+  (excludes Bedroom and the Shop-Back-only rooms) with 2-4 blocks each,
+  tunable later. One real conditional override is authored as a worked
+  demo: Zara normally trains in `scrap_yard` weekday mornings, but a
+  `data/npc_schedules/zara/weekday_morning_funds_low.tres` block
+  (`condition = "npc_funds(\"zara\") < 30"`, `priority = HIGH`) sends her to
+  `dragons_ground` hunting materials instead whenever `NPCState`'s nightly
+  roll leaves her short on funds.
 
 ---
 
