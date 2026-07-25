@@ -60,6 +60,7 @@ window/stretch/aspect="expand"
 [gui]
 
 theme/custom="res://theme/ui_theme.tres"
+theme/default_theme_scale=2.0
 
 [importer_defaults]
 

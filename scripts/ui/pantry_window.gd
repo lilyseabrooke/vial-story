@@ -4,8 +4,14 @@ extends PanelContainer
 ## menu rather than as a strip inside it (keeps the brew window from nesting yet
 ## another frame). GameHud owns it: shows + refreshes + positions it whenever
 ## the brew menu opens, and fades it out when that menu closes. Built in code
-## like the other HUD panels; frameless IngredientChips wrap into a narrow
-## column so the window stays tall-and-thin against the brew window's side.
+## like the other HUD panels; a narrow ItemSlot grid keeps the window
+## tall-and-thin against the brew window's side.
+##
+## Uses the same icon-first, quantity-corner-badge ItemSlot component as the
+## Satchel/Shop grids in game_menu.gd (see ItemSlot.populate_item()), so a
+## pantry stock icon reads identically to the same ingredient in the player's
+## inventory — name/category surfaced via hover tooltip rather than always-on
+## text.
 ##
 ## Shows combined totals, not just carried inventory: once a Pantry
 ## interactable is linked to the same Alchemy Lab Manager as the open
@@ -14,12 +20,17 @@ extends PanelContainer
 ## and reads Brewing.available_ingredient_count() per ingredient, the same
 ## helper BrewMenu's detail card uses, so both stay in sync.
 
-const INGREDIENT_CHIP_SCENE := preload("res://scenes/ui/components/IngredientChip.tscn")
+const ITEM_SLOT_SCENE := preload("res://scenes/ui/components/ItemSlot.tscn")
 
-const CONTENT_WIDTH := 118
-const SCROLL_HEIGHT := 420
+const GRID_COLUMNS := 2
+const SCROLL_HEIGHT := 640
 
-var _flow: HFlowContainer
+## ItemSlot.tscn's own custom_minimum_size.x — it's a scene property, not
+## something the script exposes, so it's mirrored here (matches the same
+## literal in game_menu.gd's Satchel/Shop grid sizing comment).
+const ITEM_SLOT_WIDTH := 72
+
+var _grid: GridContainer
 
 
 func build() -> void:
@@ -38,18 +49,18 @@ func build() -> void:
 
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(CONTENT_WIDTH, SCROLL_HEIGHT)
+	scroll.custom_minimum_size = Vector2(0, SCROLL_HEIGHT)
 	vbox.add_child(scroll)
 
-	_flow = HFlowContainer.new()
-	_flow.custom_minimum_size = Vector2(CONTENT_WIDTH, 0)
-	_flow.add_theme_constant_override("h_separation", 6)
-	_flow.add_theme_constant_override("v_separation", 8)
-	scroll.add_child(_flow)
+	_grid = GridContainer.new()
+	_grid.columns = GRID_COLUMNS
+	_grid.add_theme_constant_override("h_separation", 4)
+	_grid.add_theme_constant_override("v_separation", 4)
+	scroll.add_child(_grid)
 
 
 func refresh(station_id: String = "") -> void:
-	for child in _flow.get_children():
+	for child in _grid.get_children():
 		child.queue_free()
 
 	var any := false
@@ -58,15 +69,16 @@ func refresh(station_id: String = "") -> void:
 		if count <= 0:
 			continue
 		any = true
-		var chip := INGREDIENT_CHIP_SCENE.instantiate()
-		_flow.add_child(chip)
-		chip.populate(ingredient.icon, IngredientDef.CATEGORY_COLORS[ingredient.category],
-			"×%d" % count, "", UiPalette.TEXT_PRIMARY, ingredient.display_name)
+		var slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
+		_grid.add_child(slot)
+		var type_label := "%s Ingredient" % IngredientDef.Category.keys()[ingredient.category].capitalize()
+		slot.populate_item(ingredient.display_name, "", type_label, count,
+			IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon)
 
 	if not any:
 		var empty := Label.new()
 		empty.theme_type_variation = &"CaptionLabel"
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD
-		empty.custom_minimum_size = Vector2(CONTENT_WIDTH, 0)
+		empty.custom_minimum_size = Vector2(ITEM_SLOT_WIDTH * GRID_COLUMNS, 0)
 		empty.text = "Empty — buy or grow some ingredients first."
-		_flow.add_child(empty)
+		_grid.add_child(empty)

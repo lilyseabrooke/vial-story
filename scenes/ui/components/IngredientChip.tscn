@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/ui/components/ingredient_chip.gd" id="1"]
 
 [node name="IngredientChip" type="VBoxContainer"]
-custom_minimum_size = Vector2(50, 0)
+custom_minimum_size = Vector2(100, 0)
 alignment = 1
 theme_override_constants/separation = 1
 script = ExtResource("1")
@@ -22,18 +22,18 @@ layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 text = "●"
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 48
 
 [node name="CountLabel" type="Label" parent="."]
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 text = "×1"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 28
 
 [node name="Subtitle" type="Label" parent="."]
 layout_mode = 2
 mouse_filter = 2
 horizontal_alignment = 1
 visible = false
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 22

@@ -3,10 +3,10 @@
 [ext_resource type="Script" path="res://scripts/ui/components/brew_recipe_row.gd" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="Keycap"]
-content_margin_left = 7.0
-content_margin_top = 1.0
-content_margin_right = 7.0
-content_margin_bottom = 1.0
+content_margin_left = 14.0
+content_margin_top = 2.0
+content_margin_right = 14.0
+content_margin_bottom = 2.0
 bg_color = Color(0.98, 0.953, 0.906, 1)
 border_width_left = 1
 border_width_top = 1
@@ -19,7 +19,7 @@ corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
 
 [node name="BrewRecipeRow" type="Button"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 68)
 toggle_mode = true
 script = ExtResource("1")
 
@@ -65,4 +65,4 @@ mouse_filter = 2
 horizontal_alignment = 1
 text = "1"
 theme_override_colors/font_color = Color(0.361, 0.271, 0.188, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 24

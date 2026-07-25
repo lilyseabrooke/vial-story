@@ -38,9 +38,9 @@ signal notice(text: String)
 const INGREDIENT_CHIP_SCENE := preload("res://scenes/ui/components/IngredientChip.tscn")
 const BREW_RECIPE_ROW_SCENE := preload("res://scenes/ui/components/BrewRecipeRow.tscn")
 
-const LIST_WIDTH := 250
-const DETAIL_WIDTH := 348
-const COLUMN_HEIGHT := 320
+const LIST_WIDTH := 500
+const DETAIL_WIDTH := 696
+const COLUMN_HEIGHT := 640
 const QUICK_SLOT_COUNT := 3
 
 # Autowrap Labels report a runaway minimum height when their width is
@@ -551,7 +551,7 @@ func _rebuild_detail() -> void:
 		var slot_button := Button.new()
 		slot_button.toggle_mode = true
 		slot_button.text = str(s + 1)
-		slot_button.custom_minimum_size = Vector2(36, 0)
+		slot_button.custom_minimum_size = Vector2(72, 0)
 		slot_button.button_pressed = _quick_slots[s] == recipe
 		slot_button.tooltip_text = "Pin this potion to slot %d (or press %d while focused)" % [s + 1, s + 1]
 		slot_button.pressed.connect(func() -> void: _toggle_slot(s, recipe))
