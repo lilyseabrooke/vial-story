@@ -87,6 +87,7 @@ var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
 var _heap_nodes: Dictionary = {}        # heap_id -> ScrapHeapInteractable
 var _ley_line_nodes: Dictionary = {}    # node_id -> LeyLineNodeInteractable
+var _art_studio_nodes: Dictionary = {}  # studio_id -> ArtStudioInteractable
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -194,6 +195,21 @@ func build_rooms() -> void:
 	Transmutation.heap_resolved.connect(_on_heap_resolved)
 	for heap_id in _heap_nodes:
 		_sync_heap_indicator(heap_id)
+
+	ArtStudio.session_started.connect(func(studio_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.inspirations_offered.connect(func(studio_id: String, _offered_ids: Array) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.no_inspiration.connect(func(studio_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.session_cancelled.connect(func(studio_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.work_started.connect(func(studio_id: String, _inspiration_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.work_progress.connect(func(studio_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.work_discarded.connect(func(studio_id: String) -> void: _sync_art_studio_indicator(studio_id))
+	ArtStudio.work_completed.connect(func(studio_id: String, _inspiration_id: String, _roll: Dictionary, _xp: int) -> void: _sync_art_studio_indicator(studio_id))
+	Clock.minute_tick.connect(func(_timestamp: int) -> void:
+		for studio_id in _art_studio_nodes:
+			_sync_art_studio_indicator(studio_id)
+	)
+	for studio_id in _art_studio_nodes:
+		_sync_art_studio_indicator(studio_id)
 
 	var npc_director := NPCDirector.new()
 	add_child(npc_director)
@@ -312,6 +328,12 @@ func wire_interactable(interactable: InteractableBase) -> void:
 		# the meditation job away outright (LeyLines.cancel_meditation()),
 		# forcing a restart from an empty bar next time.
 		interactable.player_exited.connect(func(_i: InteractableBase) -> void: LeyLines.cancel_meditation(interactable.target_id))
+	elif interactable is ArtStudioInteractable:
+		_art_studio_nodes[interactable.target_id] = interactable
+		# The gathering-inspiration (ROLLING) phase ticks regardless of the
+		# player's presence, same as a BrewJob -- only the WORKING phase is
+		# tethered, same pause-on-exit shape as ContractBookInteractable.
+		interactable.player_exited.connect(func(_i: InteractableBase) -> void: ArtStudio.pause_work(interactable.target_id))
 
 
 ## Drives a Grow Plot Interactable's status label from Herbalism's current
@@ -515,6 +537,26 @@ func _on_heap_resolved(heap_id: String, _roll: Dictionary, _scrap_granted: int, 
 		node.player_exited.disconnect(connection.callable)
 	interactable_destroyed.emit(node)
 	node.queue_free()
+
+
+## Drives an Art Studio Interactable's progress bar from ArtStudio's current
+## state -- called on every relevant ArtStudio signal plus every minute tick
+## (ROLLING's fill advances whether or not the player is present, same as
+## _sync_station_indicator) and once up front (to restore state on a loaded
+## save with a session already in progress).
+func _sync_art_studio_indicator(studio_id: String) -> void:
+	var node: ArtStudioInteractable = _art_studio_nodes.get(studio_id)
+	if node == null:
+		return
+	var job := ArtStudio.get_job(studio_id)
+	if job == null:
+		node.clear_indicator()
+	elif job.phase == ArtStudioJob.Phase.CHOOSING:
+		node.show_ready_to_choose()
+	elif job.phase == ArtStudioJob.Phase.ROLLING:
+		node.set_progress(job.roll_progress_fraction())
+	else:
+		node.set_progress(job.work_progress_fraction())
 
 
 func _on_planted(plot_id: String, _seed_id: String) -> void:

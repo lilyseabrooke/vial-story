@@ -7,6 +7,23 @@ extends RefCounted
 ## action calls (set_flag, add_affection, ...) that cause a side effect and
 ## return null. The parser doesn't distinguish between them structurally —
 ## both are just "call" nodes — so neither does this.
+##
+## degrees_of_success() is the one function whose value isn't read from an
+## autoload — it's a transient per-evaluation input, set by whichever caller
+## rolled a check (currently only ArtStudio, resolving an Inspiration's
+## completion roll) via set_degrees_of_success() immediately before
+## evaluating that roll's reward expressions, and reset after. Zero outside
+## that window, same as any unset condition would read.
+
+static var _degrees_of_success: int = 0
+
+
+## Called by a roll-resolving caller (e.g. ArtStudio._complete_work()) right
+## before evaluating a batch of expressions that may reference
+## degrees_of_success() — reset to 0 once that batch is done so a later,
+## unrelated evaluation doesn't see a stale roll's result.
+static func set_degrees_of_success(value: int) -> void:
+	_degrees_of_success = value
 
 
 static func evaluate(node: Dictionary) -> Variant:
@@ -73,6 +90,14 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 			return null
 		"materials":
 			return Inventory.materials
+		"add_materials":
+			Inventory.add_materials(int(args[0]))
+			return null
+		"add_reputation":
+			Shop.add_reputation(int(args[0]))
+			return null
+		"degrees_of_success":
+			return _degrees_of_success
 		"skill_level":
 			return Skills.level(args[0])
 		"start_quest":

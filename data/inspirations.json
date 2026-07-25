@@ -1,0 +1,59 @@
+[
+	{
+		"id": "song_for_the_fey",
+		"display_name": "Song for the Fey",
+		"description": "A whimsical melody inspired by Lyra that might sound nice played in the shop.",
+		"dc": 14,
+		"completion_time": 1440,
+		"unique": false,
+		"weight": 1.0,
+		"conditions": [],
+		"rewards": [
+			{"action": "add_reputation(degrees_of_success())", "chance": 1.0, "condition": "true"},
+			{"action": "add_affection(\"lyra\", degrees_of_success())", "chance": 0.5, "condition": "degrees_of_success() >= 2"}
+		]
+	},
+	{
+		"id": "pressed_moonpetal_sketchbook",
+		"display_name": "Pressed Moonpetal Sketchbook",
+		"description": "A quiet study of the shop's own ingredients, sketched in charcoal and pressed petals.",
+		"dc": 8,
+		"completion_time": 240,
+		"unique": false,
+		"weight": 1.5,
+		"conditions": [],
+		"rewards": [
+			{"action": "add_materials(10)", "chance": 1.0, "condition": "true"},
+			{"action": "give_item(\"moonpetal\", 1)", "chance": 1.0, "condition": "degrees_of_success() >= 1"}
+		]
+	},
+	{
+		"id": "portrait_of_a_regular",
+		"display_name": "Portrait of a Regular",
+		"description": "A charcoal portrait of whichever familiar face keeps turning up at the counter.",
+		"dc": 11,
+		"completion_time": 480,
+		"unique": false,
+		"weight": 1.0,
+		"conditions": ["skill_level(\"creativity\") >= 2"],
+		"rewards": [
+			{"action": "add_affection(\"mira\", degrees_of_success())", "chance": 1.0, "condition": "true"},
+			{"action": "add_affection(\"haerin\", degrees_of_success())", "chance": 0.5, "condition": "degrees_of_success() >= 2"}
+		]
+	},
+	{
+		"id": "the_shop_sign_mural",
+		"display_name": "The Shop Sign Mural",
+		"description": "A one-of-a-kind repaint of the shop's sign, the kind of thing you only get to do once.",
+		"dc": 18,
+		"completion_time": 2160,
+		"unique": true,
+		"weight": 0.5,
+		"conditions": ["skill_level(\"creativity\") >= 5"],
+		"rewards": [
+			{"action": "add_reputation(degrees_of_success())", "chance": 1.0, "condition": "true"},
+			{"action": "add_reputation(degrees_of_success())", "chance": 1.0, "condition": "degrees_of_success() >= 3"},
+			{"action": "set_flag(\"shop_sign_repainted\")", "chance": 1.0, "condition": "true"}
+		]
+	}
+]

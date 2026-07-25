@@ -2543,6 +2543,118 @@ Summoning (autoload)
 
 ---
 
+## 23. Art Studio / Creativity System **[BUILT]**
+
+Using the Creativity skill at an Art Studio interactable (placed in the Bedroom) to make
+things for skill XP, Materials, shop reputation, relationship bumps, or flags — the
+Creativity skill's first consuming mechanic (see system 6).
+
+```
+InspirationDef (scripts/data/inspiration_def.gd, RefCounted; data/inspirations.json)
+  - id, display_name, description
+  - dc, completion_time             # minutes of tethered work required
+  - unique                          # can only ever be completed once
+  - weight                          # selection weight among the eligible pool when offered
+  - conditions: [String]            # VNExpressionParser-grammar bool expressions, all must pass
+  - rewards: [{action, chance, condition}]   # VN action-call expressions, degrees_of_success() usable
+
+ArtStudioJob (scripts/data/art_studio_job.gd, RefCounted)
+  - studio_id, phase: Phase(ROLLING, CHOOSING, WORKING)
+  - start_timestamp, ready_timestamp   # ROLLING only
+  - offered_inspiration_ids            # CHOOSING only
+  - inspiration_id, is_working, minutes_elapsed, minutes_required   # WORKING only
+
+ArtStudio (autoload)
+  - _studios: Dictionary          # studio_id -> ArtStudioJob
+  - _completed_unique_ids: Dictionary
+  - _current_roll_dc: float       # the "creative well" drain, see below
+```
+
+- **Two timing models back to back, borrowed directly from two existing systems rather than
+  inventing a third.** Interacting with an unoccupied Art Studio starts the ROLLING phase —
+  a soft-gold progress bar that fills on an absolute `Clock` timestamp deadline exactly like
+  a `BrewJob`, ticking whether or not the player is standing there. Once it fills, ROLLING
+  resolves into CHOOSING (no timer — see below) and, once the player picks an Inspiration,
+  into WORKING — a tethered accumulator exactly like a Demonology `WritJob`: only advances
+  while `is_working` is true, paused by `ArtStudioInteractable.player_exited` the same way
+  `ContractBookInteractable`'s is (`RoomBuilder.wire_interactable()`), and resumed only by a
+  fresh interact() at the studio, not just by walking back into range.
+- **Gathering-inspiration roll.** When ROLLING's bar fills, `ArtStudio._resolve_roll()` rolls
+  `Rng.roll_2d10(Skills.level("creativity"), _current_roll_dc)` and offers one Inspiration
+  per `degrees_of_success` — zero degrees (or an eligible pool that runs dry) ends the
+  session with nothing to show for it rather than opening an empty picker. Offered
+  Inspirations are drawn from every `InspirationDef` whose `conditions` all currently
+  evaluate true (and, if `unique`, not already completed this save), weighted by `weight`,
+  picked **without replacement** so one roll never offers the same Inspiration twice
+  (`ArtStudio._pick_inspirations()`).
+- **The "creative well" drain.** `_current_roll_dc` starts at `BASE_ROLL_DC` (5), climbs by
+  `ROLL_DC_STEP` (5) every single time it's rolled — pass or fail — and only comes back down
+  (by `ROLL_DC_SLEEP_DECAY`, 1, floored at `BASE_ROLL_DC`) on an actual voluntary sleep
+  (`Clock.day_ended` with `EndReason.SLEEP` specifically — a late-night collapse or Resolve
+  collapse doesn't count, since neither is "the player choosing to sleep"). This is a global
+  player-level stat, not per-studio, so grinding the Art Studio gets harder within a day and
+  a good night's rest is the only way to recover it.
+- **Picking, or walking away from the choice.** CHOOSING has no timer — `ArtStudioInteractable
+  .interact()` opens `ArtStudioPicker` (`scripts/ui/art_studio_picker.gd`), a plain
+  button-list `MenuScene` panel (same convention as `GameHud.class_panel`) listing each
+  offered Inspiration's name/DC/duration, plus a "Never mind" button. Picking one calls
+  `ArtStudio.choose_inspiration()`, which starts WORKING immediately (`is_working = true`
+  from the moment it's chosen, same as `Demonology.start_writ()`); declining calls
+  `ArtStudio.cancel_choice()`, which throws the whole session away.
+- **Discard-confirm, not auto-resolve, on a mid-WORKING interact.** Pressing the interact key
+  while WORKING opens `ArtStudioDiscardConfirm` (`scripts/ui/art_studio_discard_confirm.gd`)
+  — a small dedicated confirm panel (no general-purpose `ConfirmationDialog` exists elsewhere
+  in the codebase yet) asking whether to discard the current piece's progress, so a player who
+  realizes a piece is too big for the time they have isn't stuck grinding it out or losing
+  track of how to bail. Confirming calls `ArtStudio.discard_work()`, which erases the job
+  outright — no partial credit, same "walking away costs everything" shape as a Dragon's
+  Stash/Scrap Heap dig.
+- **Completion always resolves, pass or fail.** Once `minutes_elapsed` reaches the chosen
+  Inspiration's own `completion_time`, `ArtStudio._complete_work()` rolls
+  `Rng.roll_2d10(Skills.level("creativity"), def.dc)` — a **second**, independent roll from
+  the gathering-inspiration one above, against the Inspiration's own `dc`, and this one never
+  fails to grant *something*; it only scales how good the outcome is:
+  - **Rewards** — each of the Inspiration's `rewards` entries is an
+    `{action, chance, condition}` dict, reusing the same VNExpressionParser/
+    VNExpressionEvaluator action-call vocabulary a `QuestDef.reward` expression does
+    (`give_item`, `add_affection`, `set_flag`, plus two new action functions added for this
+    system: `add_materials(amount)` → `Inventory.add_materials()` and
+    `add_reputation(amount)` → `Shop.add_reputation()`). A new zero-arg function,
+    `degrees_of_success()`, is evaluator-only — `VNExpressionEvaluator.set_degrees_of_success()`
+    stashes the completion roll's `degrees_of_success` in a static var immediately before
+    evaluating a reward batch (and resets it after), so a reward action or its gating
+    `condition` can scale or gate itself off how well the roll landed (e.g.
+    `add_reputation(degrees_of_success())`, or a relationship bump gated behind
+    `degrees_of_success() >= 2`). Each entry only fires if its `condition` passes AND an
+    independent `Rng.chance(chance)` roll succeeds (`chance >= 1.0` always fires) — same
+    "some rewards are a coin flip, not guaranteed" shape as a Ley Line Surge's rewards table.
+  - **Creativity XP** — `_completion_xp()` computes a base
+    (`completion_time * XP_PER_COMPLETION_MINUTE + dc * XP_PER_DC_POINT`) then rescales it by
+    how close the completion roll's *total* landed to the Inspiration's own `dc`: exactly
+    tying it grants 100%, `-10%` per point the roll landed *over* the DC, `-20%` per point
+    *under* — mirroring the real "best results right at the edge of your ability" framing
+    (a DC15 Inspiration: rolling 15 gives full XP, 18 gives 70%, 13 gives 60%).
+  - If `unique`, the Inspiration is marked completed and never offered again this save.
+- **`ArtStudioInteractable`** (`scripts/art_studio_interactable.gd` +
+  `scenes/interactables/ArtStudioInteractable.tscn`) is a hand-placed fixture (one in
+  `scenes/rooms/Bedroom.tscn`), sharing one soft-gold progress bar (dim → bright) between the
+  ROLLING and WORKING phases — the same "one meter, two phases" shape
+  `ContractBookInteractable` uses for writing/revising — plus an "Inspired!" popup during
+  CHOOSING (a direct copy of `BrewStationInteractable`'s "Ready!" popup).
+  `RoomBuilder._sync_art_studio_indicator()` drives it off every relevant `ArtStudio` signal
+  plus a `Clock.minute_tick` hook (needed because ROLLING advances passively, same as a brew
+  station's indicator).
+- **Save contract.** Registered in `SaveManager._SAVE_ORDER` right after Transmutation. Like
+  Brewing, a `ROLLING` job's deadline is a `Clock.get_timestamp()` comparison valid across a
+  save/load with no special catch-up logic. Like a Demonology writ, `is_working` is never
+  persisted as `true` — a restored `WORKING` job always comes back paused.  `_current_roll_dc`
+  and the completed-unique-id set are persisted alongside the per-studio jobs.
+- **Not in scope for the prototype**: more than one hand-placed Art Studio, and a
+  Grimoire-style journal of completed/known Inspirations (the picker only ever shows the
+  currently-offered set).
+
+---
+
 ## Suggested Prototype Build Order
 
 1. Clock & day-cycle system (system 1)

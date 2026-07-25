@@ -21,9 +21,12 @@ var class_panel: VBoxContainer
 var alchemy_lab_panel: AlchemyLabMenu
 var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
+var art_studio_picker_panel: ArtStudioPicker
+var art_studio_discard_confirm_panel: ArtStudioDiscardConfirm
 
 var _station_id: String = ""
 var _pantry_menu_id: String = ""
+var _art_studio_menu_id: String = ""
 var _starting_ingredients: Dictionary = {}
 
 var _almanac: AlmanacClock
@@ -244,6 +247,16 @@ func build(starting_ingredients: Dictionary) -> void:
 	pantry_storage_panel = PantryStorageMenu.new()
 	pantry_storage_panel.build()
 	pantry_storage_panel.notice.connect(log_message)
+
+	art_studio_picker_panel = ArtStudioPicker.new()
+	art_studio_picker_panel.build()
+	art_studio_picker_panel.chosen.connect(_on_art_studio_chosen)
+	art_studio_picker_panel.cancelled.connect(_on_art_studio_picker_cancelled)
+
+	art_studio_discard_confirm_panel = ArtStudioDiscardConfirm.new()
+	art_studio_discard_confirm_panel.build()
+	art_studio_discard_confirm_panel.discard_confirmed.connect(_on_art_studio_discard_confirmed)
+	art_studio_discard_confirm_panel.kept.connect(func(_studio_id: String) -> void: close_menu())
 
 	class_panel = VBoxContainer.new()
 	class_panel.add_child(MenuKeyNav.new())
@@ -523,6 +536,34 @@ func _connect_autoload_signals() -> void:
 			log_message("That combination didn't work for %s." % (potion.display_name if potion else potion_id))
 		print("Puzzle attempted for %s: %s" % [potion_id, "success" if success else "failure"])
 	)
+	ArtStudio.session_started.connect(func(_studio_id: String) -> void:
+		log_message("You settle in at the Art Studio, waiting for inspiration to strike...")
+	)
+	ArtStudio.roll_rolled.connect(func(_studio_id: String, roll: Dictionary) -> void:
+		_message_wall.add_dice_result(roll, "Creativity: gathering inspiration")
+	)
+	ArtStudio.inspirations_offered.connect(func(_studio_id: String, offered_ids: Array) -> void:
+		log_message("Inspiration strikes! %d idea(s) are waiting at the Art Studio." % offered_ids.size())
+	)
+	ArtStudio.no_inspiration.connect(func(_studio_id: String) -> void:
+		log_message("Nothing comes to you this time -- the well needs a rest.")
+	)
+	ArtStudio.session_cancelled.connect(func(_studio_id: String) -> void:
+		print("Art Studio session cancelled.")
+	)
+	ArtStudio.work_started.connect(func(_studio_id: String, inspiration_id: String) -> void:
+		var def := ContentRegistry.get_inspiration(inspiration_id)
+		log_message("You begin work on %s." % (def.display_name if def else inspiration_id))
+	)
+	ArtStudio.work_discarded.connect(func(_studio_id: String) -> void:
+		log_message("You set the unfinished piece aside for good.")
+	)
+	ArtStudio.work_completed.connect(func(_studio_id: String, inspiration_id: String, roll: Dictionary, xp_gained: int) -> void:
+		var def := ContentRegistry.get_inspiration(inspiration_id)
+		_message_wall.add_dice_result(roll, "Creativity: %s" % (def.display_name if def else inspiration_id))
+		log_message("Finished %s! Gained %d Creativity XP." % [def.display_name if def else inspiration_id, xp_gained])
+		print("Art Studio work completed: %s, xp %d" % [inspiration_id, xp_gained])
+	)
 
 
 func log_message(text: String) -> void:
@@ -669,6 +710,47 @@ func _position_pantry() -> void:
 		_pantry_tween.kill()
 	_pantry_tween = create_tween()
 	_pantry_tween.tween_property(_pantry_window, "modulate:a", 1.0, 0.14)
+
+
+## Opens (refreshing first) or closes the Art Studio's Inspiration picker for
+## a specific studio -- same per-open station-context shape as
+## toggle_pantry_menu(). Only reachable while the studio's job is CHOOSING
+## (ArtStudioInteractable.interact() is what routes here).
+func toggle_art_studio_picker(studio_id: String) -> void:
+	if _menu_scene.has_content(art_studio_picker_panel) and _menu_scene.is_open() and _art_studio_menu_id == studio_id:
+		_menu_scene.close()
+	else:
+		_art_studio_menu_id = studio_id
+		art_studio_picker_panel.open_for(studio_id)
+		open_menu(art_studio_picker_panel, "Inspiration")
+
+
+## Opens (refreshing first) or closes the Art Studio's discard-progress
+## confirm prompt for a specific studio -- only reachable while the studio's
+## job is WORKING (ArtStudioInteractable.interact() is what routes here).
+func toggle_art_studio_discard_confirm(studio_id: String) -> void:
+	if _menu_scene.has_content(art_studio_discard_confirm_panel) and _menu_scene.is_open() and _art_studio_menu_id == studio_id:
+		_menu_scene.close()
+	else:
+		_art_studio_menu_id = studio_id
+		art_studio_discard_confirm_panel.open_for(studio_id)
+		open_menu(art_studio_discard_confirm_panel, "Discard Progress?")
+
+
+func _on_art_studio_chosen(studio_id: String, inspiration_id: String) -> void:
+	ArtStudio.choose_inspiration(studio_id, inspiration_id)
+	close_menu()
+
+
+func _on_art_studio_picker_cancelled(studio_id: String) -> void:
+	ArtStudio.cancel_choice(studio_id)
+	close_menu()
+	log_message("You let the inspiration pass, for now.")
+
+
+func _on_art_studio_discard_confirmed(studio_id: String) -> void:
+	ArtStudio.discard_work(studio_id)
+	close_menu()
 
 
 func _hide_pantry() -> void:

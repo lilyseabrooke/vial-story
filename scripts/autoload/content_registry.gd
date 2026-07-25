@@ -41,6 +41,8 @@ const ALEMBIC_UPGRADE_CATALOG_PATH := "res://data/alembic_upgrades.json"
 const WATER_PUMP_UPGRADE_CATALOG_PATH := "res://data/water_pump_upgrades.json"
 ## Ley Line Surges — same JSON-not-.tres reasoning, see LeyLineSurgeDef.
 const LEY_LINE_SURGE_CATALOG_PATH := "res://data/ley_line_surges.json"
+## Art Studio Inspirations — same JSON-not-.tres reasoning, see InspirationDef.
+const INSPIRATION_CATALOG_PATH := "res://data/inspirations.json"
 const SEED_PATHS := [
 	"res://data/seeds/moonpetal_seed.tres",
 ]
@@ -77,6 +79,7 @@ var upgrades: Array[UpgradeDef] = []
 var alembic_upgrades: Array[AlembicUpgradeDef] = []
 var water_pump_upgrades: Array[WaterPumpUpgradeDef] = []
 var ley_line_surges: Array[LeyLineSurgeDef] = []
+var inspirations: Array[InspirationDef] = []
 var seeds: Array[SeedDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
@@ -90,6 +93,7 @@ var _upgrades_by_id: Dictionary = {}       # id -> UpgradeDef
 var _alembic_upgrades_by_id: Dictionary = {}  # id -> AlembicUpgradeDef
 var _water_pump_upgrades_by_id: Dictionary = {}  # id -> WaterPumpUpgradeDef
 var _ley_line_surges_by_id: Dictionary = {}  # id -> LeyLineSurgeDef
+var _inspirations_by_id: Dictionary = {}   # id -> InspirationDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
@@ -132,6 +136,12 @@ func _ready() -> void:
 		var surge_def := LeyLineSurgeDef.from_dict(entry)
 		ley_line_surges.append(surge_def)
 		_ley_line_surges_by_id[surge_def.id] = surge_def
+	var inspiration_catalog_text := FileAccess.get_file_as_string(INSPIRATION_CATALOG_PATH)
+	var inspiration_catalog: Array = JSON.parse_string(inspiration_catalog_text)
+	for entry in inspiration_catalog:
+		var inspiration_def := InspirationDef.from_dict(entry)
+		inspirations.append(inspiration_def)
+		_inspirations_by_id[inspiration_def.id] = inspiration_def
 	for path in SEED_PATHS:
 		var def := load(path) as SeedDef
 		seeds.append(def)
@@ -180,6 +190,10 @@ func get_water_pump_upgrade(id: String) -> WaterPumpUpgradeDef:
 
 func get_ley_line_surge(id: String) -> LeyLineSurgeDef:
 	return _ley_line_surges_by_id.get(id)
+
+
+func get_inspiration(id: String) -> InspirationDef:
+	return _inspirations_by_id.get(id)
 
 
 func get_seed(id: String) -> SeedDef:
