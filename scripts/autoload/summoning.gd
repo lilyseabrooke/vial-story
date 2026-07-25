@@ -18,9 +18,9 @@ extends Node
 ## gets built fully determines the outcome, so -- unlike Demonology/Draconology
 ## -- there's no further roll at collection time.
 
-signal rift_started(rift_id: String, bundle_id: String)
+signal rift_started(rift_id: String, bundle_id: String, reward_multiplier: int)
 signal rift_ready(rift_id: String, bundle_id: String)
-signal rift_collected(rift_id: String, bundle_id: String, ingredients: Dictionary, material_delta: int, resolve_delta: int, quality: float)
+signal rift_collected(rift_id: String, bundle_id: String, ingredients: Dictionary, material_delta: int, resolve_delta: int, quality: float, reward_multiplier: int)
 ## The player interacted with an idle rift: hud.gd opens the minigame panel in
 ## response, the same "autoload signal -> HUD opens a panel" shape LeyLines uses.
 signal rift_minigame_requested(rift_id: String)
@@ -153,10 +153,12 @@ func open_rift_minigame(rift_id: String) -> void:
 ## The minigame built a bundle's full sequence: roll the summon's quality from
 ## the portal time still remaining (`time_fraction`, 0..1) and a Summoning roll,
 ## learn the bundle (so blind discovery sticks), and start the background job
-## carrying that quality. Clears the session before emitting so hud.gd's
-## close-on-close guard sees no active session -- same ordering
-## LeyLines.resolve_minigame() uses.
-func complete_rift_minigame(rift_id: String, bundle_id: String, time_fraction: float) -> void:
+## carrying that quality. `reward_multiplier` (1 + however many planar keys
+## landed inside the matched sequence, see RiftArena._submit_sequence()) rides
+## along to start_rift() and multiplies every reward at collection. Clears the
+## session before emitting so hud.gd's close-on-close guard sees no active
+## session -- same ordering LeyLines.resolve_minigame() uses.
+func complete_rift_minigame(rift_id: String, bundle_id: String, time_fraction: float, reward_multiplier: int = 1) -> void:
 	if _active_minigame_rift != rift_id:
 		return
 	_active_minigame_rift = ""
@@ -175,7 +177,7 @@ func complete_rift_minigame(rift_id: String, bundle_id: String, time_fraction: f
 
 	learn_bundle(bundle_id)
 	rift_quality_rolled.emit(rift_id, bundle_id, quality, roll)
-	start_rift(rift_id, bundle_id, quality)
+	start_rift(rift_id, bundle_id, quality, reward_multiplier)
 
 
 ## Human-readable band for a 0..1 quality, for log/UI text.
@@ -212,9 +214,10 @@ func abort_rift_minigame() -> void:
 
 
 ## Starts the background summon job for an explicitly chosen bundle (the
-## minigame's outcome), carrying the quality the minigame rolled. No-op if this
-## rift already has a job running.
-func start_rift(rift_id: String, bundle_id: String, quality: float = 0.0) -> void:
+## minigame's outcome), carrying the quality the minigame rolled and the
+## reward multiplier its planar keys earned (see collect_rift()). No-op if
+## this rift already has a job running.
+func start_rift(rift_id: String, bundle_id: String, quality: float = 0.0, reward_multiplier: int = 1) -> void:
 	if _jobs.has(rift_id):
 		return
 	var bundle := ContentRegistry.get_rift_bundle(bundle_id)
@@ -225,10 +228,11 @@ func start_rift(rift_id: String, bundle_id: String, quality: float = 0.0) -> voi
 	job.rift_id = rift_id
 	job.bundle_id = bundle.id
 	job.quality = clampf(quality, 0.0, 1.0)
+	job.reward_multiplier = maxi(reward_multiplier, 1)
 	job.start_timestamp = Clock.get_timestamp()
 	job.ready_timestamp = job.start_timestamp + bundle.duration_minutes
 	_jobs[rift_id] = job
-	rift_started.emit(rift_id, bundle.id)
+	rift_started.emit(rift_id, bundle.id, job.reward_multiplier)
 
 
 ## Grants the resolved bundle's ingredients/material/resolve outcomes and
@@ -242,38 +246,42 @@ func collect_rift(rift_id: String) -> bool:
 		return false
 
 	var quality := job.quality
+	var mult := maxi(job.reward_multiplier, 1)
 	var granted: Dictionary = {}
 
 	# Base ingredients -- always granted, quality-independent floor.
 	for i in bundle.ingredient_ids.size():
-		_grant_into(granted, bundle.ingredient_ids[i], bundle.ingredient_quantities[i])
+		_grant_into(granted, bundle.ingredient_ids[i], bundle.ingredient_quantities[i] * mult)
 
 	# Quality-scaled ingredients -- authored amount is the quality-1.0 figure;
 	# round(qty * quality) is what actually lands.
 	for i in bundle.scaled_ingredient_ids.size():
-		var scaled_qty := int(round(float(bundle.scaled_ingredient_quantities[i]) * quality))
+		var scaled_qty := int(round(float(bundle.scaled_ingredient_quantities[i]) * quality)) * mult
 		_grant_into(granted, bundle.scaled_ingredient_ids[i], scaled_qty)
 
 	# Quality-gated ingredients -- full amount, but only past their threshold.
 	for i in bundle.gated_ingredient_ids.size():
 		if quality >= bundle.gated_ingredient_min_quality[i]:
-			_grant_into(granted, bundle.gated_ingredient_ids[i], bundle.gated_ingredient_quantities[i])
+			_grant_into(granted, bundle.gated_ingredient_ids[i], bundle.gated_ingredient_quantities[i] * mult)
 
 	# Materials: base delta (+/-) plus a quality-scaled bonus. Not a purchase --
 	# the exchange already happened out on the plane, so unlike
 	# Inventory.spend_materials() this is never blocked by insufficient funds,
 	# same "the outcome already occurred" reasoning as Demonology's drawbacks.
-	var material_total := bundle.material_delta + int(round(float(bundle.scaled_material_bonus) * quality))
+	# Each planar key in the matched sequence is one extra copy of the whole
+	# reward (mult = 1 + key count), same as the ingredient grants above.
+	var material_total := (bundle.material_delta + int(round(float(bundle.scaled_material_bonus) * quality))) * mult
 	if material_total != 0:
 		Inventory.add_materials(material_total)
-	if bundle.resolve_delta > 0:
-		Resolve.restore(bundle.resolve_delta)
-	elif bundle.resolve_delta < 0:
-		Resolve.spend(-bundle.resolve_delta, "a planar rift's toll")
+	var resolve_total := bundle.resolve_delta * mult
+	if resolve_total > 0:
+		Resolve.restore(resolve_total)
+	elif resolve_total < 0:
+		Resolve.spend(-resolve_total, "a planar rift's toll")
 
 	_jobs.erase(rift_id)
 	Skills.add_xp("summoning", XP_PER_RIFT)
-	rift_collected.emit(rift_id, bundle.id, granted, material_total, bundle.resolve_delta, quality)
+	rift_collected.emit(rift_id, bundle.id, granted, material_total, resolve_total, quality, mult)
 	return true
 
 
@@ -305,6 +313,7 @@ func get_save_data() -> Dictionary:
 			"ready_timestamp": job.ready_timestamp,
 			"status": int(job.status),
 			"quality": job.quality,
+			"reward_multiplier": job.reward_multiplier,
 		}
 	return {"jobs": jobs_data, "known_bundles": _known_bundles.keys()}
 
@@ -321,6 +330,7 @@ func load_save_data(data: Dictionary) -> void:
 		job.ready_timestamp = d.get("ready_timestamp", 0)
 		job.status = d.get("status", PlanarRiftJob.Status.SUMMONING) as PlanarRiftJob.Status
 		job.quality = d.get("quality", 0.0)
+		job.reward_multiplier = d.get("reward_multiplier", 1)
 		_jobs[rift_id] = job
 
 	_known_bundles.clear()

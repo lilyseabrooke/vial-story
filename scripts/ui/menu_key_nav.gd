@@ -1,21 +1,24 @@
 class_name MenuKeyNav
 extends Node
-## Shared W/S + E keyboard navigation for simple list-style menus, so every
-## choice menu drives the same way the brew menu does (see BrewMenu's
-## docstring and docs/design/systems.md, system 1): W/S (or arrows) move a
-## highlighted cursor through the menu's controls, E activates the one under
-## it, A/D nudge sliders and cycle option buttons, and Esc optionally acts as
-## "back". Add an instance as a *child of the host Control* whose descendants
-## are the navigable controls (buttons, sliders, OptionButtons, collected in
-## tree order); it re-collects on every move, so hosts that rebuild their
-## children never need to notify it.
+## Shared move/select keyboard-and-gamepad navigation for simple list-style
+## menus, so every choice menu drives the same way the brew menu does (see
+## BrewMenu's docstring and docs/design/systems.md, system 1): move_up/
+## move_down move a highlighted cursor through the menu's controls, "select"
+## activates the one under it, move_left/move_right nudge sliders and cycle
+## option buttons, and "back" optionally acts as, well, back. These are the
+## six GameInput actions (scripts/autoload/game_input.gd), not raw keys, so a
+## gamepad's D-pad/stick + A/B drive every menu the same as the keyboard does.
+## Add an instance as a *child of the host Control* whose descendants are the
+## navigable controls (buttons, sliders, OptionButtons, collected in tree
+## order); it re-collects on every move, so hosts that rebuild their children
+## never need to notify it.
 ##
 ## Input is handled in `_input()` and marked handled (same reasoning as
-## BrewMenu: W/S/E must drive the menu, not the world, while a menu owns the
-## screen). Esc is only consumed when `handle_escape` is set — otherwise it
-## falls through to whoever owns closing (main.gd for MenuScene menus).
-## `require_pause` gates on `Clock.is_paused` for in-game menus (guards
-## against stray keypresses during MenuScene's close animation); the main
+## BrewMenu: move/select must drive the menu, not the world, while a menu owns
+## the screen). "back" is only consumed when `handle_escape` is set —
+## otherwise it falls through to whoever owns closing (main.gd for MenuScene
+## menus). `require_pause` gates on `Clock.is_paused` for in-game menus
+## (guards against stray input during MenuScene's close animation); the main
 ## menu turns it off since nothing pauses there.
 ##
 ## The cursor marks a Button by forcing its theme *hover* look and anything
@@ -29,8 +32,8 @@ signal back_requested
 ## Gate input on Clock.is_paused (true for MenuScene contents; the main menu
 ## sets this false since it never pauses).
 var require_pause := true
-## Consume Esc and emit `back_requested` instead of letting it fall through.
-var handle_escape := false
+## Consume "back" and emit `back_requested` instead of letting it fall through.
+var handle_back := false
 
 var _host: Control = null
 var _highlighted: Control = null
@@ -59,37 +62,34 @@ func reset() -> void:
 func _input(event: InputEvent) -> void:
 	if not _is_active():
 		return
-	if not (event is InputEventKey) or not event.pressed or event.echo:
-		return
 
 	# Captured up front: activating a control (or emitting back_requested) can
 	# tear this node out of the tree synchronously — a load-slot button's
 	# change_scene_to_file(), a freed menu layer — after which get_viewport()
 	# returns null. The reference itself stays valid to mark input handled on.
 	var viewport := get_viewport()
-	match event.keycode:
-		KEY_W, KEY_UP:
-			_move(-1)
+	if event.is_action_pressed("move_up"):
+		_move(-1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_down"):
+		_move(1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_left"):
+		if is_instance_valid(_highlighted) and adjust(_highlighted, -1):
 			viewport.set_input_as_handled()
-		KEY_S, KEY_DOWN:
-			_move(1)
+	elif event.is_action_pressed("move_right"):
+		if is_instance_valid(_highlighted) and adjust(_highlighted, 1):
 			viewport.set_input_as_handled()
-		KEY_A, KEY_LEFT:
-			if is_instance_valid(_highlighted) and adjust(_highlighted, -1):
-				viewport.set_input_as_handled()
-		KEY_D, KEY_RIGHT:
-			if is_instance_valid(_highlighted) and adjust(_highlighted, 1):
-				viewport.set_input_as_handled()
-		KEY_E, KEY_ENTER, KEY_KP_ENTER:
-			if is_instance_valid(_highlighted):
-				activate(_highlighted)
-			# Consumed even with nothing highlighted so E never falls through
-			# to main.gd's interact while a menu owns the screen.
+	elif event.is_action_pressed("select"):
+		if is_instance_valid(_highlighted):
+			activate(_highlighted)
+		# Consumed even with nothing highlighted so "select" never falls
+		# through to main.gd's interact while a menu owns the screen.
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("back"):
+		if handle_back:
+			back_requested.emit()
 			viewport.set_input_as_handled()
-		KEY_ESCAPE:
-			if handle_escape:
-				back_requested.emit()
-				viewport.set_input_as_handled()
 
 
 ## Active only while the host is actually on screen. is_visible_in_tree()

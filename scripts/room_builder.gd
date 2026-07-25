@@ -178,9 +178,9 @@ func build_rooms() -> void:
 	for node_id in _ley_line_nodes:
 		_sync_ley_line_indicator(node_id)
 
-	Summoning.rift_started.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
+	Summoning.rift_started.connect(func(rift_id: String, _bundle_id: String, _reward_multiplier: int) -> void: _sync_rift_indicator(rift_id))
 	Summoning.rift_ready.connect(func(rift_id: String, _bundle_id: String) -> void: _sync_rift_indicator(rift_id))
-	Summoning.rift_collected.connect(func(rift_id: String, _bundle_id: String, _ingredients: Dictionary, _material_delta: int, _resolve_delta: int, _quality: float) -> void: _sync_rift_indicator(rift_id))
+	Summoning.rift_collected.connect(func(rift_id: String, _bundle_id: String, _ingredients: Dictionary, _material_delta: int, _resolve_delta: int, _quality: float, _reward_multiplier: int) -> void: _sync_rift_indicator(rift_id))
 	Clock.minute_tick.connect(func(_timestamp: int) -> void:
 		for rift_id in _rift_nodes:
 			_sync_rift_indicator(rift_id)

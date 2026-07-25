@@ -19,6 +19,10 @@ var status: Status = Status.SUMMONING
 ## time remaining + a Summoning roll). Scales/gates the bundle's rewards at
 ## collection -- see RiftBundleDef and Summoning.collect_rift().
 var quality: float = 0.0
+## 1 + however many planar keys landed inside the matched sequence (see
+## RiftArena._submit_sequence()). Multiplies every reward -- ingredients,
+## materials, resolve -- at collection.
+var reward_multiplier: int = 1
 
 
 func progress_fraction(now: int) -> float:

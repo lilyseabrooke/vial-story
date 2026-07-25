@@ -111,7 +111,7 @@ func build(starting_ingredients: Dictionary) -> void:
 
 	var help_label := Label.new()
 	help_label.theme_type_variation = &"CaptionLabel"
-	help_label.text = "WASD move · E interact · Esc menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
+	help_label.text = "WASD move · E interact · Esc/Q menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
 	help_label.custom_minimum_size = Vector2(480, 0)
 	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	help_label.add_theme_font_size_override("font_size", 24)
@@ -448,14 +448,15 @@ func _connect_autoload_signals() -> void:
 		_message_wall.add_dice_result(roll, "Summoning")
 		log_message("The summoning steadies at %s quality (%d%%)." % [Summoning.quality_word(quality), int(round(quality * 100.0))])
 	)
-	Summoning.rift_started.connect(func(rift_id: String, bundle_id: String) -> void:
+	Summoning.rift_started.connect(func(rift_id: String, bundle_id: String, reward_multiplier: int) -> void:
 		# start_rift() only fires from the minigame's success path now, so the
 		# rift panel is what's open -- close it as the summon takes hold.
 		if has_menu_content(_rift_panel):
 			close_menu()
 		var bundle := ContentRegistry.get_rift_bundle(bundle_id)
-		log_message("The rift begins drawing something through: %s." % (bundle.display_name if bundle else bundle_id))
-		print("Rift started at %s: %s" % [rift_id, bundle_id])
+		var key_note := " (x%d, planar key%s!)" % [reward_multiplier, "s" if reward_multiplier - 1 != 1 else ""] if reward_multiplier > 1 else ""
+		log_message("The rift begins drawing something through: %s%s." % [bundle.display_name if bundle else bundle_id, key_note])
+		print("Rift started at %s: %s (x%d)" % [rift_id, bundle_id, reward_multiplier])
 	)
 	Summoning.rift_failed.connect(func(rift_id: String, resolve_cost: int) -> void:
 		if has_menu_content(_rift_panel):
@@ -468,7 +469,7 @@ func _connect_autoload_signals() -> void:
 		log_message("The Planar Rift is ready to collect.")
 		print("Rift ready at %s: %s" % [rift_id, bundle_id])
 	)
-	Summoning.rift_collected.connect(func(_rift_id: String, bundle_id: String, ingredients: Dictionary, material_delta: int, resolve_delta: int, quality: float) -> void:
+	Summoning.rift_collected.connect(func(_rift_id: String, bundle_id: String, ingredients: Dictionary, material_delta: int, resolve_delta: int, quality: float, reward_multiplier: int) -> void:
 		var bundle := ContentRegistry.get_rift_bundle(bundle_id)
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
@@ -480,8 +481,9 @@ func _connect_autoload_signals() -> void:
 			outcome_parts.append("%s%d Materials" % ["+" if material_delta > 0 else "", material_delta])
 		if resolve_delta != 0:
 			outcome_parts.append("%s%d Resolve" % ["+" if resolve_delta > 0 else "", resolve_delta])
-		log_message("%s [%s summon] %s" % [bundle.flavor_text if bundle else "", Summoning.quality_word(quality), "; ".join(outcome_parts)])
-		print("Rift collected: %s (quality %.2f) -- %s" % [bundle_id, quality, outcome_parts])
+		var mult_note := " (x%d planar key bonus)" % reward_multiplier if reward_multiplier > 1 else ""
+		log_message("%s [%s summon]%s %s" % [bundle.flavor_text if bundle else "", Summoning.quality_word(quality), mult_note, "; ".join(outcome_parts)])
+		print("Rift collected: %s (quality %.2f, x%d) -- %s" % [bundle_id, quality, reward_multiplier, outcome_parts])
 		update_ingredients_label()
 		update_materials_label()
 	)

@@ -87,9 +87,17 @@ event bus or game-state object.
   `main.gd`; `_on_interact_pressed()` just calls `_current_interactable.interact(self)`. Each subclass
   pairs a `.gd` script (`class_name`) with a `.tscn` under `scenes/interactables/` that instances
   `InteractableBase.tscn` and swaps in the subclass script — copy an existing sibling's `.tscn` exactly
-  when adding a new one. Player movement uses raw `Input.is_key_pressed(KEY_*)` checks
-  (`scripts/player.gd`) rather than an InputMap, consistent with how the debug hotkeys (`Space`, `R`,
-  `Up`/`Down`) are handled in `main.gd`'s `_unhandled_input`.
+  when adding a new one. **Input is action-based, not raw keycodes.** `scripts/autoload/game_input.gd`
+  (autoloaded as `GameInput`, first in `project.godot`'s `[autoload]` order) defines the game's entire
+  six-action schema — `move_up`/`move_down`/`move_left`/`move_right`, `select`, `back` — via
+  `InputMap.add_action()`/`action_add_event()` at boot, each bound to both keyboard (WASD/arrows, E,
+  Esc/Q) and gamepad (D-pad/stick, A, B) events. Every gameplay/UI script checks
+  `Input.is_action_pressed("move_up")` / `event.is_action_pressed("select")` etc. — never a `KEY_*`
+  constant directly — so `player.gd`'s movement, `main.gd`'s world-level menu-toggle/interact hotkeys,
+  and every menu's keyboard nav (`MenuKeyNav`, `GameMenu`, `BrewMenu`, the Planar Rift arena) all get
+  gamepad support for free and stay a one-file change for rebinding later. Debug/system hotkeys outside
+  this six-action schema (`Space` pause, `R` drain-Resolve, `1`/`2`/`3` speed/quick-slots) stay raw
+  keycodes at their call sites, same as before.
 - **`MenuScene`** (`scripts/menu_scene.gd`) is the generalized modal menu shell used for any
   interactable that opens a menu rather than firing instantly (brew station → recipe list, supply
   shelf → buy ingredients/seeds/upgrades). It owns only the shared chrome — title, close button, and

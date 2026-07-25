@@ -81,20 +81,26 @@ func _grant_starting_summoning_knowledge() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# "back"/"select" are the two GameInput actions (see
+	# scripts/autoload/game_input.gd) rather than raw keys, so a controller's
+	# B/A buttons drive the same world-level menu-toggle/interact hotkeys.
+	if event.is_action_pressed("back"):
+		# The Ley Line minigame is deliberately escape-proof once started --
+		# see LeyLineArenaOverlay -- so "back" does nothing at all while it's
+		# open, rather than opening the game menu over top of it.
+		if not LeyLines.is_active():
+			hud.toggle_game_menu()
+		return
+	if event.is_action_pressed("select"):
+		_on_interact_pressed()
+		return
+
 	if not event is InputEventKey or not event.pressed:
 		return
 	match event.keycode:
 		KEY_SPACE:
 			if not hud.is_menu_open():
 				Clock.is_paused = not Clock.is_paused
-		KEY_ESCAPE:
-			# The Ley Line minigame is deliberately escape-proof once started --
-			# see LeyLineArenaOverlay -- so Esc does nothing at all while it's
-			# open, rather than opening the game menu over top of it.
-			if not LeyLines.is_active():
-				hud.toggle_game_menu()
-		KEY_E:
-			_on_interact_pressed()
 		KEY_R:
 			Resolve.spend(20, "debug key")
 		KEY_1:

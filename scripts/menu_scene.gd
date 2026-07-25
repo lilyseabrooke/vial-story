@@ -82,7 +82,7 @@ func _ready() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var close_button := Button.new()
-	close_button.text = "Close (Esc)"
+	close_button.text = "Close (Esc/Q)"
 	close_button.pressed.connect(close)
 	vbox.add_child(close_button)
 

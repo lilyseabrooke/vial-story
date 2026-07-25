@@ -49,8 +49,8 @@ const QUICK_SLOT_COUNT := 3
 const LIST_TEXT_WIDTH := LIST_WIDTH - 48
 const DETAIL_TEXT_WIDTH := DETAIL_WIDTH - 48
 
-const BROWSE_TIP := "W / S browse recipes  ·  E to focus  ·  1 / 2 / 3 brew a saved potion  ·  Esc to close"
-const FOCUS_TIP := "W / S pick an action  ·  E to use it  ·  1 / 2 / 3 save this potion  ·  Esc to step back"
+const BROWSE_TIP := "W / S browse recipes  ·  E to focus  ·  1 / 2 / 3 brew a saved potion  ·  Esc/Q to close"
+const FOCUS_TIP := "W / S pick an action  ·  E to use it  ·  1 / 2 / 3 save this potion  ·  Esc/Q to step back"
 
 var _station_id: String = ""
 var _ready_only := false
@@ -168,17 +168,17 @@ func refresh() -> void:
 
 # --- Input --------------------------------------------------------------------
 
-## Keyboard navigation. Handled here (and mostly marked handled) rather than in
-## main.gd's `_unhandled_input`, so W/S/E/digits drive the menu instead of the
-## world while it owns the screen. Guarded on `Clock.is_paused` so a stray
-## keypress during the close animation (menu still in-tree, already unpaused)
-## does nothing. The one key deliberately *not* consumed is Esc while browsing —
-## it falls through so main.gd's toggle closes the menu. See the class docstring
-## for the two-mode model.
+## Move/select/back navigation (the GameInput actions, see game_input.gd).
+## Handled here (and mostly marked handled) rather than in main.gd's
+## `_unhandled_input`, so it drives the menu instead of the world while it
+## owns the screen. Guarded on `Clock.is_paused` so stray input during the
+## close animation (menu still in-tree, already unpaused) does nothing. The
+## one action deliberately *not* consumed is "back" while browsing — it falls
+## through so main.gd's toggle closes the menu. See the class docstring for
+## the two-mode model. Digit quick-slots (1/2/3) stay raw keys -- they're
+## outside the six-action schema.
 func _input(event: InputEvent) -> void:
 	if not is_visible_in_tree() or not Clock.is_paused:
-		return
-	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
 	# Captured up front so a brew that closes the menu can't leave a null
@@ -186,46 +186,45 @@ func _input(event: InputEvent) -> void:
 	# content removal past close(), but don't lean on that (see the same
 	# capture in MenuKeyNav._input, where scene changes made it a real crash).
 	var viewport := get_viewport()
-	match event.keycode:
-		KEY_W, KEY_UP:
-			if _focused:
-				_move_action(-1)
-			else:
-				_move_selection(-1)
+	if event.is_action_pressed("move_up"):
+		if _focused:
+			_move_action(-1)
+		else:
+			_move_selection(-1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_down"):
+		if _focused:
+			_move_action(1)
+		else:
+			_move_selection(1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_left"):
+		# Only meaningful (and only consumed) while focused, moving the action
+		# cursor along the slot row; browsing ignores it (recipes are a column).
+		if _focused:
+			_move_action(-1)
 			viewport.set_input_as_handled()
-		KEY_S, KEY_DOWN:
-			if _focused:
-				_move_action(1)
-			else:
-				_move_selection(1)
+	elif event.is_action_pressed("move_right"):
+		if _focused:
+			_move_action(1)
 			viewport.set_input_as_handled()
-		KEY_A, KEY_LEFT:
-			# Only meaningful (and only consumed) while focused, moving the action
-			# cursor along the slot row; browsing ignores it (recipes are a column).
-			if _focused:
-				_move_action(-1)
+	elif event.is_action_pressed("select"):
+		_activate()
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("back"):
+		if _focused:
+			_set_focused(false)
+			viewport.set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_1, KEY_KP_1:
+				_press_digit(0)
 				viewport.set_input_as_handled()
-		KEY_D, KEY_RIGHT:
-			if _focused:
-				_move_action(1)
+			KEY_2, KEY_KP_2:
+				_press_digit(1)
 				viewport.set_input_as_handled()
-		KEY_E, KEY_ENTER, KEY_KP_ENTER:
-			_activate()
-			viewport.set_input_as_handled()
-		KEY_1, KEY_KP_1:
-			_press_digit(0)
-			viewport.set_input_as_handled()
-		KEY_2, KEY_KP_2:
-			_press_digit(1)
-			viewport.set_input_as_handled()
-		KEY_3, KEY_KP_3:
-			_press_digit(2)
-			viewport.set_input_as_handled()
-		KEY_ESCAPE:
-			# Only consume Esc when it has something to undo (leaving focus);
-			# while browsing it falls through to main.gd, which closes the menu.
-			if _focused:
-				_set_focused(false)
+			KEY_3, KEY_KP_3:
+				_press_digit(2)
 				viewport.set_input_as_handled()
 
 
@@ -523,7 +522,7 @@ func _rebuild_detail() -> void:
 	mode_line.custom_minimum_size = Vector2(DETAIL_TEXT_WIDTH, 0)
 	if not brewable:
 		mode_line.text = "Missing ingredients — check the pantry." if not _focused \
-			else "Focused, but missing ingredients. Esc to step back."
+			else "Focused, but missing ingredients. Esc/Q to step back."
 		mode_line.add_theme_color_override("font_color", UiPalette.DANGER)
 	elif _focused:
 		mode_line.text = "Focused — W / S pick an action, E to use it, or 1 / 2 / 3 to save."

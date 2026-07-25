@@ -32,15 +32,10 @@ func _physics_process(delta: float) -> void:
 		velocity = _knockback_velocity
 		_knockback_velocity = _knockback_velocity.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 	else:
-		var input_vector := Vector2.ZERO
-		if Input.is_key_pressed(KEY_A):
-			input_vector.x -= 1
-		if Input.is_key_pressed(KEY_D):
-			input_vector.x += 1
-		if Input.is_key_pressed(KEY_W):
-			input_vector.y -= 1
-		if Input.is_key_pressed(KEY_S):
-			input_vector.y += 1
+		var input_vector := Vector2(
+			Input.get_axis("move_left", "move_right"),
+			Input.get_axis("move_up", "move_down")
+		)
 		velocity = input_vector.normalized() * SPEED if input_vector != Vector2.ZERO else Vector2.ZERO
 
 	move_and_slide()

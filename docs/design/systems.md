@@ -35,25 +35,35 @@ Clock
   `tick_rate_minutes_per_second` eases toward the new target every frame
   (`move_toward` in `_process`) instead of snapping, so speed changes read as a
   smooth ramp rather than a jump cut.
-- **Menu keyboard navigation** (`MenuKeyNav`, `scripts/ui/menu_key_nav.gd`): every
-  menu drives on the same keys the brew menu established (system 4) — **W/S** (or
-  arrows) move a cursor rendered as the theme's forced-*hover* look, **E** activates
-  the control under it, **A/D** nudge sliders and cycle OptionButtons, and **Esc**
-  backs out one level, falling through unconsumed to whoever owns closing (main.gd
-  for `MenuScene` menus) when there's nothing left to undo. Simple button-list menus
-  get it by adding a `MenuKeyNav` child node to the content Control — it re-collects
-  the host's buttons/sliders in tree order on every move, so rebuilt panels never
-  strand the cursor — currently the supply shelf, class-effort, and Potion Book
-  discover panels, plus the main menu's root/load/settings screens (the latter two
-  with `handle_escape`, so Esc is their Back button; `require_pause` off there since
-  the title screen never pauses). `BrewMenu` and `GameMenu` keep their own two-mode
-  `_input()` but build on MenuKeyNav's shared statics
+- **Input is action-based, not raw keycodes** (`GameInput`, `scripts/autoload/game_input.gd`,
+  autoloaded first). The whole game — movement, menu nav, world hotkeys — runs on six
+  actions: `move_up`/`move_down`/`move_left`/`move_right`, `select`, `back`, each bound
+  to both keyboard (WASD/arrows, E, Esc/Q) and gamepad (D-pad/stick, A, B) events via
+  `InputMap.add_action()`/`action_add_event()`. Scripts check
+  `Input.is_action_pressed(...)` / `event.is_action_pressed(...)`, never a `KEY_*`
+  constant, so a gamepad drives everything the keyboard does and a future rebind
+  screen is a one-file change. Debug/system hotkeys outside this schema (`Space`
+  pause, `R` drain-Resolve, `1`/`2`/`3` speed/quick-slots) stay raw keycodes.
+- **Menu keyboard-and-gamepad navigation** (`MenuKeyNav`, `scripts/ui/menu_key_nav.gd`):
+  every menu drives on the same actions the brew menu established (system 4) —
+  **move_up/move_down** move a cursor rendered as the theme's forced-*hover* look,
+  **select** activates the control under it, **move_left/move_right** nudge sliders
+  and cycle OptionButtons, and **back** backs out one level, falling through
+  unconsumed to whoever owns closing (main.gd for `MenuScene` menus) when there's
+  nothing left to undo. Simple button-list menus get it by adding a `MenuKeyNav`
+  child node to the content Control — it re-collects the host's buttons/sliders in
+  tree order on every move, so rebuilt panels never strand the cursor — currently
+  the supply shelf, class-effort, and Potion Book discover panels, plus the main
+  menu's root/load/settings screens (the latter two with `handle_back`, so "back"
+  is their Back button; `require_pause` off there since the title screen never
+  pauses). `BrewMenu` and `GameMenu` keep their own two-mode `_input()` but build on
+  MenuKeyNav's shared statics
   (`set_highlight`/`activate`/`adjust`/`collect_nav_controls`/`ensure_visible`).
-  The Escape menu's two levels mirror the brew menu's browse/focus split: W/S at the
-  rail switch sections directly, E steps into the shown section's controls (a
-  no-op for sections with nothing actionable), Esc steps back to the rail, and a
-  second Esc closes the menu; a caption pinned under the rail shows the active
-  level's key map.
+  The Escape menu's two levels mirror the brew menu's browse/focus split: move_up/
+  move_down at the rail switch sections directly, select steps into the shown
+  section's controls (a no-op for sections with nothing actionable), back steps
+  back to the rail, and a second back closes the menu; a caption pinned under the
+  rail shows the active level's key map.
 - **Ending a day** has three independent triggers, all routed through one
   `AdvanceToNextDay(reason)` resolution so there's a single source of truth for
   "day is over":
@@ -2173,6 +2183,7 @@ PlanarRiftJob (scripts/data/planar_rift_job.gd, RefCounted)
   - start_timestamp, ready_timestamp: int
   - status: Status(SUMMONING, READY)
   - quality: float                # 0..1, locked in at sequence completion, scales/gates rewards
+  - reward_multiplier: int        # 1 + planar keys in the matched sequence, multiplies every reward
 
 Summoning (autoload)
   - _jobs: Dictionary            # rift_id -> PlanarRiftJob
@@ -2186,26 +2197,41 @@ Summoning (autoload)
   `scenes/ui/PlanarRiftMinigamePanel.tscn` so its portal-timer tunables are inspector-editable, same
   as the ley line panel) is hosted in `MenuScene`. The portal is open and **slowly closing** (a
   countdown, drawn as a depleting rim arc + a dark iris swelling from the center); four symbol options
-  sit on the portal rim, and the player picks one with a **movement key** (W/A/S/D or arrows →
-  up/right/down/left) to append it to the sequence queue, which then deals four fresh options. Building
-  a queue that exactly matches a `RiftBundleDef.sequence` summons that bundle — the panel calls
-  `Summoning.complete_rift_minigame(rift_id, bundle_id, time_fraction)`, which rolls the summon's
-  quality (see below) and starts the same background job the old random pick did. Pressing **E wipes the queue** but takes `wipe_time` (~0.75s) while the portal keeps
-  closing. If the portal shuts first, `Summoning.fail_rift_minigame()` charges `FAIL_RESOLVE_COST` (8)
-  Resolve (a mishap event, same shape as a botched brew) and the run ends with nothing. Which bundle
-  gets built already fully determines the outcome, so — unlike Demonology/Draconology — there's no
-  further roll at collection time; choosing the sequence *is* the whole mechanic.
+  sit on the portal rim, and the player picks one with a `move_up`/`move_down`/`move_left`/`move_right`
+  GameInput action (system 1 — W/A/S/D, arrows, or a gamepad D-pad/stick by default) to append it to the
+  sequence queue, which then deals four fresh options. The **`select` action submits the queue**:
+  `RiftArena._find_best_match()` checks whether any `RiftBundleDef.sequence` appears as a *contiguous run
+  anywhere inside* the queue (not just an exact match — extra symbols before/after are fine) and takes
+  the **largest** one that does, so a longer sequence found inside a messier queue always wins over a
+  shorter one. On a match the panel calls
+  `Summoning.complete_rift_minigame(rift_id, bundle_id, time_fraction, reward_multiplier)`, which rolls
+  the summon's quality (see below) and starts the same background job the old random pick did. A submit
+  with no match in the queue is free — it just reports out and leaves the queue standing. The **`back`
+  action wipes the queue** instead, taking `wipe_time` (~0.75s) while the portal keeps closing; `back` is
+  consumed by the arena (like every other minigame action) rather than routed to `MenuScene`'s close, so
+  **there is no walking away mid-summon** once the portal opens. If the portal shuts before a valid
+  sequence is submitted, `Summoning.fail_rift_minigame()` charges `FAIL_RESOLVE_COST` (8) Resolve (a
+  mishap event, same shape as a botched brew) and the run ends with nothing. Which bundle gets built
+  already fully determines the outcome, so — unlike Demonology/Draconology — there's no further roll at
+  collection time; choosing the sequence *is* the whole mechanic.
 - **The four options only *sometimes* include a valid continuation.** Each deal has a
-  `continuation_chance` (~0.7, inspector export) of seeding one symbol that continues a bundle's
-  sequence from the current queue (`_valid_next_symbols()`); the other slots — and the whole deal, the
-  rest of the time — are random filler. So knowing a sequence isn't enough: the needed symbol also has
-  to come up, or the player wipes (E) and re-deals against the closing portal. That gamble is
-  deliberate — it forces guesswork, makes wiping a real decision, and rewards trying unknown symbols to
-  discover new combinations. Filler is random, so a continuation can still surface by chance even on a
-  deal that didn't seed one (effective odds run a bit above the raw chance); longer sequences
-  (`deep_communion`, 6 symbols) are correspondingly much harder to land. **Sequences must be authored
-  prefix-free** (no bundle's sequence a prefix of another's, or the shorter always matches first) —
-  giving each a distinct *first* symbol satisfies this; the four starting bundles do.
+  `continuation_chance` (~0.7, inspector export) of seeding one symbol that continues some bundle's
+  sequence from *some* suffix of the current queue — including starting fresh, so a bundle's first
+  symbol is always a candidate continuation even mid-queue (`_valid_next_symbols()`); the other slots —
+  and the whole deal, the rest of the time — are random filler. So knowing a sequence isn't enough: the
+  needed symbol also has to come up, or the player wipes (Escape) and re-deals against the closing
+  portal. That gamble is deliberate — it forces guesswork, makes wiping a real decision, and rewards
+  trying unknown symbols to discover new combinations. Filler is random, so a continuation can still
+  surface by chance even on a deal that didn't seed one (effective odds run a bit above the raw chance);
+  longer sequences (`deep_communion`, 6 symbols) are correspondingly much harder to land.
+- **Planar keys are a rare, gold-highlighted option that multiply the reward.** Each deal has a
+  `planar_key_chance` (~1/7, inspector export) of flagging one of the four options as a planar key
+  (pulsing gold ring in the arena, gold ring left on the queue slot if picked). If the sequence submitted
+  at E contains one or more key-marked slots *within the matched run*, `reward_multiplier` is `1 +`
+  (key count) — every reward at collection (ingredients, materials, Resolve) is granted that many times
+  over, see below. A planar key appearing outside the sequence currently being built is the game's core
+  tension: keep executing the known plan, or gamble on working the key in (or pivoting to a different
+  known sequence that starts with it) and risk losing the whole run to the closing portal.
 - **Learned-sequence knowledge.** `Summoning._known_bundles` is the set of sequences the player knows,
   listed in the minigame's right-hand **"Known Sequences" reference panel** (each row a bundle's name +
   its sequence as mini-glyphs) which lights up the row the current queue is tracking. A fresh game
@@ -2242,7 +2268,11 @@ Summoning (autoload)
   only once quality clears the paired threshold — the "only a flawless summon brings this through"
   payoffs. The four starting bundles scale up in this respect with their duration/risk: `faint_echo`
   just adds a scaled `rift_glass`, while `deep_communion` (3 days) scales up to +3 `warped_ichor` and
-  +15 Materials and gates 2 more `warped_ichor` behind a 0.9 quality.
+  +15 Materials and gates 2 more `warped_ichor` behind a 0.9 quality. **On top of quality, every reward
+  (base + scaled + gated ingredients, material delta, resolve delta) is then multiplied by
+  `job.reward_multiplier`** — `1 +` however many planar keys landed inside the matched sequence at
+  submit time — so a well-timed key gamble pays off as a flat multiple of the whole haul, independent of
+  quality.
 - **Two new `IngredientDef.Category.EXTRAPLANAR` ingredients** back the initial bundle set:
   `rift_glass` (tier 2) and `warped_ichor` (tier 3), both `source_methods = [SourceMethod.SUMMON]`,
   `buy_price = 0` — only obtainable this way, same as the Ley Line System's spectral ingredients.

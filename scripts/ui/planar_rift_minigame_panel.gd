@@ -6,27 +6,42 @@ extends VBoxContainer
 ## same "build once, populate per-open" shape as LeyLineMinigamePanel.
 ##
 ## Gameplay: the portal is open and slowly closing (a countdown). Four symbol
-## options sit on the portal rim; the player picks one with a movement key
-## (W/A/S/D or arrows -> up/left/down/right), which appends it to the sequence
-## queue and deals four fresh options. Building a queue that exactly matches a
-## RiftBundleDef.sequence summons that bundle (starts its background job via
-## Summoning.complete_rift_minigame). Pressing E wipes the queue, but the wipe
-## takes time while the portal keeps closing. If the portal shuts before a
-## valid sequence lands, the run fails (Summoning.fail_rift_minigame -> a
-## Resolve hit). Known sequences are listed on the right as a reference and
-## light up as the queue tracks them.
+## options sit on the portal rim; the player picks one with a move_up/down/
+## left/right GameInput action (see game_input.gd -- W/A/S/D, arrows, or a
+## gamepad D-pad/stick, mapped up/right/down/left), which appends it to the
+## sequence queue and deals four fresh options. The "select" action (E /
+## Enter / gamepad A) submits the queue: it's checked for any
+## RiftBundleDef.sequence appearing as a contiguous run inside it (not just an
+## exact match -- extra symbols before/after are fine), and the *largest*
+## matching sequence wins, starting its background job via
+## Summoning.complete_rift_minigame. The "back" action (Esc / Q / gamepad B)
+## wipes the queue instead, taking wipe_time while the portal keeps closing.
+## If the portal shuts before a valid sequence is submitted, the run fails
+## (Summoning.fail_rift_minigame -> a Resolve hit). There's no walking away
+## mid-summon once the portal opens -- "back" is consumed by the arena for the
+## wipe, not routed to close the menu. Known sequences are listed on the right
+## as a reference and light up as the queue tracks them.
 ##
-## The four options only *sometimes* include a symbol that continues a bundle's
-## sequence from the current queue (continuation_chance); otherwise they're
-## random. So knowing a sequence isn't enough -- the needed symbol also has to
-## come up, or you wipe and re-deal against the timer. That gamble is the point:
-## it forces guesswork, makes wiping a real decision, and rewards trying unknown
-## symbols to discover new combinations.
+## The four options only *sometimes* include a symbol that continues one of the
+## bundle sequences the current queue could still complete, from any starting
+## point within it (continuation_chance); otherwise they're random. So knowing
+## a sequence isn't enough -- the needed symbol also has to come up, or you
+## wipe and re-deal against the timer. That gamble is the point: it forces
+## guesswork, makes wiping a real decision, and rewards trying unknown symbols
+## to discover new combinations.
+##
+## Every few deals (planar_key_chance, ~1-in-7), one of the four options is a
+## planar key -- highlighted gold. A symbol picked from a planar-key option
+## marks that queue slot; any submitted sequence containing marked slots grants
+## its reward once *per key* on top of the base (1 key = double, 2 = triple,
+## etc, see Summoning.collect_rift()). A planar key that doesn't fit the
+## sequence currently being built is the game's core tension: keep building the
+## known plan, or gamble on working the key in and risking the whole run.
 ##
 ## MenuScene only flips Clock.is_paused; it never pauses the SceneTree, so the
 ## arena's _process/_draw/_input run normally while the menu is open. The
-## arena consumes W/A/S/D/arrows/E via set_input_as_handled() so E doesn't also
-## fire main.gd's interact hotkey; Esc is left alone so it still closes the menu.
+## arena consumes every move/select/back action via set_input_as_handled() so
+## none of them leak to main.gd's interact/game-menu hotkeys.
 
 const OPTION_COUNT := 4
 
@@ -50,6 +65,10 @@ const OPTION_COUNT := 4
 ## rift a gamble and rewards experimentation. Filler is random, so a
 ## continuation can still turn up by chance even on a deal that didn't seed one.
 @export_range(0.0, 1.0) var continuation_chance: float = 0.7
+## Per-deal probability that one of the four options is a planar key (gold
+## highlight). ~1/7 per the design's "every few rounds" -- rare enough to be an
+## event, common enough to force the stick-or-gamble decision regularly.
+@export_range(0.0, 1.0) var planar_key_chance: float = 1.0 / 7.0
 
 @export_group("Flourish Timing")
 @export var success_time: float = 1.7                ## success bloom held before reporting out
@@ -98,14 +117,14 @@ func build() -> void:
 func show_for(rift_id: String) -> void:
 	_rift_id = rift_id
 	_status_label.text = "The rift is open — build a summoning sequence before it closes."
-	_hint_label.text = "W/A/S/D or arrows to choose a symbol · E to wipe the sequence"
+	_hint_label.text = "W/A/S/D or arrows to choose a symbol · E to submit · Esc/Q to wipe the sequence"
 
 	var control_bonus := Skills.get_bonus("summon_control")
 	var portal_time := portal_time_base + control_bonus * seconds_per_control
 
 	_reference.refresh()
 	_reference.set_queue([])
-	_arena.start_run(ContentRegistry.rift_bundles, portal_time, wipe_time, success_time, failure_time, continuation_chance)
+	_arena.start_run(ContentRegistry.rift_bundles, portal_time, wipe_time, success_time, failure_time, continuation_chance, planar_key_chance)
 
 
 func _on_queue_changed(queue: Array) -> void:
@@ -116,13 +135,14 @@ func _on_hint_changed(text: String) -> void:
 	_hint_label.text = text
 
 
-func _on_run_finished(success: bool, bundle_id: String, time_fraction: float) -> void:
+func _on_run_finished(success: bool, bundle_id: String, time_fraction: float, reward_multiplier: int) -> void:
 	# The arena has already played its success/failure flourish. Report out;
 	# Summoning clears the session inside these before emitting the signals
 	# hud.gd closes the menu on, so the MenuScene.closed abort-guard is a no-op.
-	# time_fraction (portal time left at the match) feeds the summon's quality.
+	# time_fraction (portal time left at the match) feeds the summon's quality;
+	# reward_multiplier is 1 + however many planar keys landed in the match.
 	if success:
-		Summoning.complete_rift_minigame(_rift_id, bundle_id, time_fraction)
+		Summoning.complete_rift_minigame(_rift_id, bundle_id, time_fraction, reward_multiplier)
 	else:
 		Summoning.fail_rift_minigame(_rift_id)
 
@@ -235,7 +255,7 @@ class RiftArena extends Control:
 
 	signal queue_changed(queue: Array)
 	signal hint_changed(text: String)
-	signal run_finished(success: bool, bundle_id: String, time_fraction: float)
+	signal run_finished(success: bool, bundle_id: String, time_fraction: float, reward_multiplier: int)
 
 	const ARENA_W := 460.0
 	const ARENA_H := 500.0
@@ -247,10 +267,13 @@ class RiftArena extends Control:
 	const QUEUE_SLOT_DIST := 40.0
 	const QUEUE_R := 16.0
 
-	# The four option positions, in pick order: up, right, down, left.
+	# The four option positions, in pick order: up, right, down, left. Labels
+	# are the keyboard defaults shown in-arena; the actual input is the
+	# move_up/right/down/left GameInput actions (see game_input.gd), so a
+	# gamepad's D-pad/stick drives the same picks.
 	const DIRS := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]
 	const DIR_KEYS := ["W", "D", "S", "A"]
-	const CONTROL_KEYS := [KEY_W, KEY_A, KEY_S, KEY_D, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_E]
+	const DIR_ACTIONS := ["move_up", "move_right", "move_down", "move_left"]
 
 	const COL_CALM := Color(0.36, 0.22, 0.58)
 	const COL_URGENT := Color(0.66, 0.13, 0.19)
@@ -264,6 +287,7 @@ class RiftArena extends Control:
 	var _success_time := 1.7
 	var _failure_time := 1.5
 	var _continuation_chance := 0.7
+	var _planar_key_chance := 1.0 / 7.0
 
 	var _state: int = State.PLAYING
 	var _time_left := 0.0
@@ -272,10 +296,13 @@ class RiftArena extends Control:
 	var _anim_t := 0.0
 
 	var _queue: Array = []            # symbol ids picked so far
+	var _queue_keys: Array = []       # bool per queue slot -- picked from a planar-key option
 	var _options: Array = []          # 4 symbol ids currently offered
-	var _full := false                # queue at MAX with no match -> must wipe
+	var _option_keys: Array = []      # bool per option -- this deal's planar key, if any
+	var _full := false                # queue at MAX with no match submitted -> must wipe
 	var _success_bundle: RiftBundleDef = null
 	var _success_time_frac := 0.0     # portal time left at the match, feeds quality
+	var _success_key_count := 0       # planar keys inside the matched sequence, feeds reward_multiplier
 
 	var _pick_flash_dir := -1
 	var _pick_flash_t := 0.0
@@ -288,22 +315,25 @@ class RiftArena extends Control:
 		set_process(false)
 
 
-	func start_run(bundles: Array, portal_time: float, wipe_time: float, success_time: float, failure_time: float, continuation_chance: float) -> void:
+	func start_run(bundles: Array, portal_time: float, wipe_time: float, success_time: float, failure_time: float, continuation_chance: float, planar_key_chance: float) -> void:
 		_bundles = bundles
 		_portal_time = maxf(portal_time, 4.0)
 		_wipe_time = wipe_time
 		_success_time = success_time
 		_failure_time = failure_time
 		_continuation_chance = continuation_chance
+		_planar_key_chance = planar_key_chance
 
 		_state = State.PLAYING
 		_time_left = _portal_time
 		_wipe_t = 0.0
 		_flourish_t = 0.0
 		_queue.clear()
+		_queue_keys.clear()
 		_full = false
 		_success_bundle = null
 		_success_time_frac = 0.0
+		_success_key_count = 0
 		_pick_flash_dir = -1
 		_pick_flash_t = 0.0
 		_pop_slot = -1
@@ -311,6 +341,8 @@ class RiftArena extends Control:
 
 		_generate_options()
 		queue_changed.emit(_queue.duplicate())
+		if not _option_keys.is_empty() and _option_keys.has(true):
+			hint_changed.emit(_planar_key_note())
 		set_process(true)
 		set_process_input(true)
 
@@ -318,27 +350,33 @@ class RiftArena extends Control:
 	# --- Input -------------------------------------------------------------
 
 	func _input(event: InputEvent) -> void:
-		if not (event is InputEventKey) or not event.pressed or event.echo:
+		var action := _matched_action(event)
+		if action == "":
 			return
-		var code: int = event.keycode
-		if not CONTROL_KEYS.has(code):
-			return
-		# Consume every control key regardless of state so E can't leak to
-		# main.gd's interact hotkey (movement is frozen while paused anyway).
+		# Consume every arena action regardless of state so "select"/"back"
+		# can't leak to main.gd's interact/menu hotkeys (movement is frozen
+		# while paused anyway).
 		get_viewport().set_input_as_handled()
 		if _state != State.PLAYING:
 			return
-		match code:
-			KEY_W, KEY_UP:
-				_pick(0)
-			KEY_D, KEY_RIGHT:
-				_pick(1)
-			KEY_S, KEY_DOWN:
-				_pick(2)
-			KEY_A, KEY_LEFT:
-				_pick(3)
-			KEY_E:
-				_begin_wipe()
+		var dir_index := DIR_ACTIONS.find(action)
+		if dir_index != -1:
+			_pick(dir_index)
+		elif action == "select":
+			_submit_sequence()
+		elif action == "back":
+			_begin_wipe()
+
+
+	func _matched_action(event: InputEvent) -> String:
+		for action_name in DIR_ACTIONS:
+			if event.is_action_pressed(action_name):
+				return action_name
+		if event.is_action_pressed("select"):
+			return "select"
+		if event.is_action_pressed("back"):
+			return "back"
+		return ""
 
 
 	func _pick(dir_index: int) -> void:
@@ -346,22 +384,19 @@ class RiftArena extends Control:
 			return
 		var sym: String = _options[dir_index]
 		_queue.append(sym)
+		_queue_keys.append(_option_keys[dir_index])
 		_pick_flash_dir = dir_index
 		_pick_flash_t = 0.28
 		_pop_slot = _queue.size() - 1
 		_pop_t = 0.3
 		queue_changed.emit(_queue.duplicate())
 
-		var matched := _matched_bundle()
-		if matched != null:
-			_begin_success(matched)
-			return
 		if _queue.size() >= Summoning.MAX_SEQUENCE_LENGTH:
 			_full = true
-			hint_changed.emit("The sequence is full and matches nothing — press E to wipe and start over.")
+			hint_changed.emit("The sequence is full — press E to submit or Esc/Q to wipe and start over.")
 			return
 		_generate_options()
-		hint_changed.emit("%d symbols placed. Keep going, or press E to wipe." % _queue.size())
+		hint_changed.emit("%d symbols placed. Press E to submit, or keep going.%s" % [_queue.size(), _planar_key_note()])
 
 
 	func _begin_wipe() -> void:
@@ -375,18 +410,46 @@ class RiftArena extends Control:
 
 	func _finish_wipe() -> void:
 		_queue.clear()
+		_queue_keys.clear()
 		_generate_options()
 		queue_changed.emit(_queue.duplicate())
 		_state = State.PLAYING
-		hint_changed.emit("Sequence cleared. Choose your first symbol.")
+		hint_changed.emit("Sequence cleared. Choose your first symbol.%s" % _planar_key_note())
 
 
-	func _begin_success(bundle: RiftBundleDef) -> void:
+	## The player submitted the queue (E) -- find the largest RiftBundleDef
+	## sequence appearing as a contiguous run inside it. No match just reports
+	## out and leaves the queue standing (still full if it was), so a submit
+	## attempt never costs anything but the keypress.
+	func _submit_sequence() -> void:
+		if _queue.is_empty():
+			return
+		var found := _find_best_match()
+		if found.is_empty():
+			if _full:
+				hint_changed.emit("No summoning sequence in there — press Esc/Q to wipe and start over.")
+			else:
+				hint_changed.emit("No summoning sequence in there yet. Keep building, or press Esc/Q to wipe.")
+			return
+		var bundle: RiftBundleDef = found.bundle
+		var start: int = found.start
+		var key_count := 0
+		for i in bundle.sequence.size():
+			if _queue_keys[start + i]:
+				key_count += 1
+		_begin_success(bundle, key_count)
+
+
+	func _begin_success(bundle: RiftBundleDef, key_count: int) -> void:
 		_success_bundle = bundle
+		_success_key_count = key_count
 		_success_time_frac = _time_frac()   # captured before the flourish drains the clock
 		_state = State.SUCCESS
 		_flourish_t = _success_time
-		hint_changed.emit("The rift yields: %s!" % bundle.display_name)
+		var mult_note := ""
+		if key_count > 0:
+			mult_note = "  %d planar key%s — x%d rewards!" % [key_count, "" if key_count == 1 else "s", key_count + 1]
+		hint_changed.emit("The rift yields: %s!%s" % [bundle.display_name, mult_note])
 
 
 	func _begin_failure() -> void:
@@ -399,38 +462,56 @@ class RiftArena extends Control:
 
 	# --- Sequence logic ----------------------------------------------------
 
-	## Symbols that continue at least one bundle's sequence from the current
-	## queue -- guaranteed to appear among the options, so any known sequence
-	## is always executable.
+	## Symbols that would continue some bundle's sequence from *some* suffix of
+	## the current queue -- i.e. for every way the queue could still become the
+	## start of a match (including starting fresh, the empty suffix), the next
+	## symbol that suffix needs. Generalized from a single prefix-from-position-0
+	## check so a continuation can still be seeded after the queue has picked up
+	## stray symbols ahead of the real target (submission matches anywhere in
+	## the queue, not just from the start).
 	func _valid_next_symbols() -> Array:
 		var result: Array = []
-		var n := _queue.size()
-		for bundle in _bundles:
-			var seq: Array = bundle.sequence
-			if seq.size() <= n:
-				continue
-			var is_prefix := true
-			for i in n:
-				if seq[i] != _queue[i]:
-					is_prefix = false
-					break
-			if is_prefix and not result.has(seq[n]):
-				result.append(seq[n])
+		for start in _queue.size() + 1:
+			var suffix_len := _queue.size() - start
+			for bundle in _bundles:
+				var seq: Array = bundle.sequence
+				if seq.size() <= suffix_len:
+					continue
+				var is_prefix := true
+				for i in suffix_len:
+					if seq[i] != _queue[start + i]:
+						is_prefix = false
+						break
+				if is_prefix and not result.has(seq[suffix_len]):
+					result.append(seq[suffix_len])
 		return result
 
 
-	func _matched_bundle() -> RiftBundleDef:
+	## The largest bundle sequence appearing as a contiguous run anywhere in the
+	## queue, as {bundle: RiftBundleDef, start: int}, or {} if none match.
+	func _find_best_match() -> Dictionary:
+		var best_bundle: RiftBundleDef = null
+		var best_start := -1
 		for bundle in _bundles:
-			if _sequence_equals(bundle.sequence, _queue):
-				return bundle
-		return null
+			var seq: Array = bundle.sequence
+			var n := seq.size()
+			if n == 0 or n > _queue.size():
+				continue
+			if best_bundle != null and n <= best_bundle.sequence.size():
+				continue
+			for start in _queue.size() - n + 1:
+				if _subsequence_equals(seq, start):
+					best_bundle = bundle
+					best_start = start
+					break
+		if best_bundle == null:
+			return {}
+		return {"bundle": best_bundle, "start": best_start}
 
 
-	func _sequence_equals(seq: Array, q: Array) -> bool:
-		if seq.size() != q.size():
-			return false
+	func _subsequence_equals(seq: Array, start: int) -> bool:
 		for i in seq.size():
-			if seq[i] != q[i]:
+			if _queue[start + i] != seq[i]:
 				return false
 		return true
 
@@ -441,6 +522,7 @@ class RiftArena extends Control:
 	## wipe and re-deal. That gamble is the point, and it's what makes trying
 	## unknown symbols (experimentation) worthwhile. Filler can still surface a
 	## continuation by chance, so effective odds run a bit above the raw chance.
+	## Independently, one option this deal may be a planar key (planar_key_chance).
 	func _generate_options() -> void:
 		var opts: Array = []
 		var valid := _valid_next_symbols()
@@ -455,6 +537,14 @@ class RiftArena extends Control:
 				break
 			opts.append(s)
 		_options = _shuffled(opts)
+
+		_option_keys = [false, false, false, false]
+		if Rng.chance(_planar_key_chance):
+			_option_keys[Rng.range_i(0, _options.size() - 1)] = true
+
+
+	func _planar_key_note() -> String:
+		return "  A planar key glimmers among the options!" if _option_keys.has(true) else ""
 
 
 	func _shuffled(arr: Array) -> Array:
@@ -507,7 +597,8 @@ class RiftArena extends Control:
 		set_process(false)
 		set_process_input(false)
 		_state = State.DONE
-		run_finished.emit(success, _success_bundle.id if _success_bundle != null else "", _success_time_frac)
+		var mult := (_success_key_count + 1) if success else 1
+		run_finished.emit(success, _success_bundle.id if _success_bundle != null else "", _success_time_frac, mult)
 
 
 	# --- Drawing -----------------------------------------------------------
@@ -575,6 +666,10 @@ class RiftArena extends Control:
 					slot_r *= 1.0 + 0.4 * (_pop_t / 0.3)
 				draw_circle(pos + offset, slot_r + 3.0, Color(col.r, col.g, col.b, 0.14 * alpha))
 				draw_arc(pos + offset, slot_r + 3.0, 0.0, TAU, 20, Color(col.r, col.g, col.b, 0.8 * alpha), 2.0, true)
+				# A gold ring marks a slot picked from a planar key -- it feeds
+				# the reward multiplier if this slot ends up inside the match.
+				if i < _queue_keys.size() and _queue_keys[i]:
+					draw_arc(pos + offset, slot_r + 6.0, 0.0, TAU, 20, Color(COL_GOLD.r, COL_GOLD.g, COL_GOLD.b, 0.9 * alpha), 2.0, true)
 				PlanarRiftMinigamePanel.draw_glyph(self, Summoning.symbol_index(_queue[i]), pos + offset, slot_r * 0.72, Color(col.r, col.g, col.b, alpha))
 			else:
 				draw_arc(pos, QUEUE_R, 0.0, TAU, 18, Color(0.5, 0.5, 0.6, 0.3), 1.5, true)
@@ -592,6 +687,7 @@ class RiftArena extends Control:
 			var sym_id: String = _options[i]
 			var col := Summoning.symbol_color(sym_id)
 			var base_alpha := 0.4 if dim else 1.0
+			var is_key: bool = i < _option_keys.size() and _option_keys[i]
 
 			# Cell backing.
 			var flash := 0.0
@@ -599,6 +695,11 @@ class RiftArena extends Control:
 				flash = _pick_flash_t / 0.28
 			var bg := Color(0.09, 0.08, 0.13, 0.92 * base_alpha).lerp(Color(col.r, col.g, col.b, 0.9), flash * 0.5)
 			draw_circle(pos, OPTION_RADIUS, bg)
+			if is_key:
+				# Pulsing gold ring around a planar key option -- picking it
+				# marks this queue slot for the reward multiplier.
+				var pulse := 0.7 + 0.3 * sin(_anim_t * 5.0)
+				draw_arc(pos, OPTION_RADIUS + 5.0, 0.0, TAU, 32, Color(COL_GOLD.r, COL_GOLD.g, COL_GOLD.b, base_alpha * pulse), 3.5, true)
 			draw_arc(pos, OPTION_RADIUS, 0.0, TAU, 32, Color(col.r, col.g, col.b, base_alpha), 2.5 + flash * 2.0, true)
 
 			# Glyph.

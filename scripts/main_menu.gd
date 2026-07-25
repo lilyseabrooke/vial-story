@@ -85,14 +85,15 @@ func _build_root_menu() -> void:
 	_root_nav = _attach_nav(vbox)
 
 
-## W/S + E keyboard navigation for one of the menu's button columns (see
-## MenuKeyNav). `require_pause` is off because nothing pauses on the title
-## screen; a non-null `on_back` makes Esc act as that screen's Back button.
+## Move/select keyboard-and-gamepad navigation for one of the menu's button
+## columns (see MenuKeyNav). `require_pause` is off because nothing pauses on
+## the title screen; a non-null `on_back` makes "back" act as that screen's
+## Back button.
 func _attach_nav(host: Control, on_back: Callable = Callable()) -> MenuKeyNav:
 	var nav := MenuKeyNav.new()
 	nav.require_pause = false
 	if on_back.is_valid():
-		nav.handle_escape = true
+		nav.handle_back = true
 		nav.back_requested.connect(on_back)
 	host.add_child(nav)
 	return nav
@@ -179,7 +180,7 @@ func _build_load_menu() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
-	back_button.text = "Back (Esc)"
+	back_button.text = "Back (Esc/Q)"
 	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_load_back_pressed)
 	vbox.add_child(back_button)
@@ -259,7 +260,7 @@ func _build_settings_menu() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var back_button := Button.new()
-	back_button.text = "Back (Esc)"
+	back_button.text = "Back (Esc/Q)"
 	back_button.add_theme_font_size_override("font_size", 30)
 	back_button.pressed.connect(_on_settings_back_pressed)
 	vbox.add_child(back_button)

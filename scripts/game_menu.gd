@@ -45,8 +45,8 @@ const RELATIONSHIP_ROW_SCENE := preload("res://scenes/ui/components/Relationship
 const RECIPE_ENTRY_SCENE := preload("res://scenes/ui/components/RecipeEntry.tscn")
 const QUEST_ENTRY_SCENE := preload("res://scenes/ui/components/QuestEntry.tscn")
 
-const RAIL_TIP := "W/S section\nE step in\nEsc close"
-const SECTION_TIP := "W/S move\nA/D adjust\nE use\nEsc back"
+const RAIL_TIP := "W/S section\nE step in\nEsc/Q close"
+const SECTION_TIP := "W/S move\nA/D adjust\nE use\nEsc/Q back"
 
 var _rail: VBoxContainer
 var _content: Control
@@ -221,50 +221,47 @@ func _enter_tree() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_visible_in_tree() or not Clock.is_paused:
 		return
-	if not (event is InputEventKey) or not event.pressed or event.echo:
-		return
 
 	# Captured up front: activating the Settings tab's Return/Quit buttons
 	# tears this menu out of the tree synchronously (change_scene_to_file),
 	# after which get_viewport() returns null — same hazard as MenuKeyNav.
 	var viewport := get_viewport()
-	match event.keycode:
-		KEY_W, KEY_UP:
-			if _in_section:
-				_move_section_cursor(-1)
-			else:
-				_move_rail(-1)
+	if event.is_action_pressed("move_up"):
+		if _in_section:
+			_move_section_cursor(-1)
+		else:
+			_move_rail(-1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_down"):
+		if _in_section:
+			_move_section_cursor(1)
+		else:
+			_move_rail(1)
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("move_left"):
+		if _in_section and is_instance_valid(_section_highlight) \
+				and MenuKeyNav.adjust(_section_highlight, -1):
 			viewport.set_input_as_handled()
-		KEY_S, KEY_DOWN:
-			if _in_section:
-				_move_section_cursor(1)
-			else:
-				_move_rail(1)
+	elif event.is_action_pressed("move_right"):
+		if _in_section and is_instance_valid(_section_highlight) \
+				and MenuKeyNav.adjust(_section_highlight, 1):
 			viewport.set_input_as_handled()
-		KEY_A, KEY_LEFT:
-			if _in_section and is_instance_valid(_section_highlight) \
-					and MenuKeyNav.adjust(_section_highlight, -1):
-				viewport.set_input_as_handled()
-		KEY_D, KEY_RIGHT:
-			if _in_section and is_instance_valid(_section_highlight) \
-					and MenuKeyNav.adjust(_section_highlight, 1):
-				viewport.set_input_as_handled()
-		KEY_E, KEY_ENTER, KEY_KP_ENTER:
-			if _in_section:
-				if is_instance_valid(_section_highlight):
-					MenuKeyNav.activate(_section_highlight)
-			else:
-				_enter_section()
-			# Consumed either way so E never falls through to main.gd's
-			# world interact while the journal owns the screen.
+	elif event.is_action_pressed("select"):
+		if _in_section:
+			if is_instance_valid(_section_highlight):
+				MenuKeyNav.activate(_section_highlight)
+		else:
+			_enter_section()
+		# Consumed either way so "select" never falls through to main.gd's
+		# world interact while the journal owns the screen.
+		viewport.set_input_as_handled()
+	elif event.is_action_pressed("back"):
+		# Only consume "back" when it has something to undo (stepping back to
+		# the rail); at rail level it falls through to main.gd, which closes
+		# the menu.
+		if _in_section:
+			_leave_section()
 			viewport.set_input_as_handled()
-		KEY_ESCAPE:
-			# Only consume Esc when it has something to undo (stepping back to
-			# the rail); at rail level it falls through to main.gd, which
-			# closes the menu.
-			if _in_section:
-				_leave_section()
-				viewport.set_input_as_handled()
 
 
 func _move_rail(delta: int) -> void:
