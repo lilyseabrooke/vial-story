@@ -956,7 +956,7 @@ or_expr    := and_expr ( "or" and_expr )*
   recurring character (love interest or otherwise) gets a *consistent* color
   across every scene rather than one dependent on entry order within a single
   scene. The five love interests are registered (`data/characters/callie.tres`,
-  `larissa.tres`, `haerin.tres`, `daniela.tres`, `lyra.tres`; ids match those
+  `larissa.tres`, `haerin.tres`, `zara.tres`, `lyra.tres`; ids match those
   used by `add_affection()`) — see `docs/design/characters.md` for who they are.
   The old `kaelith_greeting` sample scene (`data/vn_scenes/kaelith_greeting.vnscript`)
   still uses an unregistered "Kaelith" placeholder speaker and is unaffected,

@@ -45,7 +45,7 @@ proven in the duel circuit, every teacher's favorite. Despite it all, she consta
 failing: nothing is ever enough, every microscopic mistake feels life-ending. All her self-worth is
 defined by achievement, so every slip becomes an ultimatum on her as a person.
 
-## Daniela Shadowlance (Eagle House, crimson)
+## Zara Shadowlance (Eagle House, crimson)
 
 Third-year student of Chronomancy. From the powerful but often merciless Shadowlance magic family —
 cool, aloof, detached, very powerful with her magic. An exacting honors student with top marks in

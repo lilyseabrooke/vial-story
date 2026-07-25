@@ -10,7 +10,7 @@ const CHARACTER_PATHS := [
 	"res://data/characters/callie.tres",
 	"res://data/characters/larissa.tres",
 	"res://data/characters/haerin.tres",
-	"res://data/characters/daniela.tres",
+	"res://data/characters/zara.tres",
 	"res://data/characters/lyra.tres",
 	"res://data/characters/mira.tres",
 ]
