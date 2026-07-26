@@ -1,0 +1,21 @@
+[gd_resource type="TileSet" format=3 uid="uid://c75nfi0b4g2u7"]
+
+[ext_resource type="Texture2D" uid="uid://cpoct0rk6iwf4" path="res://assets/tilesets/InteriorTileset.png" id="1_q1ojp"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_mg133"]
+texture = ExtResource("1_q1ojp")
+texture_region_size = Vector2i(24, 24)
+0:0/0 = 0
+1:0/0 = 0
+0:1/0 = 0
+1:1/0 = 0
+0:2/0 = 0
+1:2/0 = 0
+0:3/0 = 0
+1:3/0 = 0
+0:4/0 = 0
+1:4/0 = 0
+
+[resource]
+tile_size = Vector2i(24, 24)
+sources/1 = SubResource("TileSetAtlasSource_mg133")
