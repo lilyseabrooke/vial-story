@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bpb2ew5pf1mm0"]
 
 [ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/TransferInteractable.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/spawners/DragonSpawner.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/spawners/DragonStashSpawner.tscn" id="4"]
 [ext_resource type="Script" uid="uid://b8cgx2suy2olb" path="res://scripts/data/dragon_spawn_entry.gd" id="5"]

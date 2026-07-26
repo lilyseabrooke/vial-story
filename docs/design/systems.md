@@ -824,7 +824,7 @@ CurseState
   owns the shared Area2D proximity signals and visual/label chrome, and each
   concrete type (`BrewStationInteractable`, `StockBoxInteractable`,
   `GrowPlotInteractable`, `SupplyShelfInteractable`, `BedInteractable`,
-  `ClassDoorInteractable`, `StairsInteractable`) is its own scene inheriting
+  `ClassDoorInteractable`, `TransferInteractable`) is its own scene inheriting
   that base scene, pairing a `class_name` script that overrides
   `interact(main: MainScene)` with the actual action for that type (calling
   Brewing/Shop/Herbalism/Economy/Clock/Academy directly, or reaching into
@@ -836,27 +836,36 @@ CurseState
   `show_brew_ready()`/`clear_brew_indicator()` methods, since no other type
   needs an in-world progress indicator.
 - **Room transitions** are just another interactable type
-  (`StairsInteractable`), configured with a `target_room` id and a
-  `spawn_position` in the destination room, the same per-instance-config
-  pattern as every other interactable. The Bed lives in the Bedroom; the
-  Shop's brew station/stock box/supply shelf/class door stay in the Shop;
-  the grow plots live in the Garden rooms (CommonGarden also holds the
-  Garden Manager/Water Pump; Garden's only other content is the stairs
-  back); the Dragons' Ground has nothing but its stashes and a stairs back;
-  the Scrap Yard is the same shape as the Dragons' Ground but with a
-  `ScrapHeapSpawner` in place of the `DragonSpawner`/`DragonStashSpawner`
-  pair; the Contract Book lives in the Altar, the Ley Line Node in the Ley
-  Line Outcropping, and the Planar Rift in the Orrery — each of these three
-  is the same "single hand-placed fixture plus a stairs back" shape as the
-  Garden — each pair of rooms is connected by a stairs interactable in each
-  room pointing at the other. One quirk of `_load_room()`'s spawn-position
-  resolution: it only auto-fills a stairs' `spawn_position` from the target
-  room's `SpawnPoint` if the target room was *already* loaded when the
-  stairs gets wired, so a stairs pointing at a room that loads later
-  (`Shop`'s stairs to `Bedroom`/`DragonsGround`/`ScrapYard`/`Altar`/
-  `LeyLineOutcropping`/`Orrery`, all of which load after `Shop`) needs its
-  `spawn_position` hand-set in the `.tscn` to match that room's `SpawnPoint`
-  instead of relying on auto-resolution.
+  (`TransferInteractable`, a generalization of what used to be a
+  `StairsInteractable` fixed to a raw `spawn_position`), configured with a
+  `target_room` id and, for the destination, either a `target_entry_point_id`
+  or a fixed `spawn_position` Vector2 — the same per-instance-config pattern
+  as every other interactable. The Bed lives in the Bedroom; the Shop's brew
+  station/stock box/supply shelf/class door stay in the Shop; the grow plots
+  live in the Garden rooms (CommonGarden also holds the Garden Manager/Water
+  Pump; Garden's only other content is the stairs back); the Dragons' Ground
+  has nothing but its stashes and a stairs back; the Scrap Yard is the same
+  shape as the Dragons' Ground but with a `ScrapHeapSpawner` in place of the
+  `DragonSpawner`/`DragonStashSpawner` pair; the Contract Book lives in the
+  Altar, the Ley Line Node in the Ley Line Outcropping, and the Planar Rift
+  in the Orrery — each of these three is the same "single hand-placed
+  fixture plus a stairs back" shape as the Garden — each pair of rooms is
+  connected by a transfer interactable in each room pointing at the other.
+- **Entry Points** (`EntryPoint`, `scripts/entry_point.gd`/`scenes/EntryPoint.tscn`)
+  are named `Marker2D`s placed in a room's optional `EntryPoints` container
+  (a sibling of `Interactables`, same shape as `SpawnPoint`/`Plots`), each
+  carrying just an `entry_id`. `RoomBuilder._load_room()` scans that
+  container into `_entry_points[room_id][entry_id] -> position`, and
+  `TransferInteractable.interact()` resolves `target_entry_point_id` through
+  `RoomBuilder.get_entry_point_position()` at the moment of interaction
+  (not baked in at load time), so moving an `EntryPoint` marker in the editor
+  — e.g. relocating a staircase or doorway — automatically updates every
+  Transfer anywhere that targets it, instead of needing each one hand-synced.
+  A Transfer with neither `target_entry_point_id` nor a hand-set
+  `spawn_position` still falls back to the target room's default `SpawnPoint`
+  (`_load_room()`'s auto-fill, unchanged from the old Stairs behavior) — a
+  fixed `spawn_position` is for a genuine one-off destination that doesn't
+  warrant its own marker.
 - **Shop Back.** One extra door in the Shop (`StairsToShopBack`) whose
   `target_room` is resolved at runtime from `PlayerProfile.shop_origin`
   instead of being fixed in the `.tscn` like every other stairs —
@@ -2044,7 +2053,7 @@ scenes/spawners/DragonStashSpawner.tscn)
   lands at the room's origin instead of its zone — this bit a first pass at this system and is
   worth remembering before "fixing" it back to a typed export. The
   Dragons' Ground (`scenes/rooms/DragonsGround.tscn`, `room_id = "dragons_ground"` — a large room
-  reached from the Shop via a `StairsInteractable` doorway, with a `StairsBack` returning the
+  reached from the Shop via a `TransferInteractable` doorway, with a `StairsBack` returning the
   favor) carries one such spawner (`spawner_id = "dragons_ground_stashes"`) linked to its
   `SpawnZones` container, but nothing stops a future room from having its own with different
   tuning. `DragonStashSpawnerNode` doesn't instance the `DragonStashInteractable` itself, though —

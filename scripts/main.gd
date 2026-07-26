@@ -120,7 +120,7 @@ func _on_interact_pressed() -> void:
 
 ## The one place rooms get switched: resets interaction/menu state left over
 ## from the room we're leaving, then hands off to RoomBuilder for the actual
-## room/camera/player move. Called by StairsInteractable.interact().
+## room/camera/player move. Called by TransferInteractable.interact().
 func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	_current_interactable = null
 	hud.set_prompt("")

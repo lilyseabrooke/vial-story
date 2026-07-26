@@ -80,6 +80,7 @@ var current_room_id: String = ""
 var _camera: Camera2D
 var _rooms: Dictionary = {}             # room_id -> Room
 var _spawn_points: Dictionary = {}      # room_id -> Vector2
+var _entry_points: Dictionary = {}      # room_id -> Dictionary(entry_id -> Vector2)
 var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
@@ -220,9 +221,22 @@ func get_room(room_id: String) -> Room:
 	return _rooms.get(room_id)
 
 
-## Instantiates a room scene, registers its spawn marker, connects
-## every pre-placed Interactable's signals, and resolves stairs' spawn
-## positions from the target room's SpawnPoint (target room must already be
+## Looks up a room's named EntryPoint by id -- see TransferInteractable.interact().
+## Returns Vector2.ZERO (with a warning) if the room has no EntryPoints
+## container or no marker with that id, same "silently do nothing surprising"
+## fallback a missing target_room would already hit downstream.
+func get_entry_point_position(room_id: String, entry_id: String) -> Vector2:
+	var points: Dictionary = _entry_points.get(room_id, {})
+	if not points.has(entry_id):
+		push_warning("No EntryPoint '%s' in room '%s'" % [entry_id, room_id])
+		return Vector2.ZERO
+	return points[entry_id]
+
+
+## Instantiates a room scene, registers its spawn marker and any EntryPoint
+## markers, connects every pre-placed Interactable's signals, and gives a
+## Transfer with neither target_entry_point_id nor a hand-set spawn_position
+## a default of the target room's SpawnPoint (target room must already be
 ## loaded — build_rooms() loads both up front, so order doesn't matter here).
 func _load_room(scene: PackedScene) -> void:
 	var room: Room = scene.instantiate()
@@ -244,9 +258,18 @@ func _load_room(scene: PackedScene) -> void:
 	_rooms[room.room_id] = room
 	_spawn_points[room.room_id] = room.get_node("SpawnPoint").position
 
+	var entry_points: Dictionary = {}
+	var entry_points_node := room.get_node_or_null("EntryPoints")
+	if entry_points_node != null:
+		for entry_point in entry_points_node.get_children():
+			if entry_point is EntryPoint:
+				entry_points[entry_point.entry_id] = entry_point.global_position
+	_entry_points[room.room_id] = entry_points
+
 	for interactable in room.get_node("Interactables").get_children():
 		wire_interactable(interactable)
-		if interactable is StairsInteractable and _spawn_points.has(interactable.target_room):
+		if interactable is TransferInteractable and interactable.target_entry_point_id == "" \
+				and interactable.spawn_position == Vector2.ZERO and _spawn_points.has(interactable.target_room):
 			interactable.spawn_position = _spawn_points[interactable.target_room]
 
 
@@ -259,7 +282,7 @@ func _load_room(scene: PackedScene) -> void:
 ## whatever placeholder target_room the .tscn happens to have.
 func _wire_shop_back_door() -> void:
 	var target_room_id: String = SHOP_BACK_ROOM_BY_ORIGIN.get(PlayerProfile.shop_origin, GARDEN_ROOM_ID)
-	var door: StairsInteractable = _rooms[SHOP_ROOM_ID].get_node("Interactables/StairsToShopBack")
+	var door: TransferInteractable = _rooms[SHOP_ROOM_ID].get_node("Interactables/StairsToShopBack")
 	door.target_room = target_room_id
 	door.spawn_position = _spawn_points[target_room_id]
 

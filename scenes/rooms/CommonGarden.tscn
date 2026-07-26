@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/StairsInteractable.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/TransferInteractable.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/GrowPlotInteractable.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/GardenManagerInteractable.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/WaterPumpInteractable.tscn" id="5"]

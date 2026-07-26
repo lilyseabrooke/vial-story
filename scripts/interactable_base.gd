@@ -4,7 +4,7 @@ extends Area2D
 ##
 ## One base scene/script per behavior (BrewStationInteractable,
 ## StockBoxInteractable, GrowPlotInteractable, SupplyShelfInteractable,
-## BedInteractable, ClassDoorInteractable, StairsInteractable) rather than one
+## BedInteractable, ClassDoorInteractable, TransferInteractable) rather than one
 ## generic node configured by an enum, since each type's action now lives on
 ## the node itself (interact()) instead of a type match in MainScene. This
 ## base only owns what every type shares: the Area2D proximity signals and
