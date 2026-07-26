@@ -221,6 +221,20 @@ func get_room(room_id: String) -> Room:
 	return _rooms.get(room_id)
 
 
+## All rooms live at the same (0,0)-origin coordinate space -- only visible/
+## process_mode distinguish the active one -- but neither of those disables a
+## TileMapLayer's physics body, which stays registered with the physics
+## server regardless of visibility or processing. Without this, an inactive
+## room's wall collision (once a room actually has any, e.g. Bedroom's
+## InteriorTileset2) would still block the player while standing in a
+## different, visibly-empty room. Called alongside every visible/process_mode
+## toggle in _load_room()/switch_room() so the two states never drift apart.
+func _set_room_collision_enabled(room: Room, enabled: bool) -> void:
+	for child in room.get_children():
+		if child is TileMapLayer:
+			child.collision_enabled = enabled
+
+
 ## Looks up a room's named EntryPoint by id -- see TransferInteractable.interact().
 ## Returns Vector2.ZERO (with a warning) if the room has no EntryPoints
 ## container or no marker with that id, same "silently do nothing surprising"
@@ -254,6 +268,7 @@ func _load_room(scene: PackedScene) -> void:
 	add_child(room)
 	room.visible = false
 	room.process_mode = Node.PROCESS_MODE_DISABLED
+	_set_room_collision_enabled(room, false)
 
 	_rooms[room.room_id] = room
 	_spawn_points[room.room_id] = room.get_node("SpawnPoint").position
@@ -419,12 +434,14 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 		var previous_room: Room = _rooms[current_room_id]
 		previous_room.visible = false
 		previous_room.process_mode = Node.PROCESS_MODE_DISABLED
+		_set_room_collision_enabled(previous_room, false)
 
 	current_room_id = room_id
 	GameFlow.set_current_room(room_id)
 	var room: Room = _rooms[room_id]
 	room.visible = true
 	room.process_mode = Node.PROCESS_MODE_INHERIT
+	_set_room_collision_enabled(room, true)
 
 	player.position = spawn_position
 

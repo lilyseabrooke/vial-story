@@ -181,10 +181,10 @@ visual_color = Color(0.15, 0.65, 0.65, 1)
 
 [node name="Mira" parent="Interactables" unique_id=1284917335 instance=ExtResource("16")]
 position = Vector2(470, 200)
+npc_id = "mira"
 prompt_text = "talk to Mira"
 display_name = "Mira"
 visual_color = Color(0.35, 0.55, 0.75, 1)
-npc_id = "mira"
 
 [node name="StairsToShopBack" parent="Interactables" unique_id=1629299919 instance=ExtResource("6")]
 position = Vector2(250, 486)

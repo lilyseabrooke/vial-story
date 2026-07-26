@@ -817,7 +817,15 @@ CurseState
   it) — floor tiles don't; `Bedroom`/`DragonsGround`/`ScrapYard`/`Garden`/
   `Altar`/`LeyLineOutcropping`/`Orrery` currently leave `Floor`/`Walls` empty
   placeholders with no tileset assigned yet, same as `Shop.tscn` did before
-  its interior was painted.
+  its interior was painted. Every room lives at the same (0, 0)-origin
+  coordinate space — only `visible`/`process_mode` distinguish the active
+  room — but neither of those disables a `TileMapLayer`'s physics body, which
+  stays registered with the physics server independent of both. So
+  `RoomBuilder._set_room_collision_enabled()` also toggles each room's
+  `TileMapLayer.collision_enabled` alongside every `visible`/`process_mode`
+  change (`_load_room()` and `switch_room()`); skipping this would let an
+  inactive room's wall collision keep blocking the player in whichever room
+  is actually active.
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
