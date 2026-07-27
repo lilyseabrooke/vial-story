@@ -34,17 +34,16 @@ func _ready() -> void:
 		_grant_starting_scrap()
 		_grant_starting_quests()
 		_grant_starting_summoning_knowledge()
-	_start_game(Color(PlayerProfile.player_color_hex))
+	_start_game()
 
 
-func _start_game(player_color: Color) -> void:
+func _start_game() -> void:
 	room_builder = RoomBuilder.new()
 	add_child(room_builder)
 	room_builder.build_rooms()
 	room_builder.player_entered_interactable.connect(_on_player_entered_interactable)
 	room_builder.player_exited_interactable.connect(_on_player_exited_interactable)
 	room_builder.interactable_destroyed.connect(_on_interactable_destroyed)
-	room_builder.player.get_node("Visual").color = player_color
 
 	hud = GameHud.new()
 	add_child(hud)

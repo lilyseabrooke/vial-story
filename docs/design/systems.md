@@ -1565,7 +1565,7 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
 - **Games vs. slots.** A *game* is one playthrough, identified by the game-start choices — character
   name, pronouns, House, and shop origin (e.g. "magic_garden" vs. "ley_line_fissure") — via the
   `PlayerProfile` autoload (`character_name: String`, `pronouns: String`, `house_id: String`,
-  `shop_origin: String`, `player_color_hex: String`). A game can hold any number of numbered *save
+  `shop_origin: String`). A game can hold any number of numbered *save
   slots*, each a full snapshot at a point in time. This mirrors a Stardew-Valley-style per-farm save
   list, but supports true multi-save-per-playthrough rather than one save per farm. `shop_origin` and
   `house_id` are now real `ShopLocationDef`/`HouseDef` ids (loaded via `ContentRegistry.get_shop_location()`
@@ -1576,8 +1576,8 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   step is valid): (1) name, pronouns, House (a row of placeholder tiles, one per
   `ContentRegistry.houses` entry, tinted via each House's own hand-authored `HouseDef.placeholder_color`
   — Dragon plum, Eagle crimson, Boar forest green, Scorpion gold, Dolphin teal — since House has no
-  category to derive a tint from like shop locations do), and an HSV color for the player's placeholder
-  rectangle — deliberately sparse today, a stand-in for a future character-appearance step; (2) the
+  category to derive a tint from like shop locations do) — deliberately sparse today, a stand-in for a
+  future character-appearance step; (2) the
   5-point skill allocation; (3) shop location, picked from a 3x2 `GridContainer` of toggle buttons (one
   per `ContentRegistry.shop_locations` entry) instead of a dropdown, each with a placeholder
   color-swatch icon tinted via `IngredientDef.CATEGORY_COLORS` by the location's `ingredient_category`
@@ -1587,7 +1587,7 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   as pink and GOLD as canary yellow at tile size, and forest is nudged blue-green to read distinctly
   from teal. Confirming calls
   `SaveManager.create_new_game(character_name,
-  pronouns, house_id, shop_origin, player_color, skill_allocations)` — which also resets `Skills` (in
+  pronouns, house_id, shop_origin, skill_allocations)` — which also resets `Skills` (in
   case a prior playthrough left XP behind) and grants the allocated starting points.
 - **Title screen.** `res://scenes/MainMenu.tscn` (`scripts/main_menu.gd`, `MainMenu`) is now
   `run/main_scene` and is where CharacterCreator fires from — behind a "New Game" button rather than
@@ -1598,8 +1598,7 @@ human-readable JSON, since editing them isn't a concern the prototype worries ab
   new transient `GameFlow` autoload (`game_id: String`, `is_new_game: bool` — not part of any save
   payload) before `change_scene_to_file`-ing to `res://scenes/Main.tscn`; `main.gd._ready()` reads
   `GameFlow.is_new_game` to decide whether to grant starting ingredients (new game) or trust the
-  state `SaveManager` already restored (loaded game), and reads `PlayerProfile.player_color_hex`
-  directly instead of taking a signal argument, since CharacterCreator no longer lives in this scene.
+  state `SaveManager` already restored (loaded game).
   The Escape menu (`scripts/hud.gd`) now also has a "Save Game" button that calls
   `SaveManager.save_game(GameFlow.game_id)` — the only place gameplay saves are triggered from today
   (no autosave yet).

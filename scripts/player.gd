@@ -14,11 +14,12 @@ const KNOCKBACK_DECAY := 900.0
 const INVINCIBILITY_SECONDS := 1.2
 const FLASH_INTERVAL := 0.1
 
-@onready var _visual: ColorRect = $Visual
+@onready var _visual: AnimatedSprite2D = $Visual
 
 var _knockback_velocity: Vector2 = Vector2.ZERO
 var _invincible_timer: float = 0.0
 var _flash_timer: float = 0.0
+var _facing: String = "Down"
 
 
 func _physics_process(delta: float) -> void:
@@ -37,8 +38,24 @@ func _physics_process(delta: float) -> void:
 			Input.get_axis("move_up", "move_down")
 		)
 		velocity = input_vector.normalized() * SPEED if input_vector != Vector2.ZERO else Vector2.ZERO
+		_update_animation(input_vector)
 
 	move_and_slide()
+
+
+## Picks the walking/idle row to match input direction, favoring whichever
+## axis has the larger magnitude so diagonal input still reads as a single
+## cardinal direction (the spritesheet only has four facings).
+func _update_animation(input_vector: Vector2) -> void:
+	if input_vector == Vector2.ZERO:
+		_visual.play("Idle" + _facing)
+		return
+
+	if absf(input_vector.x) > absf(input_vector.y):
+		_facing = "Right" if input_vector.x > 0.0 else "Left"
+	else:
+		_facing = "Down" if input_vector.y > 0.0 else "Up"
+	_visual.play("Walking" + _facing)
 
 
 func is_invincible() -> bool:

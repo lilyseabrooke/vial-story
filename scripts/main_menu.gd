@@ -109,7 +109,7 @@ func _on_new_game_pressed() -> void:
 
 func _on_character_created(data: Dictionary) -> void:
 	var game_id := SaveManager.create_new_game(
-		data.character_name, data.pronouns, data.house_id, data.shop_origin, data.player_color,
+		data.character_name, data.pronouns, data.house_id, data.shop_origin,
 		data.skill_allocations
 	)
 	GameFlow.game_id = game_id

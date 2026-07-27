@@ -1,7 +1,7 @@
 class_name CharacterCreator
 extends CanvasLayer
 ## New-game character creation screen, a 3-step wizard: (1) name/pronouns/
-## House/block color, (2) starting skill point allocation, (3) shop-location
+## House, (2) starting skill point allocation, (3) shop-location
 ## origin. See docs/design/systems.md, system 14 (save/load) and system 6
 ## (skills).
 ##
@@ -11,9 +11,9 @@ extends CanvasLayer
 ## choices and lets the caller decide what to do with them, so it stays
 ## reusable from a future "New Game" menu button without rewiring internals.
 ##
-## Step 1 (identity) is deliberately small/sparse right now — the block-color
-## picker is a stand-in for a future character-appearance step and this
-## screen will grow once that lands, it isn't meant to look "finished" today.
+## Step 1 (identity) is deliberately small/sparse right now — it's a stand-in
+## for a future character-appearance step and this screen will grow once
+## that lands, it isn't meant to look "finished" today.
 ## House is a row of placeholder tiles (HouseDef has no icon field, and no
 ## natural category to tint by like shop locations, so each House's tint is
 ## hand-authored on its own HouseDef.placeholder_color) rather than a
@@ -53,10 +53,6 @@ var _name_edit: LineEdit
 var _pronoun_option: OptionButton
 var _house_group := ButtonGroup.new()
 var _selected_house_index: int = 0
-var _hue_slider: HSlider
-var _sat_slider: HSlider
-var _val_slider: HSlider
-var _color_swatch: ColorRect
 
 # Step 2: skills
 var _skill_allocations: Dictionary = {}  # skill_id -> int, keys from Skills.STARTING_ALLOCATABLE_SKILL_IDS
@@ -178,47 +174,12 @@ func _build_identity_step() -> VBoxContainer:
 	step.add_child(HSeparator.new())
 
 	var appearance_note := Label.new()
-	appearance_note.text = "Full character appearance customization coming soon — pick a color for now."
+	appearance_note.text = "Full character appearance customization coming soon."
 	appearance_note.modulate = UiPalette.TEXT_MUTED
 	appearance_note.autowrap_mode = TextServer.AUTOWRAP_WORD
 	step.add_child(appearance_note)
 
-	_color_swatch = ColorRect.new()
-	_color_swatch.custom_minimum_size = Vector2(48, 48)
-
-	_hue_slider = _add_color_slider(step, "Hue")
-	_sat_slider = _add_color_slider(step, "Saturation")
-	_val_slider = _add_color_slider(step, "Value")
-	_sat_slider.value = 1.0
-	_val_slider.value = 1.0
-
-	step.add_child(_color_swatch)
-	_update_color_swatch()
-
 	return step
-
-
-func _add_color_slider(parent: VBoxContainer, label_text: String) -> HSlider:
-	var caption := Label.new()
-	caption.text = label_text
-	parent.add_child(caption)
-
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	slider.custom_minimum_size = Vector2(200, 0)
-	slider.value_changed.connect(func(_value: float) -> void: _update_color_swatch())
-	parent.add_child(slider)
-	return slider
-
-
-func _update_color_swatch() -> void:
-	_color_swatch.color = _current_color()
-
-
-func _current_color() -> Color:
-	return Color.from_hsv(_hue_slider.value, _sat_slider.value, _val_slider.value)
 
 
 func _on_name_changed(_new_text: String) -> void:
@@ -431,6 +392,5 @@ func _on_confirm_pressed() -> void:
 		"pronouns": pronoun_value,
 		"house_id": house_def.id,
 		"shop_origin": location_def.id,
-		"player_color": _current_color(),
 		"skill_allocations": skill_allocations,
 	})
