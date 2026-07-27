@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## they're player state that needs to persist independent of which (if any)
 ## dragon caused them.
 
-const SPEED := 220.0
+const SPEED := 170.0
 const KNOCKBACK_DECAY := 900.0
 const INVINCIBILITY_SECONDS := 1.2
 const FLASH_INTERVAL := 0.1
@@ -37,7 +37,8 @@ func _physics_process(delta: float) -> void:
 			Input.get_axis("move_left", "move_right"),
 			Input.get_axis("move_up", "move_down")
 		)
-		velocity = input_vector.normalized() * SPEED if input_vector != Vector2.ZERO else Vector2.ZERO
+		var speed := SPEED * Clock.SPEED_MULTIPLIERS[Clock.speed_level]
+		velocity = input_vector.normalized() * speed if input_vector != Vector2.ZERO else Vector2.ZERO
 		_update_animation(input_vector)
 
 	move_and_slide()
