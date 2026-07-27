@@ -115,18 +115,25 @@ func resolve_collapse() -> void:
 
 func end_day(reason: EndReason) -> void:
 	day_ended.emit(reason)
-	_resolve_overnight_skip()
+	_skip_overnight_to_next_day_start()
 	day_number += 1
 	minutes_into_day = 0
 	_accumulator = 0.0
 	day_started.emit(day_number, day_type())
 
 
-## Placeholder for brewing/growing/shop resolution overnight.
-## Brewing/growing/shop systems will connect to day_ended instead of this
-## being their integration point directly — kept here as a documented seam.
-func _resolve_overnight_skip() -> void:
-	pass
+## Ticks minute-by-minute from the current time through to next day's 6 AM
+## start, emitting minute_tick for each one, so anything hooked to it (shop
+## sales, etc.) still gets the chance to resolve as if the overnight/collapse
+## gap had been played through in real time rather than the clock silently
+## jumping. Increments minutes_into_day past DAY_LENGTH_MINUTES on purpose —
+## bypasses _tick_one_minute's collapse check since end_day() is already
+## handling that.
+func _skip_overnight_to_next_day_start() -> void:
+	var minutes_remaining := MINUTES_PER_CALENDAR_DAY - minutes_into_day
+	for _i in range(minutes_remaining):
+		minutes_into_day += 1
+		minute_tick.emit(get_timestamp())
 
 
 ## Generic TimeSkip utility for scheduled windows (e.g. attending class).
