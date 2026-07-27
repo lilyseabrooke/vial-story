@@ -1428,6 +1428,13 @@ mentioned in system 1 became this concretely.
   `dragons_ground` hunting materials instead whenever `NPCState`'s nightly
   roll leaves her short on funds.
 
+**Cutscene / staged movement [PLANNED].** A `.vnscript` scene driving real actors around real
+rooms — walking, camera pans, one-shot animations/effects, interactable appearance changes,
+screen effects — interleaved with dialogue, triggered through the same `SceneTriggerDef`/
+`SceneDirector` pipeline above. Prerequisites, command vocabulary, async execution model, and
+build order are specced in `docs/design/cutscene_system.md`; fold its content back into this
+section once built.
+
 ---
 
 ## 14. Save/Load System [BUILD]
