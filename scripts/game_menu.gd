@@ -44,6 +44,9 @@ const SKILL_ROW_SCENE := preload("res://scenes/ui/components/SkillRow.tscn")
 const RELATIONSHIP_ROW_SCENE := preload("res://scenes/ui/components/RelationshipRow.tscn")
 const RECIPE_ENTRY_SCENE := preload("res://scenes/ui/components/RecipeEntry.tscn")
 const QUEST_ENTRY_SCENE := preload("res://scenes/ui/components/QuestEntry.tscn")
+const CUSTOMER_ENTRY_SCENE := preload("res://scenes/ui/components/CustomerEntry.tscn")
+
+const RECENT_CUSTOMERS_LIST_HEIGHT := 260
 
 const RAIL_TIP := "W/S section\nE step in\nEsc/Q close"
 const SECTION_TIP := "W/S move\nA/D adjust\nE use\nEsc/Q back"
@@ -64,6 +67,11 @@ var _skills_list: VBoxContainer
 var _shop_grid: GridContainer
 var _shop_reputation_label: Label
 var _shop_coffers_label: Label
+var _shop_price_label: Label
+var _shop_price_minus_button: Button
+var _shop_price_plus_button: Button
+var _shop_selected_index := -1
+var _customers_list: VBoxContainer
 var _relationships_list: VBoxContainer
 var _recipes_list: VBoxContainer
 var _report_card_label: Label
@@ -132,6 +140,8 @@ func build() -> void:
 	Shop.potion_stocked.connect(func(_id: String, _price: int) -> void: update_shop())
 	Shop.potion_sold.connect(func(_id: String, _price: int) -> void: update_shop())
 	Shop.coffers_collected.connect(func(_amount: int) -> void: update_shop())
+	Shop.price_changed.connect(func(_index: int, _price: int) -> void: update_shop())
+	Shop.customer_visited.connect(func(_record: Dictionary) -> void: update_shop())
 	Economy.upgrade_purchased.connect(func(_id: String) -> void: update_shop())
 	LoveInterests.affection_changed.connect(func(_id: String, _amount: int) -> void: update_relationships())
 	Academy.attended_class.connect(update_report_card)
@@ -431,6 +441,50 @@ func _build_shop_tab() -> Control:
 	_shop_grid = GridContainer.new()
 	_shop_grid.columns = GRID_COLUMNS
 	root.add_child(_shop_grid)
+
+	root.add_child(HSeparator.new())
+
+	# Price-adjust bar: pick a stocked slot in the grid above (mouse click, or
+	# keyboard cursor + E), then nudge its price with these two buttons — they
+	# stay the actionable controls MenuKeyNav's section-level cursor lands on,
+	# same as every other section.
+	var price_bar := HBoxContainer.new()
+	price_bar.add_theme_constant_override("separation", 12)
+	root.add_child(price_bar)
+
+	_shop_price_label = Label.new()
+	price_bar.add_child(_shop_price_label)
+
+	_shop_price_minus_button = Button.new()
+	_shop_price_minus_button.text = "− %d" % Shop.PRICE_ADJUST_STEP
+	_shop_price_minus_button.pressed.connect(_on_shop_price_adjust.bind(-Shop.PRICE_ADJUST_STEP))
+	price_bar.add_child(_shop_price_minus_button)
+
+	_shop_price_plus_button = Button.new()
+	_shop_price_plus_button.text = "+ %d" % Shop.PRICE_ADJUST_STEP
+	_shop_price_plus_button.pressed.connect(_on_shop_price_adjust.bind(Shop.PRICE_ADJUST_STEP))
+	price_bar.add_child(_shop_price_plus_button)
+
+	root.add_child(HSeparator.new())
+
+	var customers_header := Label.new()
+	customers_header.text = "Recent Customers"
+	customers_header.theme_type_variation = &"HeaderLabel"
+	root.add_child(customers_header)
+
+	# Fixed-height scroll rather than letting the tab grow unbounded — up to
+	# Shop.MAX_RECENT_CUSTOMERS entries would otherwise push the grid/price bar
+	# above it off-screen.
+	var customers_scroll := ScrollContainer.new()
+	customers_scroll.custom_minimum_size = Vector2(0, RECENT_CUSTOMERS_LIST_HEIGHT)
+	customers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(customers_scroll)
+
+	_customers_list = VBoxContainer.new()
+	_customers_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_customers_list.add_theme_constant_override("separation", 10)
+	customers_scroll.add_child(_customers_list)
+
 	return root
 
 
@@ -444,16 +498,82 @@ func update_shop() -> void:
 	for child in _shop_grid.get_children():
 		child.queue_free()
 
+	if _shop_selected_index >= Shop.slots.size():
+		_shop_selected_index = -1
+
 	for i in Shop.capacity:
 		var item_slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
-		_shop_grid.add_child(item_slot)
-		if i < Shop.slots.size():
+		var is_stocked: bool = i < Shop.slots.size()
+		if is_stocked:
 			var slot: Dictionary = Shop.slots[i]
 			var potion := ContentRegistry.get_potion(slot.potion_id)
 			item_slot.populate(String(slot.potion_id).capitalize(), slot.price, _color_for_id(slot.potion_id),
 				potion.icon if potion != null else null)
 		else:
 			item_slot.clear()
+
+		# A Button wrapping the ItemSlot rather than modifying the shared
+		# component itself: gives the grid cell mouse-click + keyboard-cursor
+		# selectability (MenuKeyNav.collect_nav_controls only picks up
+		# BaseButton/Slider) while leaving ItemSlot's look/API, and its use in
+		# the Satchel tab, untouched. Selection itself is shown via modulate
+		# tint (UiPalette.MAGIC), same trick MenuKeyNav uses for sliders.
+		var cell := Button.new()
+		cell.custom_minimum_size = item_slot.custom_minimum_size
+		cell.disabled = not is_stocked
+		cell.add_child(item_slot)
+		item_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.pressed.connect(_on_shop_slot_pressed.bind(i))
+		cell.modulate = UiPalette.MAGIC if i == _shop_selected_index else Color.WHITE
+		_shop_grid.add_child(cell)
+
+	_update_shop_price_bar()
+	_update_customers_list()
+
+
+## recent_customers is already newest-first (Shop.recent_customers.push_front()),
+## so entries render top-to-bottom in visit order with no sorting needed here.
+func _update_customers_list() -> void:
+	for child in _customers_list.get_children():
+		child.queue_free()
+
+	if Shop.recent_customers.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "No customers yet — stock the shelf and open up shop."
+		empty_label.add_theme_color_override("font_color", UiPalette.TEXT_PRIMARY)
+		_customers_list.add_child(empty_label)
+		return
+
+	for record in Shop.recent_customers:
+		var entry: CustomerEntry = CUSTOMER_ENTRY_SCENE.instantiate()
+		_customers_list.add_child(entry)
+		entry.populate(record, _color_for_id(record.full_name))
+		_customers_list.add_child(HSeparator.new())
+
+
+func _on_shop_slot_pressed(index: int) -> void:
+	_shop_selected_index = index
+	for cell in _shop_grid.get_children():
+		var i := cell.get_index()
+		cell.modulate = UiPalette.MAGIC if i == _shop_selected_index else Color.WHITE
+	_update_shop_price_bar()
+
+
+func _on_shop_price_adjust(delta: int) -> void:
+	Shop.adjust_price(_shop_selected_index, delta)
+
+
+## Reflects the current selection (if any) without rebuilding the grid —
+## called after every price nudge and selection change.
+func _update_shop_price_bar() -> void:
+	var has_selection: bool = _shop_selected_index >= 0 and _shop_selected_index < Shop.slots.size()
+	_shop_price_minus_button.disabled = not has_selection
+	_shop_price_plus_button.disabled = not has_selection
+	if has_selection:
+		var slot: Dictionary = Shop.slots[_shop_selected_index]
+		_shop_price_label.text = "%s: %d Materials" % [String(slot.potion_id).capitalize(), slot.price]
+	else:
+		_shop_price_label.text = "Select an item above to adjust its price."
 
 
 # ---------------------------------------------------------------------------

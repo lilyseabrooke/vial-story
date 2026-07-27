@@ -160,7 +160,9 @@ Potion                              # PotionDef, scripts/data/potion_def.gd
   - brew_time: int                 # in minutes of game-clock time
   - potency_range: (min, max)
   - ease_range: (min, max)
+  - value: float                   # sell-price multiplier, system 5 — e.g. Minor Healing Draught 1.0, Grave Ward Tonic 2.0
   - puzzle_constraints: [(type, target, min, max)]   # the recipe-discovery puzzle
+  - tags: [String]                 # arbitrary intent labels, e.g. "healing", "study", "poison"
 
 Recipe                              # RecipeDef, scripts/data/recipe_def.gd
   - id
@@ -194,6 +196,12 @@ Recipe                              # RecipeDef, scripts/data/recipe_def.gd
   curse/memory-loss mechanical intervention (system 11).
 - Both potions and recipes live in data tables/resources, not hardcoded — content will
   grow fast, and potions/recipes now scale independently of each other.
+- `PotionDef.tags` is a free-form `Array[String]` of intent labels (e.g. `"healing"`,
+  `"divination"`, `"empowerment"`, `"poison"`, `"stealth"`, `"movement"`, `"study"`,
+  `"creature"`) so a request can name what a potion is *for* instead of a specific
+  potion — e.g. a quest asking for "a potion to help me prep before my practical"
+  matching any `"study"`-tagged `PotionDef` rather than naming Clarity Tonic by id.
+  Purely descriptive metadata in the prototype; nothing resolves against it yet.
 - Discovering and brewing are split across two interactables: the **Potion Book**
   (`PotionBookInteractable`, `scripts/potion_book_interactable.gd`) opens
   `hud.discover_panel`, listing a "Discover: X" button per `PotionDef` that has a
@@ -472,19 +480,61 @@ gradually during open hours rather than instantly overnight.
 ```
 ShopStock
   - capacity: int                 # upgradeable, starts at 8 (one 8-wide row)
-  - slots: [StockedPotion]        # (potion_id, potency, ease, price)
-  - reputation: int               # stub — initialized, not yet read by any logic
+  - slots: [StockedPotion]        # (potion_id, potency, ease, price, base_price)
+  - reputation: int               # drives ambient customer visit chance/budget, see below
   - coffers: int                  # accumulated sale proceeds, uncollected
 ```
 
 - Stocking interaction is low-friction: one action dumps all sellable potions from
   inventory into stock, up to capacity.
 - While the current clock time falls within the shop's Ambient open-hours window
-  (system 1), stocked potions roll sell-chance on a fixed simulated interval (e.g.
-  every N in-game minutes), weighted by price, potency/ease (per system 3/4), and
-  shop reputation (reputation stat: stub for now, default flat weight). This roll
-  goes through `Rng.chance()` (system 16) — quiet/background, no message-wall row,
-  same behavior/values as before.
+  (system 1), the shop simulates one customer visit per fixed interval (e.g. every
+  N in-game minutes) instead of rolling a flat per-slot sell-chance
+  (`Shop._roll_sales()`). Entirely invisible to the player — no customer sprite
+  ever appears, no message-wall row — same "quiet background roll" feel as before,
+  just a richer model behind it.
+- **Reputation drives whether/how much a customer shows up**: each roll
+  interval, before generating a customer at all, `Shop._roll_sales()` first
+  rolls `Shop._visit_chance()` — `BASE_CUSTOMER_VISIT_CHANCE` (0.5) plus
+  `reputation * REPUTATION_VISIT_CHANCE_SCALE`, clamped to
+  `[MIN_CUSTOMER_VISIT_CHANCE, MAX_CUSTOMER_VISIT_CHANCE]` (0.1-0.95) — so a
+  higher-reputation shop has more roll intervals with a customer at all, and a
+  low/negative-reputation one has stretches with none. If that roll fails, the
+  interval passes with no sale. `Shop._budget_range()` then scales both ends
+  of the flat `[MIN_CUSTOMER_BUDGET, MAX_CUSTOMER_BUDGET]` range by
+  `1.0 + reputation * REPUTATION_BUDGET_SCALE` (floored at `MIN_BUDGET_SCALE`
+  so budgets never go to zero or negative) before a customer's `budget` is
+  drawn from it — so a well-regarded shop's customers, on average, can also
+  afford more.
+- **Simulated customer** (`Shop._generate_customer()`, regenerated fresh per
+  visit, never persisted): a flat materials `budget` (drawn from the
+  reputation-scaled range above); a `wanted_tag` drawn from
+  the tag vocabulary across all `PotionDef.tags` (system 3); independent
+  `potency_weight`/`ease_weight` (0-1, how much they personally value each
+  trait); and `deal_savvy` (0-1). All draws go through `Rng` (system 16), so
+  they're deterministic/replayable like every other roll.
+- **Per-slot purchase chance** (`Shop._evaluate_purchase_chance()`): a slot
+  whose potion has the wanted tag is a normal candidate; a `trait_score` (0-1,
+  the slot's potency/ease normalized against `PotionDef.potency_range`/
+  `ease_range` and weighted by the customer's own potency_weight/ease_weight)
+  lets the customer stretch their flat budget upward, and adds to their base
+  chance to buy. `deal_savvy` then scales the chance up or down based on how
+  the slot's current `price` compares to its `base_price` (the fair-value price
+  computed at stocking time, per the formula below, and never itself changed by
+  later price edits) — a savvy customer is drawn to a markdown and wary of a
+  markup; a non-savvy one barely reacts either way.
+- **Off-tag impulse buys**: a slot whose potion does *not* have the wanted tag
+  can still sell, but only to a customer whose `deal_savvy` clears
+  `OFF_TAG_SAVVY_THRESHOLD`, on a slot whose `trait_score` clears
+  `OFF_TAG_TRAIT_THRESHOLD` *and* whose price sits at or below
+  `OFF_TAG_DISCOUNT_THRESHOLD` of its `base_price` — e.g. a very deal-savvy,
+  ease-oriented customer shopping for a study potion may still walk out with an
+  Empowerment Tonic that normally runs 1000 materials but is marked down to 500
+  and has great ease, too.
+- Each visit, every slot the customer would consider at all (chance > 0) is
+  sorted by that chance — favoring good tag matches with strong potency/ease
+  first — and rolled through `Rng.chance()` one at a time, capped at
+  `MAX_PURCHASES_PER_VISIT` (6) actual purchases per visit.
 - On sale: remove one unit, add the price to `coffers` (not directly to
   Inventory.materials) and log the sale for a "while you were away" summary shown
   to the player at the next check-in.
@@ -494,6 +544,42 @@ ShopStock
 - Capacity is the primary upgrade lever (no manual shelf placement in prototype).
   Starts at 8 (an 8x1 grid in the Shop tab); `expanded_stock_shelf` adds 8 more,
   bringing it to 16 (8x2).
+- Price is `(potency * POTENCY_PRICE_WEIGHT + ease * EASE_PRICE_WEIGHT) * PRICE_PER_POINT
+  * PotionDef.value` (`Shop._compute_price()`) — `value` is a flat per-potion multiplier
+  so two potions with identical potency/ease can still sell for different amounts (e.g.
+  Grave Ward Tonic's `value = 2.0` sells for twice Minor Healing Draught's `value = 1.0`
+  at the same stats), independent of the brewing-quality math in system 3/4. This
+  computed price only seeds a slot's `price` at stocking time — `base_price` freezes
+  that value permanently as the slot's "fair value" reference.
+- **Manual pricing [BUILT]**: the Shop tab lets the player select a stocked slot and
+  nudge its `price` up or down in `Shop.PRICE_ADJUST_STEP` (5) increments via
+  `Shop.adjust_price()`, floored at `Shop.MIN_PRICE` (1) — `base_price` is never
+  touched by this, so a markup/markdown keeps being evaluated against the original
+  fair value in `_evaluate_purchase_chance()` no matter how many times the player
+  re-prices the slot.
+- **Recent Customers [BUILT]**: each simulated visit (`Shop._generate_customer()`) is
+  now given a name (first/last drawn independently from `data/customers.json`), an
+  `occupation` (First- through Fourth-Year Student, Enforcer, etc., same catalog) and a
+  `magic_discipline` (Elemental Magic, Illusion Magic, etc.), plus a `portrait` field
+  that's always `null` for now — stubbed until ambient customers have real art, with
+  `CustomerEntry` falling back to a tinted placeholder the same way
+  `RelationshipRow`/item components already do for a `null` `icon`/`portrait`. None of
+  this flavor data is read by `_evaluate_purchase_chance()` — it exists purely to
+  surface in the UI. `Shop._log_customer_visit()` turns one visit into a record in
+  `Shop.recent_customers` (newest-first, capped at `Shop.MAX_RECENT_CUSTOMERS` (20), not
+  persisted across save/load) and fires `Shop.customer_visited` — every visit that ends
+  in a purchase gets logged, and a `Shop.NO_PURCHASE_LOG_CHANCE` (0.2) roll occasionally
+  logs a no-sale visit too, so the log doesn't read as strictly good news. The record
+  exposes the customer's `budget`/`deal_savvy`/`potency_weight`/`ease_weight` only as
+  rough qualitative labels (`_rough_budget_label()`: tight/modest/comfortable/wealthy;
+  `_rough_trait_label()`: low/moderate/high for deal-savviness and potency/ease
+  interest) — never the raw float, so the Shop tab reads as an impression the player
+  builds intuition from (e.g. "a lot of high-deal-savvy customers lately — maybe run a
+  sale") rather than an exact number to optimize against. The Shop tab's
+  `GameMenu._build_shop_tab()` renders this as a "Recent Customers" list of
+  `CustomerEntry` rows (portrait/name/occupation/discipline header, a traits line, and
+  either what they bought or "Left empty-handed.") below the existing stock grid and
+  price-adjust bar.
 
 ---
 

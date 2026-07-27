@@ -1,0 +1,42 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/customer_entry.gd" id="1"]
+
+[node name="CustomerEntry" type="VBoxContainer"]
+script = ExtResource("1")
+
+[node name="HeaderRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Portrait" type="TextureRect" parent="HeaderRow"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Border" type="ColorRect" parent="HeaderRow/Portrait"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="NameColumn" type="VBoxContainer" parent="HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameLabel" type="Label" parent="HeaderRow/NameColumn"]
+layout_mode = 2
+
+[node name="SubtitleLabel" type="Label" parent="HeaderRow/NameColumn"]
+layout_mode = 2
+modulate = Color(0.8, 0.8, 0.8, 1)
+
+[node name="TraitsLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2
+modulate = Color(0.8, 0.8, 0.8, 1)
+
+[node name="DescriptionLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2

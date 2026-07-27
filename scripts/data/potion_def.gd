@@ -14,6 +14,18 @@ extends Resource
 @export var potency_range: Vector2 = Vector2(0, 100)
 @export var ease_range: Vector2 = Vector2(0, 100)
 
+## Multiplier on the potency/ease-derived sell price (Shop._compute_price) —
+## how much this potion is inherently worth for the same potency/ease stats,
+## e.g. a rarer or more dangerous potion selling for more than a mundane one.
+@export var value: float = 1.0
+
+## Arbitrary labels for what the potion is "for" — e.g. "healing", "divination",
+## "empowerment", "poison", "stealth", "movement", "study", "creature" — so other
+## systems (quests, buyer requests) can search by intent ("a potion to help me
+## prep before my practical") instead of naming a specific PotionDef. Purely
+## descriptive metadata for now; nothing reads these yet.
+@export var tags: Array[String] = []
+
 ## The recipe-discovery puzzle: a set of objectives an ingredient selection
 ## must satisfy for Alchemy.attempt_discovery() to synthesize a new learned
 ## recipe for this potion. Parallel arrays, same convention as

@@ -1,0 +1,23 @@
+{
+	"first_names": [
+		"Wren", "Halcyon", "Bryony", "Osric", "Thistle", "Marrow", "Isolde", "Corvin",
+		"Sable", "Faelan", "Vesper", "Dagny", "Percival", "Linnea", "Ambrose", "Ottilie",
+		"Rowan", "Seraphine", "Alder", "Junia", "Casimir", "Elowen", "Torvald", "Miren",
+		"Quillon", "Anwen", "Bastian", "Cressida", "Fenwick", "Ysolde"
+	],
+	"last_names": [
+		"Ashgrove", "Blackthorn", "Cindervale", "Duskwhistle", "Emberlyn", "Fenmoor",
+		"Graywick", "Hollowmere", "Ironvale", "Junebrook", "Kestrelwood", "Larkspur",
+		"Moonwicket", "Nightingale", "Oakenshade", "Pemberton", "Quickthorn", "Ravenscroft",
+		"Silvermere", "Thistledown", "Underhollow", "Vaelwood", "Wickerbend", "Yewbranch"
+	],
+	"occupations": [
+		"First-Year Student", "Second-Year Student", "Third-Year Student", "Fourth-Year Student",
+		"Enforcer", "Academy Professor", "Traveling Merchant", "Herbalist",
+		"Court Scribe", "Off-Duty Guard", "Local Innkeeper", "Freelance Adventurer"
+	],
+	"magic_disciplines": [
+		"Elemental Magic", "Illusion Magic", "Enchantment", "Divination", "Necromancy",
+		"Wardcraft", "Alchemy", "Beast-Taming", "Healing Magic", "Battle Magic"
+	]
+}
