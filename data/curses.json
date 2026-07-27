@@ -1,0 +1,26 @@
+[
+  {
+	"id": "nightmare_curse",
+	"minima": [["astral", 5]],
+	"maxima": [["dream", 0]],
+	"permitted_ingredients": ["spectral"],
+	"penalties": ["change_buy_rate(-20)"],
+	"description": "A hypnomantic corruption is giving visitors fleeting visions of terrible nightmares... I've tried seeing if I can change the visions to compel them to buy more expensive potions, but it didn't work. Let's just dispel it."
+  },
+  {
+	"id": "restless_slumber",
+	"minima": [["dream", 3]],
+	"maxima": [["necromantic", 0]],
+	"permitted_ingredients": [],
+	"penalties": ["change_reputation(-10)"],
+	"description": "Customers keep drifting off mid-conversation, murmuring about half-remembered dreams. Word is starting to get around that this shop is an odd place to browse."
+  },
+  {
+	"id": "smoldering_grudge",
+	"minima": [["infernal", 4]],
+	"maxima": [],
+	"permitted_ingredients": ["demonic"],
+	"penalties": ["change_buy_rate(-15)", "change_reputation(-5)"],
+	"description": "Something down in the cellar is holding a grudge, and it's souring the whole shop's mood — customers linger less and leave with their coin still in hand."
+  }
+]

@@ -2,8 +2,8 @@
 
 This document specs the gameplay systems for the sim/management half of Vial Story.
 It covers what's in scope for the first prototype in full, and stubs the systems that
-come later (VN/relationship layer, exploration, curse-as-mechanic) so the hooks exist
-without building them out yet.
+come later (VN/relationship layer, exploration) so the hooks exist without building them
+out yet.
 
 Status key: **[BUILD]** = target for prototype, **[STUB]** = design placeholder only.
 
@@ -844,20 +844,53 @@ Prototype implementation values (tunable):
 
 ---
 
-## 11. Curse System **[STUB — flavor only for now]**
+## 11. Curse System
 
 ```
-CurseState
-  - active_curse_flags: [flag_id]  # each may carry a small negative modifier
+CurseDef (data/curses.json, not .tres -- see AlembicUpgradeDef for why)
+  - id: String
+  - minima: [[characteristic_id, value]]        # sum across dispel ingredients must be >=
+  - maxima: [[characteristic_id, value]]        # sum across dispel ingredients must be <=
+  - permitted_ingredients: [category_name]      # IngredientDef.Category names, lowercase; empty = any
+  - penalties: ["effect_target(amount)", ...]   # e.g. "change_buy_rate(-20)", "change_reputation(-10)"
+  - description: String                          # flavor text, shown as the curse panel's body copy
 ```
 
-- For the prototype, the curse is narrative flavor draped over the fact that the
-  player starts with minimal stations/recipes/capacity — no dedicated mechanical
-  curse layer is required to justify the slow start.
-- Leave the `CurseState` hook in place so small mechanical interventions (a debuff
-  that's story-removable) can be layered on top later, without redesigning the
-  brewing/shop systems to accommodate it.
-- Not Materials-purchasable in the prototype — no sink should be built for it yet.
+- `CurseInteractable` (`scripts/curse_interactable.gd`) is hand-placed in a room, same as
+  every other interactable type (system 12) — no random spawn location yet.
+  `target_id` (from `InteractableBase`) is the instance's unique placement id; an optional
+  `curse_id` export pins a specific `CurseDef`, or is left blank to have `Curse.activate()`
+  pick randomly from the catalog (excluding any `CurseDef` id already active elsewhere, so
+  simultaneous curses are always distinct).
+- The `Curse` autoload (`scripts/autoload/curse.gd`) tracks which instance ids are
+  currently active against which `CurseDef`, and applies/undoes each penalty via a
+  `match`-based `_apply_penalty(target, amount)` — same `effect_target` string + `match`
+  pattern as `Economy._apply_effect()`. Currently understood targets: `change_reputation`
+  (calls `Shop.add_reputation()`) and `change_buy_rate` (calls `Shop.add_buy_rate_modifier()`,
+  an additive percentage `Shop._evaluate_purchase_chance()` multiplies every purchase-chance
+  roll by). A curse is "temporary" in the sense that dispelling it re-applies its penalties
+  negated, exactly undoing them — there's no separate timed-modifier list, matching how
+  `Shop.reputation` is otherwise just a flat int with no expiry concept.
+- Dispelling: the player opens the curse panel (`scripts/ui/curse_panel.gd`, hosted by
+  `MenuScene` via `hud.toggle_curse_menu(instance_id)`) — the description spans the full
+  width up top, with requirements (left column) and a fixed `Curse.MAX_DISPEL_INGREDIENTS`-
+  slot tray plus Dispel button (right column) as a second row below it, kept deliberately
+  short so it doesn't clip off the top of the screen. The
+  ingredient picker itself lives in a separate detached `CurseInventoryWindow`
+  (`scripts/ui/curse_inventory_window.gd`) that `GameHud` shows/positions beside the curse
+  panel, same "window rides alongside a `MenuScene` panel" pattern as `PantryWindow`/
+  `BrewMenu`. Both use the shared `ItemSlot` component wrapped in a `Button` (same
+  click-to-select trick as `GameMenu`'s Shop grid): clicking an inventory slot moves one
+  unit into the tray; clicking a filled tray slot moves it back. `Curse.meets_requirements()`
+  (checking each chosen ingredient's category against `permitted_ingredients`, then summing
+  `IngredientDef.characteristic_value()` across the tray against every `minima`/`maxima`
+  band — the same "sum characteristics, check a range" idea as
+  `Alchemy._check_constraint()`'s `"characteristic_range"` puzzle constraint, just reused
+  against a `CurseDef` instead of a `PotionDef`) is re-run after every tray change and only
+  reveals the Dispel button once it passes — unlike `Alchemy.attempt_discovery()`, ingredients
+  are never consumed by a bad guess, since the UI never lets the player commit one.
+- Not Materials-purchasable — no sink should be built for it; the only way to remove a curse
+  is the ingredient-combination dispel.
 
 ---
 
@@ -2777,7 +2810,7 @@ ArtStudio (autoload)
 8. Herbalism growing plots (system 7)
 9. ~~Recipe-learning minigame~~ [BUILT] (system 3); remaining ingredient sourcing
    methods; exploration polish
-10. VN/relationship layer (systems 12–13) and curse mechanical interventions (system 11)
+10. ~~Curse mechanical interventions~~ [BUILT] (system 11); VN/relationship layer (systems 12–13)
 11. Quest/Journal system (system 15) — reuses the VN expression language, so it slots in
     any time after system 13's expression evaluator exists
 

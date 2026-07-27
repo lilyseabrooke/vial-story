@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/interactables/PotionBookInteractable.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ScrapHeapInteractable.tscn" id="13"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/AlchemyLabManagerInteractable.tscn" id="14"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/CurseInteractable.tscn" id="14_tij8x"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PantryInteractable.tscn" id="15"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/NPCInteractable.tscn" id="16"]
 
@@ -194,3 +195,7 @@ spawn_position = Vector2(120, 100)
 prompt_text = "head out back"
 display_name = "Shop Back Doorway"
 visual_color = Color(0.45, 0.4, 0.35, 1)
+
+[node name="CurseInteractable" parent="Interactables" unique_id=1479636757 instance=ExtResource("14_tij8x")]
+position = Vector2(456, 399)
+curse_id = "nightmare_curse"

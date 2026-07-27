@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/curse_interactable.gd" id="2"]
+
+[node name="CurseInteractable" instance=ExtResource("1")]
+script = ExtResource("2")
+prompt_text = "dispel"
+display_name = "Curse"
+visual_color = Color(0.45, 0.15, 0.55, 1)

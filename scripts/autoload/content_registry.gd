@@ -43,6 +43,8 @@ const WATER_PUMP_UPGRADE_CATALOG_PATH := "res://data/water_pump_upgrades.json"
 const LEY_LINE_SURGE_CATALOG_PATH := "res://data/ley_line_surges.json"
 ## Art Studio Inspirations — same JSON-not-.tres reasoning, see InspirationDef.
 const INSPIRATION_CATALOG_PATH := "res://data/inspirations.json"
+## Curses — same JSON-not-.tres reasoning, see CurseDef.
+const CURSE_CATALOG_PATH := "res://data/curses.json"
 const SEED_PATHS := [
 	"res://data/seeds/moonpetal_seed.tres",
 ]
@@ -80,6 +82,7 @@ var alembic_upgrades: Array[AlembicUpgradeDef] = []
 var water_pump_upgrades: Array[WaterPumpUpgradeDef] = []
 var ley_line_surges: Array[LeyLineSurgeDef] = []
 var inspirations: Array[InspirationDef] = []
+var curses: Array[CurseDef] = []
 var seeds: Array[SeedDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
@@ -94,6 +97,7 @@ var _alembic_upgrades_by_id: Dictionary = {}  # id -> AlembicUpgradeDef
 var _water_pump_upgrades_by_id: Dictionary = {}  # id -> WaterPumpUpgradeDef
 var _ley_line_surges_by_id: Dictionary = {}  # id -> LeyLineSurgeDef
 var _inspirations_by_id: Dictionary = {}   # id -> InspirationDef
+var _curses_by_id: Dictionary = {}         # id -> CurseDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
@@ -142,6 +146,12 @@ func _ready() -> void:
 		var inspiration_def := InspirationDef.from_dict(entry)
 		inspirations.append(inspiration_def)
 		_inspirations_by_id[inspiration_def.id] = inspiration_def
+	var curse_catalog_text := FileAccess.get_file_as_string(CURSE_CATALOG_PATH)
+	var curse_catalog: Array = JSON.parse_string(curse_catalog_text)
+	for entry in curse_catalog:
+		var curse_def := CurseDef.from_dict(entry)
+		curses.append(curse_def)
+		_curses_by_id[curse_def.id] = curse_def
 	for path in SEED_PATHS:
 		var def := load(path) as SeedDef
 		seeds.append(def)
@@ -194,6 +204,10 @@ func get_ley_line_surge(id: String) -> LeyLineSurgeDef:
 
 func get_inspiration(id: String) -> InspirationDef:
 	return _inspirations_by_id.get(id)
+
+
+func get_curse(id: String) -> CurseDef:
+	return _curses_by_id.get(id)
 
 
 func get_seed(id: String) -> SeedDef:

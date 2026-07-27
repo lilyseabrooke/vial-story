@@ -75,6 +75,14 @@ var slots: Array[Dictionary] = []   # {potion_id, potency, ease, price, base_pri
 ## below and docs/design/systems.md system 5.
 var reputation: int = 0
 
+## Additive percentage applied to every purchase-chance roll (see
+## _buy_rate_multiplier()) — e.g. -20 means a customer's final buy chance is
+## scaled to 80% of what it'd otherwise be. Curse penalties are the only
+## thing that mutates this today (Curse._apply_penalty()); nothing decays it
+## back on its own — a curse's own dispel path calls add_buy_rate_modifier()
+## again with the negated amount.
+var buy_rate_modifier: float = 0.0
+
 ## Sale proceeds land here instead of Inventory.materials directly — the
 ## player has to visit the shopfront (STOCK_BOX interactable) to collect.
 var coffers: int = 0
@@ -359,6 +367,7 @@ func _evaluate_purchase_chance(customer: Dictionary, slot: Dictionary) -> float:
 		# Deal-savvy customers are drawn to a markdown and wary of a markup;
 		# less-savvy customers barely notice either way.
 		chance *= 1.0 + customer.deal_savvy * (1.0 - markup_ratio) * DEAL_SAVVY_SCALE
+		chance *= _buy_rate_multiplier()
 		return clampf(chance, MIN_BUY_CHANCE, MAX_BUY_CHANCE)
 
 	# Off-tag impulse buy: needs to be a genuinely great potion, at a genuine
@@ -373,6 +382,7 @@ func _evaluate_purchase_chance(customer: Dictionary, slot: Dictionary) -> float:
 		return 0.0
 	var discount_bonus: float = (1.0 - markup_ratio) * customer.deal_savvy
 	var chance: float = (trait_score - OFF_TAG_TRAIT_THRESHOLD + discount_bonus) * OFF_TAG_CHANCE_SCALE
+	chance *= _buy_rate_multiplier()
 	return clampf(chance, 0.0, MAX_BUY_CHANCE)
 
 
@@ -392,11 +402,22 @@ func add_reputation(amount: int) -> void:
 	reputation_changed.emit(reputation)
 
 
+func add_buy_rate_modifier(amount: float) -> void:
+	buy_rate_modifier += amount
+
+
+## Floored at 0 so a stack of curse penalties can zero out purchases entirely
+## but never flip the multiplier negative into a nonsensical chance.
+func _buy_rate_multiplier() -> float:
+	return maxf(0.0, 1.0 + buy_rate_modifier / 100.0)
+
+
 func get_save_data() -> Dictionary:
 	return {
 		"capacity": capacity,
 		"slots": slots.duplicate(true),
 		"reputation": reputation,
+		"buy_rate_modifier": buy_rate_modifier,
 		"coffers": coffers,
 	}
 
@@ -414,5 +435,6 @@ func load_save_data(data: Dictionary) -> void:
 			s["base_price"] = s.get("price", 0)
 		slots.append(s)
 	reputation = data.get("reputation", 0)
+	buy_rate_modifier = data.get("buy_rate_modifier", 0.0)
 	coffers = data.get("coffers", 0)
 	_minutes_since_last_roll = 0

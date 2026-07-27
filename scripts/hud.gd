@@ -23,10 +23,12 @@ var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
 var art_studio_picker_panel: ArtStudioPicker
 var art_studio_discard_confirm_panel: ArtStudioDiscardConfirm
+var curse_panel: CursePanel
 
 var _station_id: String = ""
 var _pantry_menu_id: String = ""
 var _art_studio_menu_id: String = ""
+var _curse_menu_id: String = ""
 var _starting_ingredients: Dictionary = {}
 
 var _almanac: AlmanacClock
@@ -40,6 +42,8 @@ var _game_menu: GameMenu
 var _menu_scene: MenuScene
 var _pantry_window: PantryWindow
 var _pantry_tween: Tween
+var _curse_inventory_window: CurseInventoryWindow
+var _curse_inventory_tween: Tween
 var _message_wall: MessageWall
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
@@ -258,6 +262,22 @@ func build(starting_ingredients: Dictionary) -> void:
 	art_studio_discard_confirm_panel.discard_confirmed.connect(_on_art_studio_discard_confirmed)
 	art_studio_discard_confirm_panel.kept.connect(func(_studio_id: String) -> void: close_menu())
 
+	curse_panel = CursePanel.new()
+	curse_panel.build()
+
+	# Same detached-window-riding-alongside-a-MenuScene-panel pattern as
+	# _pantry_window/BrewMenu — split out so the curse panel itself stays
+	# short instead of a full inventory grid pushing it off-screen. The two
+	# panels talk to each other through GameHud: a picked ingredient flows
+	# straight into the tray, and any tray change flows back into a refresh.
+	_curse_inventory_window = CurseInventoryWindow.new()
+	_curse_inventory_window.build()
+	_curse_inventory_window.visible = false
+	_curse_inventory_window.slot_pressed.connect(curse_panel.add_to_tray)
+	curse_panel.tray_changed.connect(_refresh_curse_inventory_window)
+	add_child(_curse_inventory_window)
+	UiFx.add_drop_shadow(_curse_inventory_window)
+
 	class_panel = VBoxContainer.new()
 	class_panel.add_child(MenuKeyNav.new())
 	for effort in [Academy.Effort.LOW, Academy.Effort.NORMAL, Academy.Effort.HIGH]:
@@ -282,8 +302,10 @@ func build(starting_ingredients: Dictionary) -> void:
 			log_message("You step back from the rift — the portal fades without a summoning.")
 		# The pantry window only ever rides with the brew menu, so hiding it on
 		# any menu close is correct (and covers every close route — Esc, walking
-		# away, a confirmed brew).
+		# away, a confirmed brew). Same reasoning for the curse inventory
+		# window riding with curse_panel.
 		_hide_pantry()
+		_hide_curse_inventory()
 	)
 
 	_message_wall = MESSAGE_WALL_SCENE.instantiate()
@@ -362,6 +384,17 @@ func _connect_autoload_signals() -> void:
 	Shop.coffers_collected.connect(func(amount: int) -> void:
 		update_materials_label()
 		print("Collected %d Materials from the shop coffers." % amount)
+	)
+	Curse.curse_activated.connect(func(_instance_id: String, curse_id: String) -> void:
+		var curse := ContentRegistry.get_curse(curse_id)
+		log_message("A curse takes hold: %s" % (curse.description if curse else curse_id))
+		print("Curse activated: %s" % curse_id)
+	)
+	Curse.curse_dispelled.connect(func(_instance_id: String, curse_id: String) -> void:
+		log_message("The curse has been dispelled!")
+		print("Curse dispelled: %s" % curse_id)
+		if has_menu_content(curse_panel):
+			close_menu()
 	)
 	Economy.upgrade_purchased.connect(_on_upgrade_purchased)
 	Academy.attended_class.connect(func() -> void:
@@ -685,6 +718,19 @@ func toggle_pantry_menu(pantry_id: String) -> void:
 		open_menu(pantry_storage_panel, "Pantry")
 
 
+## Opens (refreshing first) or closes the curse-dispel panel for a specific
+## CurseInteractable instance — same per-open instance-context shape as
+## toggle_pantry_menu(), since more than one curse can be active at once.
+func toggle_curse_menu(instance_id: String) -> void:
+	if _menu_scene.has_content(curse_panel) and _menu_scene.is_open() and _curse_menu_id == instance_id:
+		_menu_scene.close()
+	else:
+		_curse_menu_id = instance_id
+		curse_panel.open_for(instance_id)
+		open_menu(curse_panel, "Curse")
+		_show_curse_inventory()
+
+
 ## Reveals the detached pantry window and parks it just to the left of the brew
 ## window. Positioning is deferred a frame so the brew window's rect has settled
 ## (get_window_rect() is deterministic, but the panel's min size can be dirty on
@@ -710,6 +756,39 @@ func _position_pantry() -> void:
 		_pantry_tween.kill()
 	_pantry_tween = create_tween()
 	_pantry_tween.tween_property(_pantry_window, "modulate:a", 1.0, 0.14)
+
+
+## Reveals the detached curse-ingredient-picker window and parks it just to
+## the left of the curse window — same positioning trick as _show_pantry()/
+## _position_pantry() above, deferred a frame for the same get_combined_
+## minimum_size() staleness reason.
+func _show_curse_inventory() -> void:
+	_refresh_curse_inventory_window()
+	_curse_inventory_window.visible = true
+	_curse_inventory_window.modulate.a = 0.0
+	_position_curse_inventory.call_deferred()
+
+
+func _position_curse_inventory() -> void:
+	if not _curse_inventory_window.visible:
+		return
+	var window_rect := _menu_scene.get_window_rect()
+	var inventory_size := _curse_inventory_window.get_combined_minimum_size()
+	const GAP := 24.0
+	_curse_inventory_window.position = Vector2(
+		window_rect.position.x - GAP - inventory_size.x,
+		window_rect.position.y + (window_rect.size.y - inventory_size.y) * 0.5)
+
+	if _curse_inventory_tween:
+		_curse_inventory_tween.kill()
+	_curse_inventory_tween = create_tween()
+	_curse_inventory_tween.tween_property(_curse_inventory_window, "modulate:a", 1.0, 0.14)
+
+
+## curse_panel.tray_changed's handler — keeps the inventory window's
+## available counts in sync with whatever's currently sitting in the tray.
+func _refresh_curse_inventory_window() -> void:
+	_curse_inventory_window.refresh(curse_panel.get_tray_ids(), Curse.MAX_DISPEL_INGREDIENTS)
 
 
 ## Opens (refreshing first) or closes the Art Studio's Inspiration picker for
@@ -761,6 +840,16 @@ func _hide_pantry() -> void:
 	_pantry_tween = create_tween()
 	_pantry_tween.tween_property(_pantry_window, "modulate:a", 0.0, 0.12)
 	_pantry_tween.tween_callback(func() -> void: _pantry_window.visible = false)
+
+
+func _hide_curse_inventory() -> void:
+	if not _curse_inventory_window.visible:
+		return
+	if _curse_inventory_tween:
+		_curse_inventory_tween.kill()
+	_curse_inventory_tween = create_tween()
+	_curse_inventory_tween.tween_property(_curse_inventory_window, "modulate:a", 0.0, 0.12)
+	_curse_inventory_tween.tween_callback(func() -> void: _curse_inventory_window.visible = false)
 
 
 ## Rebuilds discover_panel's buttons in place — one "Discover" button per
