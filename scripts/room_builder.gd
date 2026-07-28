@@ -110,11 +110,11 @@ func build_rooms() -> void:
 	_load_room(UNDERBELLY_SCENE)
 	_wire_shop_back_door()
 
-	# Added after the rooms so they draw on top of each room's floor — 2D draw
-	# order follows tree order, and rooms are siblings of the player/camera.
+	# Not parented here -- switch_room() below parents the player into the
+	# active room's Y-sorted Interactables node instead, so it draws in front
+	# of/behind NPCs by vertical position rather than always on top.
 	player = PLAYER_SCENE.instantiate()
 	player.add_to_group("player")
-	add_child(player)
 
 	# Camera is a child of the player so it follows automatically; smoothing
 	# is enabled for a soft follow rather than a rigid lock-on. Per-room
@@ -123,9 +123,13 @@ func build_rooms() -> void:
 	_camera.position_smoothing_enabled = true
 	_camera.zoom = Vector2(2.0, 2.0) # >1 magnifies; halves the visible world area at 2x scale
 	player.add_child(_camera)
-	_camera.make_current()
 
+	# switch_room() below is what actually parents the player (and therefore
+	# the camera) into the tree; make_current() needs that to have already
+	# happened, unlike the old sibling-of-RoomBuilder setup where the player
+	# was already in the tree by this point.
 	switch_room(SHOP_ROOM_ID, _spawn_points[SHOP_ROOM_ID])
+	_camera.make_current()
 
 	Herbalism.planted.connect(_on_planted)
 
@@ -269,6 +273,11 @@ func _load_room(scene: PackedScene) -> void:
 	room.visible = false
 	room.process_mode = Node.PROCESS_MODE_DISABLED
 	_set_room_collision_enabled(room, false)
+
+	# Y-sorted so the player and NPCs draw in front of/behind each other by
+	# vertical position instead of by tree order (which always put the player,
+	# added last, on top) -- see switch_room()'s player reparenting below.
+	room.get_node("Interactables").y_sort_enabled = true
 
 	_rooms[room.room_id] = room
 	_spawn_points[room.room_id] = room.get_node("SpawnPoint").position
@@ -435,6 +444,7 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 		previous_room.visible = false
 		previous_room.process_mode = Node.PROCESS_MODE_DISABLED
 		_set_room_collision_enabled(previous_room, false)
+		previous_room.get_node("Interactables").remove_child(player)
 
 	current_room_id = room_id
 	GameFlow.set_current_room(room_id)
@@ -442,6 +452,7 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	room.visible = true
 	room.process_mode = Node.PROCESS_MODE_INHERIT
 	_set_room_collision_enabled(room, true)
+	room.get_node("Interactables").add_child(player)
 
 	player.position = spawn_position
 

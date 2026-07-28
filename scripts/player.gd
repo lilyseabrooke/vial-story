@@ -8,6 +8,15 @@ extends CharacterBody2D
 ## invincibility window, both tracked here rather than on Dragon since
 ## they're player state that needs to persist independent of which (if any)
 ## dragon caused them.
+##
+## Player.tscn sets motion_mode = MOTION_MODE_FLOATING (1) -- the default
+## MOTION_MODE_GROUNDED treats any body the player rests against as a
+## potential "floor," and CharacterBody2D carries the player along with a
+## moving floor/platform's velocity. With grounded mode, standing next to a
+## wandering NPCInteractable's CollisionBody (an AnimatableBody2D, moving
+## every physics frame -- see npc_interactable.gd) dragged the player along
+## with it. Floating mode is also just the correct setting for a top-down
+## game with no floor/gravity concept in the first place.
 
 const SPEED := 170.0
 const KNOCKBACK_DECAY := 900.0
