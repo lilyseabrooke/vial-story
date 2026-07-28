@@ -11,7 +11,7 @@ extends InteractableBase
 ## just walks through walls/the player harmlessly, which is fine for an
 ## ambient wander with no pathfinding.
 
-const MEANDER_SPEED := 40.0
+const MEANDER_SPEED := 85.0
 const MEANDER_WAIT_MIN := 6.0
 const MEANDER_WAIT_MAX := 14.0
 const MEANDER_ARRIVE_DISTANCE := 8.0
@@ -26,6 +26,9 @@ var _wait_timer: float = 0.0
 
 func _ready() -> void:
 	super._ready()
+	var character_def := Characters.get_character(npc_id)
+	if character_def != null and character_def.sprite_frames != null:
+		use_sprite(character_def.sprite_frames)
 	_pick_new_target()
 
 
@@ -43,11 +46,14 @@ func _physics_process(delta: float) -> void:
 
 	var to_target := _target - position
 	if to_target.length() <= MEANDER_ARRIVE_DISTANCE:
+		play_directional_animation(false, Vector2.ZERO)
 		_wait_timer -= delta
 		if _wait_timer <= 0.0:
 			_pick_new_target()
 	else:
-		position += to_target.normalized() * MEANDER_SPEED * delta
+		var direction := to_target.normalized()
+		position += direction * MEANDER_SPEED * delta
+		play_directional_animation(true, direction)
 
 
 func _pick_new_target() -> void:

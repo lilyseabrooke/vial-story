@@ -17,6 +17,11 @@ offset_right = 24.0
 offset_bottom = 24.0
 color = Color(0.6, 0.6, 0.6, 1)
 
+[node name="AnimatedVisual" type="AnimatedSprite2D" parent="."]
+visible = false
+texture_filter = 1
+scale = Vector2(2, 2)
+
 [node name="Label" type="Label" parent="."]
 offset_left = -40.0
 offset_top = -44.0

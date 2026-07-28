@@ -19,7 +19,11 @@ signal player_exited(interactable: InteractableBase)
 @export var visual_color: Color = Color(0.6, 0.6, 0.6)
 
 @onready var _visual: ColorRect = $Visual
+@onready var _animated_visual: AnimatedSprite2D = $AnimatedVisual
 @onready var _label: Label = $Label
+
+var _using_sprite: bool = false
+var _facing: String = "Down"
 
 
 func _ready() -> void:
@@ -31,6 +35,32 @@ func _ready() -> void:
 
 func set_status_text(text: String) -> void:
 	_label.text = text
+
+
+## Swaps the tinted placeholder ColorRect for an animated sprite. Called by
+## subclasses (e.g. NPCInteractable) once they know their CharacterDef has
+## sprite_frames set -- InteractableBase itself has no notion of a
+## CharacterDef, so it can't decide this on its own in _ready().
+func use_sprite(frames: SpriteFrames) -> void:
+	_using_sprite = true
+	_visual.visible = false
+	_animated_visual.visible = true
+	_animated_visual.sprite_frames = frames
+	_animated_visual.play("Idle" + _facing)
+
+
+## Picks the Idle/Walking + facing animation to match movement, mirroring
+## player.gd's _update_animation. No-op when use_sprite() was never called,
+## so callers don't need to guard every call site themselves.
+func play_directional_animation(is_moving: bool, direction: Vector2) -> void:
+	if not _using_sprite:
+		return
+	if direction != Vector2.ZERO:
+		if absf(direction.x) > absf(direction.y):
+			_facing = "Right" if direction.x > 0.0 else "Left"
+		else:
+			_facing = "Down" if direction.y > 0.0 else "Up"
+	_animated_visual.play(("Walking" if is_moving else "Idle") + _facing)
 
 
 ## Overridden per subclass to perform this interactable's action when the

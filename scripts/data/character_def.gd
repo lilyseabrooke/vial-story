@@ -14,3 +14,9 @@ extends Resource
 @export var display_name: String
 @export var portrait: Texture2D
 @export var placeholder_color: Color = Color.WHITE
+## Overworld idle/walking sprite sheet (see AlchemistCharacter.tres for the
+## expected animation names: IdleDown/Up/Right/Left, WalkingDown/Up/Right/Left).
+## Left null for anyone who only ever appears via portrait, or hasn't gotten
+## world art yet -- InteractableBase falls back to the tinted placeholder_color
+## ColorRect in that case.
+@export var sprite_frames: SpriteFrames

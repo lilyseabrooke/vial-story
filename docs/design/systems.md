@@ -948,7 +948,13 @@ CurseDef (data/curses.json, not .tres -- see AlembicUpgradeDef for why)
 - **Interactables**: one base scene/script per behavior rather than a single
   generic node configured by a type enum — `InteractableBase`
   (`scripts/interactable_base.gd`/`scenes/interactables/InteractableBase.tscn`)
-  owns the shared Area2D proximity signals and visual/label chrome, and each
+  owns the shared Area2D proximity signals and visual/label chrome — a tinted
+  `ColorRect` placeholder by default, or an `AnimatedSprite2D` (a second,
+  initially-hidden child, `AnimatedVisual`) once a subclass calls
+  `use_sprite(frames)`; `play_directional_animation(is_moving, direction)`
+  then picks the Idle/Walking + facing-direction animation the same way
+  `player.gd`'s `_update_animation` does, and is a no-op until `use_sprite()`
+  has been called so callers don't need to guard every call site. Each
   concrete type (`BrewStationInteractable`, `StockBoxInteractable`,
   `GrowPlotInteractable`, `SupplyShelfInteractable`, `BedInteractable`,
   `ClassDoorInteractable`, `TransferInteractable`) is its own scene inheriting
@@ -1081,9 +1087,11 @@ or_expr    := and_expr ( "or" and_expr )*
   "love interests" — it's a bare affection ledger keyed by whatever string id a
   script passes to `add_affection`, fully decoupled from `CharacterDef` below.
 - `CharacterDef` (`scripts/data/character_def.gd`, a `Resource`) — static
-  *display* data (`id`, `display_name`, `placeholder_color`) for anyone who can
-  appear in a VN scene, romanceable or not (a shopkeeper and a love interest are
-  the same kind of thing to the dialogue engine). No romance-specific fields —
+  *display* data (`id`, `display_name`, `placeholder_color`, and an optional
+  `sprite_frames` for their overworld `NPCInteractable` — see system 13's
+  "Love-interest schedule & movement") for anyone who can appear in a VN
+  scene, romanceable or not (a shopkeeper and a love interest are the same
+  kind of thing to the dialogue engine). No romance-specific fields —
   whether a character accumulates affection is entirely up to whether a script
   happens to call `add_affection()` for their id, not something declared here.
   Registered by id via the `Characters` autoload (`scripts/autoload/characters.gd`,
@@ -1538,6 +1546,14 @@ mentioned in system 1 became this concretely.
   since inactive rooms already have `process_mode = PROCESS_MODE_DISABLED`
   (system 12), an NPC's movement automatically only runs while its current
   room is the one the player is in, for free.
+- `NPCInteractable._ready()` calls `InteractableBase.use_sprite()` when its
+  `CharacterDef.sprite_frames` is set (Lyra's is, via `LyraCharacter.tres`),
+  swapping the tinted placeholder box for an animated sprite; the wander loop
+  calls `play_directional_animation()` each frame it moves (and once more,
+  with a zero direction, on arrival) so a sprited NPC faces and animates the
+  direction it's walking, same as the player. NPCs without `sprite_frames`
+  authored yet keep meandering as a plain tinted box — nothing else about
+  spawning/scheduling/reparenting cares which visual a given NPC is using.
 - Placeholder schedule content covers all 5 love interests across 7 rooms
   (excludes Bedroom and the Shop-Back-only rooms) with 2-4 blocks each,
   tunable later. One real conditional override is authored as a worked
