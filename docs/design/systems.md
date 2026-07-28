@@ -2621,11 +2621,15 @@ Summoning (autoload)
   known sequence that starts with it) and risk losing the whole run to the closing portal.
 - **Learned-sequence knowledge.** `Summoning._known_bundles` is the set of sequences the player knows,
   listed in the minigame's right-hand **"Known Sequences" reference panel** (each row a bundle's name +
-  its sequence as mini-glyphs) which lights up the row the current queue is tracking. A fresh game
-  knows only `faint_echo` (seeded in `main.gd._grant_starting_summoning_knowledge()` as a tutorial);
-  **successfully building a bundle's sequence blind teaches it** (`complete_rift_minigame` →
-  `learn_bundle`), so the known set grows through play. (Dedicated in-game teaching methods beyond
-  experimentation stay out of scope.)
+  its sequence as mini-glyphs) which lights up the row the current queue is tracking — checked from
+  every possible starting offset within the queue, not just position 0, since a match can land anywhere
+  inside the queue, not only at its start. A fresh game knows only `faint_echo` (seeded in
+  `main.gd._grant_starting_summoning_knowledge()` as a tutorial); the rest are learned only through
+  explicit teaching (`Summoning.learn_bundle()`, called by Academy's `summoning_sequence` reward). The
+  minigame **only ever matches against already-known sequences** — `PlanarRiftMinigamePanel.show_for()`
+  hands `RiftArena` the filtered `Summoning.known_bundle_ids()` list, not the full bundle roster, so
+  there's no discovering an unknown sequence by building it blind; a player who knows nothing can still
+  open a rift but has no way to complete it before the portal closes.
 - **`PlanarRiftInteractable`** (`scripts/planar_rift_interactable.gd`) is a permanent, hand-placed
   fixture (`scenes/rooms/Orrery.tscn`), same shape as the Brew Station and Contract Book, not a
   spawner-driven one-shot like a Dragon's Stash. `interact()` **opens the minigame** if no rift is running (via
@@ -2680,8 +2684,10 @@ Summoning (autoload)
   resolves on the next `minute_tick`), unlike Demonology/Draconology's tethered jobs which are
   deliberately dropped on save. The learned-sequence set (`_known_bundles`) is persisted alongside
   the jobs; the transient minigame session (`_active_minigame_rift`) is not, same as LeyLines.
-- **Not in scope for the prototype**: `summon_range`/`learn_speed_extraplanar` effects, dedicated
-  in-game sequence-teaching methods beyond blind experimentation, and more than one hand-placed rift.
+- **Not in scope for the prototype**: `summon_range`/`learn_speed_extraplanar` effects and more than
+  one hand-placed rift. Sequence teaching itself is in scope and already built — Academy's
+  `summoning_sequence` class reward (see system 9) — since the minigame no longer teaches sequences
+  through blind play.
 
 ---
 

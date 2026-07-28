@@ -73,8 +73,9 @@ func _grant_starting_quests() -> void:
 
 ## Seed one known summoning sequence so the Planar Rift minigame's reference
 ## panel isn't empty on a fresh game -- the simplest bundle (faint_echo) works
-## as a tutorial. The rest are discovered by building them blind, which teaches
-## them (Summoning.complete_rift_minigame -> learn_bundle).
+## as a tutorial. The rest are only learned through explicit teaching (Academy's
+## "summoning_sequence" reward via Summoning.learn_bundle) -- the minigame
+## itself only ever matches against already-known sequences.
 func _grant_starting_summoning_knowledge() -> void:
 	Summoning.learn_bundle("faint_echo")
 

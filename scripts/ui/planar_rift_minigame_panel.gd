@@ -11,9 +11,10 @@ extends VBoxContainer
 ## gamepad D-pad/stick, mapped up/right/down/left), which appends it to the
 ## sequence queue and deals four fresh options. The "select" action (E /
 ## Enter / gamepad A) submits the queue: it's checked for any
-## RiftBundleDef.sequence appearing as a contiguous run inside it (not just an
-## exact match -- extra symbols before/after are fine), and the *largest*
-## matching sequence wins, starting its background job via
+## known RiftBundleDef.sequence (Summoning.known_bundle_ids()) appearing as a
+## contiguous run inside it (not just an exact match -- extra symbols
+## before/after are fine), and the *largest* matching sequence wins, starting
+## its background job via
 ## Summoning.complete_rift_minigame. The "back" action (Esc / Q / gamepad B)
 ## wipes the queue instead, taking wipe_time while the portal keeps closing.
 ## If the portal shuts before a valid sequence is submitted, the run fails
@@ -23,12 +24,15 @@ extends VBoxContainer
 ## as a reference and light up as the queue tracks them.
 ##
 ## The four options only *sometimes* include a symbol that continues one of the
-## bundle sequences the current queue could still complete, from any starting
-## point within it (continuation_chance); otherwise they're random. So knowing
-## a sequence isn't enough -- the needed symbol also has to come up, or you
-## wipe and re-deal against the timer. That gamble is the point: it forces
-## guesswork, makes wiping a real decision, and rewards trying unknown symbols
-## to discover new combinations.
+## *known* bundle sequences (Summoning.known_bundle_ids()) the current queue
+## could still complete, from any starting point within it
+## (continuation_chance); otherwise they're random. Only sequences already
+## known -- taught via Academy rewards or scripted grants, see
+## Summoning.learn_bundle() -- are ever matchable here; there's no discovering
+## an unknown sequence by building it blind. So knowing a sequence isn't
+## enough -- the needed symbol also has to come up, or you wipe and re-deal
+## against the timer. That gamble is the point: it forces guesswork and makes
+## wiping a real decision.
 ##
 ## Every few deals (planar_key_chance, ~1-in-7), one of the four options is a
 ## planar key -- highlighted gold. A symbol picked from a planar-key option
@@ -124,7 +128,10 @@ func show_for(rift_id: String) -> void:
 
 	_reference.refresh()
 	_reference.set_queue([])
-	_arena.start_run(ContentRegistry.rift_bundles, portal_time, wipe_time, success_time, failure_time, continuation_chance, planar_key_chance)
+	var known_bundles: Array = []
+	for id in Summoning.known_bundle_ids():
+		known_bundles.append(ContentRegistry.get_rift_bundle(id))
+	_arena.start_run(known_bundles, portal_time, wipe_time, success_time, failure_time, continuation_chance, planar_key_chance)
 
 
 func _on_queue_changed(queue: Array) -> void:
@@ -777,14 +784,28 @@ class RiftReference extends Control:
 		queue_redraw()
 
 
-	## True if `seq` begins with the current queue (queue non-empty).
+	## How many of `seq`'s leading symbols the current queue is tracking --
+	## the longest suffix of the queue that equals a prefix of `seq`, checked
+	## from every possible starting point in the queue (not just position 0),
+	## since the arena now matches a bundle sequence appearing anywhere inside
+	## the queue rather than only from its start. Mirrors RiftArena's
+	## _valid_next_symbols() "every suffix is a candidate prefix" logic.
 	func _tracks(seq: Array) -> int:
-		if _queue.is_empty() or _queue.size() > seq.size():
+		if _queue.is_empty():
 			return 0
-		for i in _queue.size():
-			if seq[i] != _queue[i]:
-				return 0
-		return _queue.size()
+		var best := 0
+		for start in _queue.size() + 1:
+			var suffix_len := _queue.size() - start
+			if suffix_len == 0 or suffix_len > seq.size():
+				continue
+			var is_prefix := true
+			for i in suffix_len:
+				if seq[i] != _queue[start + i]:
+					is_prefix = false
+					break
+			if is_prefix and suffix_len > best:
+				best = suffix_len
+		return best
 
 
 	func _draw() -> void:
@@ -796,7 +817,7 @@ class RiftReference extends Control:
 		draw_string(font, Vector2(14, 26), "Known Sequences", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.85, 0.85, 0.95))
 
 		if _known.is_empty():
-			draw_multiline_string(font, Vector2(14, ROW_TOP + 6), "No sequences known yet.\nBuild one blind to learn it.",
+			draw_multiline_string(font, Vector2(14, ROW_TOP + 6), "No sequences known yet.\nLearn one elsewhere first.",
 				HORIZONTAL_ALIGNMENT_LEFT, PANEL_W - 28, 13, -1, Color(0.6, 0.6, 0.7))
 			return
 

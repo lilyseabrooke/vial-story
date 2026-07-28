@@ -71,8 +71,11 @@ const SUMMONING_SYMBOLS := [
 
 var _jobs: Dictionary = {}          # rift_id -> PlanarRiftJob
 ## Bundle ids whose sequences the player knows, shown in the minigame's
-## reference panel. Used as a set (id -> true). Persisted. Building a bundle's
-## sequence blind teaches it, so the "known" set grows through play.
+## reference panel and gating which sequences PlanarRiftMinigamePanel will
+## ever match against. Used as a set (id -> true). Persisted. The set only
+## grows through explicit teaching (Academy's "summoning_sequence" reward,
+## main.gd's starting grant) via learn_bundle() -- there's no learning a
+## sequence by building it blind in the minigame.
 var _known_bundles: Dictionary = {}
 ## rift_id of the rift whose minigame is currently open, "" when none. Transient
 ## (like LeyLines' session) -- never saved; a minigame can't outlive the pause.
@@ -152,8 +155,12 @@ func open_rift_minigame(rift_id: String) -> void:
 
 ## The minigame built a bundle's full sequence: roll the summon's quality from
 ## the portal time still remaining (`time_fraction`, 0..1) and a Summoning roll,
-## learn the bundle (so blind discovery sticks), and start the background job
-## carrying that quality. `reward_multiplier` (1 + however many planar keys
+## then start the background job carrying that quality. The bundle is already
+## known by this point -- PlanarRiftMinigamePanel only ever offers matches
+## against Summoning.known_bundle_ids(), so learn_bundle() here is just a
+## no-op safeguard, not how sequences get learned; see Academy's
+## "summoning_sequence" reward and main.gd's starting grant for that.
+## `reward_multiplier` (1 + however many planar keys
 ## landed inside the matched sequence, see RiftArena._submit_sequence()) rides
 ## along to start_rift() and multiplies every reward at collection. Clears the
 ## session before emitting so hud.gd's close-on-close guard sees no active
