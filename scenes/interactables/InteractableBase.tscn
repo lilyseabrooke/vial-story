@@ -1,9 +1,12 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/interactable_base.gd" id="1"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(48, 48)
+
+[sub_resource type="CanvasItemMaterial" id="2"]
+blend_mode = 3
 
 [node name="InteractableBase" type="Area2D"]
 collision_layer = 0
@@ -16,6 +19,14 @@ offset_top = -24.0
 offset_right = 24.0
 offset_bottom = 24.0
 color = Color(0.6, 0.6, 0.6, 1)
+
+[node name="Shadow" type="Polygon2D" parent="."]
+visible = false
+position = Vector2(0, 44)
+scale = Vector2(1.4545455, 1.75)
+material = SubResource("2")
+color = Color(0.847, 0.784, 0.91, 0.65)
+polygon = PackedVector2Array(11, 0, 10.16, 1.53, 7.78, 2.83, 4.21, 3.7, 0, 4, -4.21, 3.7, -7.78, 2.83, -10.16, 1.53, -11, 0, -10.16, -1.53, -7.78, -2.83, -4.21, -3.7, 0, -4, 4.21, -3.7, 7.78, -2.83, 10.16, -1.53)
 
 [node name="AnimatedVisual" type="AnimatedSprite2D" parent="."]
 visible = false

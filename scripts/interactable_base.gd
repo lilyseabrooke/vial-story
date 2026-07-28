@@ -20,6 +20,7 @@ signal player_exited(interactable: InteractableBase)
 
 @onready var _visual: ColorRect = $Visual
 @onready var _animated_visual: AnimatedSprite2D = $AnimatedVisual
+@onready var _shadow: Polygon2D = $Shadow
 @onready var _label: Label = $Label
 
 var _using_sprite: bool = false
@@ -40,13 +41,19 @@ func set_status_text(text: String) -> void:
 ## Swaps the tinted placeholder ColorRect for an animated sprite. Called by
 ## subclasses (e.g. NPCInteractable) once they know their CharacterDef has
 ## sprite_frames set -- InteractableBase itself has no notion of a
-## CharacterDef, so it can't decide this on its own in _ready().
+## CharacterDef, so it can't decide this on its own in _ready(). Also hides
+## the floating name Label, which only exists to label an otherwise-anonymous
+## placeholder box -- a real sprite makes it redundant clutter. The ground
+## shadow only makes sense under a real sprite (the placeholder ColorRect
+## already reads as sitting on the ground), so it's gated the same way.
 func use_sprite(frames: SpriteFrames) -> void:
 	_using_sprite = true
 	_visual.visible = false
+	_label.visible = false
 	_animated_visual.visible = true
 	_animated_visual.sprite_frames = frames
 	_animated_visual.play("Idle" + _facing)
+	_shadow.visible = true
 
 
 ## Picks the Idle/Walking + facing animation to match movement, mirroring
