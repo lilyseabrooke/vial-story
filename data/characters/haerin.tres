@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/character_def.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://assets/sprites/HaerinCharacter.tres" id="2"]
 
 [resource]
 script = ExtResource("1")
 id = "haerin"
 display_name = "Hae-rin"
 placeholder_color = Color(0.56, 0.27, 0.52, 1)
+sprite_frames = ExtResource("2")

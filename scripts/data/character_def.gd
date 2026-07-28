@@ -20,3 +20,14 @@ extends Resource
 ## world art yet -- InteractableBase falls back to the tinted placeholder_color
 ## ColorRect in that case.
 @export var sprite_frames: SpriteFrames
+
+
+## Best available small icon for UI (e.g. GameMenu's Relationships tab):
+## portrait if authored, else the IdleDown sprite's first frame, else null so
+## the caller can fall back to its own tinted placeholder_color swatch.
+func get_icon() -> Texture2D:
+	if portrait != null:
+		return portrait
+	if sprite_frames != null and sprite_frames.has_animation("IdleDown"):
+		return sprite_frames.get_frame_texture("IdleDown", 0)
+	return null

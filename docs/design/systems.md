@@ -951,7 +951,9 @@ CurseDef (data/curses.json, not .tres -- see AlembicUpgradeDef for why)
   owns the shared Area2D proximity signals and visual/label chrome — a tinted
   `ColorRect` placeholder by default, or an `AnimatedSprite2D` (a second,
   initially-hidden child, `AnimatedVisual`) once a subclass calls
-  `use_sprite(frames)`; `play_directional_animation(is_moving, direction)`
+  `use_sprite(frames)`, which also hides the floating name `Label` (it only
+  exists to label an otherwise-anonymous placeholder box, so a real sprite
+  makes it redundant); `play_directional_animation(is_moving, direction)`
   then picks the Idle/Walking + facing-direction animation the same way
   `player.gd`'s `_update_animation` does, and is a no-op until `use_sprite()`
   has been called so callers don't need to guard every call site. Each
@@ -1091,7 +1093,12 @@ or_expr    := and_expr ( "or" and_expr )*
   `sprite_frames` for their overworld `NPCInteractable` — see system 13's
   "Love-interest schedule & movement") for anyone who can appear in a VN
   scene, romanceable or not (a shopkeeper and a love interest are the same
-  kind of thing to the dialogue engine). No romance-specific fields —
+  kind of thing to the dialogue engine). `get_icon()` picks the best small
+  icon for UI use — `portrait` if authored, else `sprite_frames`' IdleDown
+  first frame, else `null` for the caller's own placeholder — used by
+  `GameMenu`'s Relationships tab (`RelationshipRow`) instead of `portrait`
+  directly, since the love interests currently only have `sprite_frames`
+  authored. No romance-specific fields —
   whether a character accumulates affection is entirely up to whether a script
   happens to call `add_affection()` for their id, not something declared here.
   Registered by id via the `Characters` autoload (`scripts/autoload/characters.gd`,

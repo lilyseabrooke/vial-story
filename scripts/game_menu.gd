@@ -599,7 +599,7 @@ func update_relationships() -> void:
 
 		var row: RelationshipRow = RELATIONSHIP_ROW_SCENE.instantiate()
 		_relationships_list.add_child(row)
-		row.populate(def.display_name, hearts, MAX_HEARTS, def.placeholder_color, def.portrait)
+		row.populate(def.display_name, hearts, MAX_HEARTS, def.placeholder_color, def.get_icon())
 
 
 # ---------------------------------------------------------------------------

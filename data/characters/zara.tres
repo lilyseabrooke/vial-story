@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/character_def.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://assets/sprites/ZaraCharacter.tres" id="2"]
 
 [resource]
 script = ExtResource("1")
 id = "zara"
 display_name = "Zara"
 placeholder_color = Color(0.86, 0.08, 0.24, 1)
+sprite_frames = ExtResource("2")
