@@ -66,7 +66,7 @@ func build() -> void:
 
 func update_time() -> void:
 	_day_label.text = "Day %d · %s" % [Clock.day_number, Clock.day_name()]
-	_time_label.text = "%s%s" % [Clock.get_clock_string(), "   (paused)" if Clock.is_paused else ""]
+	_time_label.text = Clock.get_clock_string()
 	var minute := Clock.minute_of_day()
 	_tod_icon.set_day(minute >= DAY_START_MINUTE and minute < DAY_END_MINUTE)
 

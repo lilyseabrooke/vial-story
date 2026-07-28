@@ -126,7 +126,10 @@ func attend_class(effort: Effort = Effort.NORMAL) -> String:
 	for i in EFFORT_REWARD_ROLLS[effort]:
 		_roll_class_reward(reward_multiplier)
 
-	Clock.skip_to(CLASS_END_MINUTE - Clock.DAY_START_MINUTE)
+	# Awaited so the caller (hud.gd) doesn't close class_panel until the skip's
+	# is_paused freeze has been restored — closing it mid-skip would stomp
+	# Clock's forced-true pause early and unfreeze the game during the fade.
+	await Clock.skip_to(CLASS_END_MINUTE - Clock.DAY_START_MINUTE)
 	attended_class.emit()
 	return ""
 

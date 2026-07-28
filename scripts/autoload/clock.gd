@@ -6,6 +6,15 @@ signal minute_tick(timestamp: int)
 signal day_started(day_number: int, day_type: int)
 signal day_ended(reason: EndReason)
 signal speed_level_changed(level: int)
+## Bracket any large jump in time (sleeping, a collapse, attending class) so
+## presentation code (see ScreenFade) can cover the jump with a fade rather
+## than showing the clock/labels snap to their new values instantly.
+## time_skip_started fires the moment the fade-out begins; the actual jump
+## (day_ended/minute_tick/day_started) doesn't happen until TIME_SKIP_FADE_SECONDS
+## later, once the screen is fully black, and time_skip_finished fires after the
+## hold, as the screen starts fading back in — see end_day()/skip_to().
+signal time_skip_started
+signal time_skip_finished
 
 enum DayType { WEEKDAY, WEEKEND }
 enum EndReason { SLEEP, LATE_COLLAPSE, RESOLVE_COLLAPSE }
@@ -13,6 +22,11 @@ enum EndReason { SLEEP, LATE_COLLAPSE, RESOLVE_COLLAPSE }
 const DAY_START_MINUTE := 360      # 6:00 AM
 const DAY_LENGTH_MINUTES := 1200   # forced collapse 20 hours later, i.e. 2:00 AM
 const MINUTES_PER_CALENDAR_DAY := 1440
+## Shared with ScreenFade so its fade-out/hold-black/fade-in animation lines up
+## exactly with the window where Clock holds ticking and jump work — see
+## end_day()/skip_to().
+const TIME_SKIP_FADE_SECONDS := 0.35
+const TIME_SKIP_HOLD_SECONDS := 1.0
 const WEEKEND_DAY_INDICES := [5, 6]
 # Index 0 aligns with day_number 0, and with WEEKEND_DAY_INDICES above.
 const DAY_NAMES: Array[String] = [
@@ -93,11 +107,15 @@ func minute_of_day() -> int:
 	return (DAY_START_MINUTE + minutes_into_day) % MINUTES_PER_CALENDAR_DAY
 
 
+## Displayed minute is floored to the nearest 10 (7:20 shows until 7:30, etc.)
+## so the HUD clock reads like a stylized sim-game clock rather than ticking
+## every in-game minute.
 func get_clock_string() -> String:
 	var minute_of_day_value := minute_of_day()
 	@warning_ignore("integer_division")
 	var hour := minute_of_day_value / 60
-	var minute := minute_of_day_value % 60
+	@warning_ignore("integer_division")
+	var minute := (minute_of_day_value % 60 / 10) * 10
 	var suffix := "AM" if hour < 12 else "PM"
 	var display_hour := hour % 12
 	if display_hour == 0:
@@ -113,13 +131,26 @@ func resolve_collapse() -> void:
 	end_day(EndReason.RESOLVE_COLLAPSE)
 
 
+## Async so the actual jump (day_ended/overnight ticks/day_started) waits
+## until the screen has faded fully to black — see the time_skip_* doc above.
+## is_paused is forced on for the whole sequence (restored to whatever it was
+## before) so nothing moves or acts while time is skipping; is_paused alone
+## already halts every Clock-driven system and player input (see CLAUDE.md),
+## so no separate freeze flag is needed.
 func end_day(reason: EndReason) -> void:
+	time_skip_started.emit()
+	var was_paused := is_paused
+	is_paused = true
+	await get_tree().create_timer(TIME_SKIP_FADE_SECONDS).timeout
 	day_ended.emit(reason)
 	_skip_overnight_to_next_day_start()
 	day_number += 1
 	minutes_into_day = 0
 	_accumulator = 0.0
 	day_started.emit(day_number, day_type())
+	await get_tree().create_timer(TIME_SKIP_HOLD_SECONDS).timeout
+	is_paused = was_paused
+	time_skip_finished.emit()
 
 
 ## Ticks minute-by-minute from the current time through to next day's 6 AM
@@ -139,9 +170,18 @@ func _skip_overnight_to_next_day_start() -> void:
 ## Generic TimeSkip utility for scheduled windows (e.g. attending class).
 ## Ticks minute-by-minute so minute_tick still fires for anything listening
 ## (brew/grow/shop resolution), rather than jumping the clock silently.
+## See end_day()'s doc comment — same fade-out/jump/hold/fade-in shape and the
+## same is_paused freeze for the duration.
 func skip_to(target_minutes_into_day: int) -> void:
+	time_skip_started.emit()
+	var was_paused := is_paused
+	is_paused = true
+	await get_tree().create_timer(TIME_SKIP_FADE_SECONDS).timeout
 	while minutes_into_day < target_minutes_into_day and minutes_into_day < DAY_LENGTH_MINUTES:
 		_tick_one_minute()
+	await get_tree().create_timer(TIME_SKIP_HOLD_SECONDS).timeout
+	is_paused = was_paused
+	time_skip_finished.emit()
 
 
 func get_save_data() -> Dictionary:

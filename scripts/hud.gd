@@ -32,6 +32,7 @@ var _curse_menu_id: String = ""
 var _starting_ingredients: Dictionary = {}
 
 var _almanac: AlmanacClock
+var _screen_fade: ScreenFade
 var _materials_pouch: MaterialsPouch
 var _resolve_vial: ResolveVial
 var _game_over_label: Label
@@ -55,6 +56,10 @@ var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 
 func build(starting_ingredients: Dictionary) -> void:
 	_starting_ingredients = starting_ingredients
+
+	_screen_fade = ScreenFade.new()
+	_screen_fade.build()
+	add_child(_screen_fade)
 
 	# Resolve meter — top-left, drawn as a filling potion vial. Doubled in
 	# size to match the 2x world-camera zoom; pivot stays at the default
@@ -341,6 +346,15 @@ func _connect_autoload_signals() -> void:
 	)
 	Clock.speed_level_changed.connect(func(level: int) -> void:
 		_almanac.sync_speed(level)
+	)
+	Clock.time_skip_started.connect(func() -> void:
+		# Close whatever menu is open right away (e.g. class_panel when attending
+		# class) instead of leaving it visible to close itself once the screen
+		# fades back in. Also lets MenuScene.close()'s own `Clock.is_paused =
+		# false` land before end_day()/skip_to() captures `was_paused` for the
+		# skip, so the pause state they restore afterward is correct.
+		close_menu()
+		_screen_fade.play()
 	)
 	Brewing.brew_started.connect(func(station_id: String, recipe_id: String) -> void:
 		log_message("Started brewing %s." % _potion_display_name(recipe_id))
@@ -928,11 +942,12 @@ func open_class_menu() -> void:
 
 
 func on_attend_class_button_pressed(effort: Academy.Effort) -> void:
-	var error := Academy.attend_class(effort)
+	var error: String = await Academy.attend_class(effort)
 	if error != "":
 		log_message("Couldn't attend class: %s" % error)
 		return
-	close_menu()
+	# Already closed by the Clock.time_skip_started handler above, right as
+	# the fade-out began.
 	log_message("Attended class (%s) — running score up, Focus XP gained." % Academy.EFFORT_NAMES[effort])
 	update_clock_label()
 
