@@ -26,6 +26,16 @@ static func set_degrees_of_success(value: int) -> void:
 	_degrees_of_success = value
 
 
+## Public entry point for callers applying a single named effect + numeric
+## amount without a full VN expression tree -- UpgradeDef.effect_target and
+## CurseDef penalty targets both route through here instead of keeping their
+## own match/dispatch blocks, so there's one registry with one list of valid
+## keys shared with the VN/quest action-call language above. See
+## docs/engine_roadmap.md, Phase 3.
+static func call_effect(name: String, amount: float) -> void:
+	_call_function(name, [amount])
+
+
 static func evaluate(node: Dictionary) -> Variant:
 	match node.type:
 		"literal":
@@ -122,6 +132,17 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 			return NPCState.get_funds(args[0])
 		"npc_relationship":
 			return NPCState.get_relationship(args[0], args[1])
+		# --- UpgradeDef.effect_target / CurseDef penalty targets, routed
+		# through call_effect() above rather than the VN parser. ---
+		"shop_capacity":
+			Shop.capacity += int(args[0])
+			return null
+		"change_reputation":
+			Shop.add_reputation(int(args[0]))
+			return null
+		"change_buy_rate":
+			Shop.add_buy_rate_modifier(args[0])
+			return null
 		_:
 			push_warning("VNExpressionEvaluator: unknown function '%s'" % function_name)
 			return null

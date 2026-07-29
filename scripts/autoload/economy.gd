@@ -46,12 +46,12 @@ func purchase_upgrade(upgrade: UpgradeDef) -> String:
 	return ""
 
 
+## Routed through VNExpressionEvaluator's shared dispatch table (see
+## docs/engine_roadmap.md, Phase 3) instead of its own match block, so
+## effect_target typos surface the same "unknown function" warning for
+## upgrades, curse penalties, and VN action-calls alike.
 func _apply_effect(upgrade: UpgradeDef) -> void:
-	match upgrade.effect_target:
-		"shop_capacity":
-			Shop.capacity += int(upgrade.effect_amount)
-		_:
-			push_warning("Unknown upgrade effect_target: %s" % upgrade.effect_target)
+	VNExpressionEvaluator.call_effect(upgrade.effect_target, upgrade.effect_amount)
 
 
 func get_save_data() -> Dictionary:
