@@ -173,6 +173,15 @@ into it.
 **Depends on:** Phase 7's component patterns (row scenes, animation-in/out chrome) are the natural
 template for notification rows.
 
+**Status: reverted.** Built and wired (`Notifications` autoload + `NotificationFeed`/`NotificationToast`
+components, `hud.gd`'s `log_message()` pushing every message through it), but playtesting showed every
+message it surfaced was unwanted noise — level-ups, quest completion, writ/dragon/ley line/summoning
+progress, etc. all read as clutter once actually on screen next to rolls and item toasts. Removed
+entirely rather than left disabled: `log_message()` is back to console-only on purpose. If a future
+system genuinely needs to reach the player beyond a roll (`RollDisplay`) or an item gain
+(`ItemToastFeed`), route it through the VN dialogue box with no speaker instead of reintroducing a
+toast queue.
+
 ## Phase 9 — `hud.gd` decomposition
 
 **Problem:** `hud.gd` is 1013 lines with 75 manual signal connections and no backing `.tscn` — every
