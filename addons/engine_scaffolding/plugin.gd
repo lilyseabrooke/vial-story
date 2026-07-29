@@ -42,19 +42,25 @@ const UI_COMPONENT_SCENE_TEMPLATE := """[gd_scene load_steps=2 format=3]
 script = ExtResource("1")
 """
 
+const EffectTargetInspector := preload("res://addons/engine_scaffolding/effect_target_inspector.gd")
+
 var _dialog: ConfirmationDialog
 var _name_edit: LineEdit
 var _pending_kind: String = ""
+var _effect_target_inspector: EditorInspectorPlugin
 
 
 func _enter_tree() -> void:
 	add_tool_menu_item("New Interactable...", _on_new_interactable)
 	add_tool_menu_item("New UI Component...", _on_new_ui_component)
+	_effect_target_inspector = EffectTargetInspector.new()
+	add_inspector_plugin(_effect_target_inspector)
 
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("New Interactable...")
 	remove_tool_menu_item("New UI Component...")
+	remove_inspector_plugin(_effect_target_inspector)
 
 
 func _on_new_interactable() -> void:

@@ -17,6 +17,18 @@ extends RefCounted
 
 static var _degrees_of_success: int = 0
 
+## The subset of _call_function()'s dispatch table that's valid as a single
+## UpgradeDef.effect_target / curse penalty target (a bare name + one numeric
+## amount, as opposed to the richer VN action-call functions like give_item
+## which take multiple typed args). Read by the effect_target dropdown
+## EditorInspectorPlugin (addons/engine_scaffolding) instead of the plugin
+## hardcoding its own copy of these names. See docs/engine_roadmap.md, Phase 4.
+const EFFECT_TARGET_KEYS := [
+	"shop_capacity",
+	"change_reputation",
+	"change_buy_rate",
+]
+
 
 ## Called by a roll-resolving caller (e.g. ArtStudio._complete_work()) right
 ## before evaluating a batch of expressions that may reference
