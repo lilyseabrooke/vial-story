@@ -101,54 +101,6 @@ func build(starting_ingredients: Dictionary) -> void:
 	top_right.add_child(_materials_pouch)
 	UiFx.add_drop_shadow(_materials_pouch, 0.4, 5, Vector2(0, 4))
 
-	# Controls hint moved off the always-on HUD into a "?" help toggle,
-	# bottom-left, so the corner stays uncluttered.
-	var help_button := Button.new()
-	help_button.text = "?"
-	help_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	help_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	help_button.position = Vector2(16, -52)
-	help_button.custom_minimum_size = Vector2(36, 36)
-	# Doubled in size to match the 2x world-camera zoom. Pivot is set to the
-	# button's bottom-left corner (its fixed anchor point) so it grows
-	# up-right in place instead of drifting past the bottom of the screen.
-	help_button.pivot_offset = Vector2(0.0, 36.0)
-	help_button.scale = Vector2(2.0, 2.0)
-	add_child(help_button)
-
-	var help_popover := PanelContainer.new()
-	help_popover.theme_type_variation = &"SmallFramedPanel"
-	help_popover.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	help_popover.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	help_popover.visible = false
-	add_child(help_popover)
-	UiFx.add_drop_shadow(help_popover, 0.4, 5, Vector2(0, 4))
-
-	var help_label := Label.new()
-	help_label.theme_type_variation = &"CaptionLabel"
-	help_label.text = "WASD move · E interact · Esc/Q menu · Space pause · 1/2/3 speed · R drain Resolve (debug)"
-	help_label.custom_minimum_size = Vector2(480, 0)
-	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	help_popover.add_child(help_label)
-
-	# Doubled to match the help button, and repositioned from the button's
-	# actual (already-doubled) top edge rather than a hardcoded offset — the
-	# old fixed "-96" was tuned for the button's pre-doubling height and
-	# started overlapping once the button grew. Pivoted at its own bottom-left
-	# corner (get_combined_minimum_size() is synchronous, so this is valid
-	# immediately, no need to wait a frame) so it grows upward from a fixed
-	# gap above the button instead of drifting into it.
-	const BUTTON_POPOVER_GAP := 16.0
-	var button_top := help_button.position.y - help_button.pivot_offset.y * (help_button.scale.y - 1.0)
-	var popover_size := help_popover.get_combined_minimum_size()
-	help_popover.position = Vector2(16, button_top - BUTTON_POPOVER_GAP - popover_size.y)
-	help_popover.pivot_offset = Vector2(0.0, popover_size.y)
-	help_popover.scale = Vector2(2.0, 2.0)
-
-	help_button.pressed.connect(func() -> void:
-		help_popover.visible = not help_popover.visible
-	)
-
 	# Game Over — stays directly on screen (terminal state), not in the menu.
 	_game_over_label = Label.new()
 	# Not CaptionLabel -- that variation's font_color has reduced alpha, which
