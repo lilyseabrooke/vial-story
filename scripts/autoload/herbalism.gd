@@ -64,8 +64,9 @@ func purchase_plot(plot_id: String) -> String:
 		return "No such plot."
 	if plot.purchased:
 		return "Already purchased."
-	if not Inventory.spend_materials(plot.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(plot.cost)
+	if spend_err != "":
+		return spend_err
 	plot.purchased = true
 	plot_purchased.emit(plot_id)
 	return ""
@@ -149,8 +150,9 @@ func purchase_water_pump(pump_id: String) -> String:
 		return "No such pump."
 	if pump.purchased:
 		return "Already purchased."
-	if not Inventory.spend_materials(pump.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(pump.cost)
+	if spend_err != "":
+		return spend_err
 	pump.purchased = true
 	water_pump_purchased.emit(pump_id)
 	return ""
@@ -170,8 +172,9 @@ func purchase_water_pump_upgrade(pump_id: String, upgrade_id: String) -> String:
 	var upgrade := ContentRegistry.get_water_pump_upgrade(upgrade_id)
 	if upgrade == null:
 		return "No such upgrade."
-	if not Inventory.spend_materials(upgrade.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(upgrade.cost)
+	if spend_err != "":
+		return spend_err
 	pump.upgrade_ids.append(upgrade_id)
 	water_pump_upgrade_purchased.emit(pump_id, upgrade_id)
 	return ""

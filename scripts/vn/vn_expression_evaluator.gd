@@ -58,6 +58,22 @@ static func set_degrees_of_success(value: int) -> void:
 	_degrees_of_success = value
 
 
+## One-shot parse-and-run for a single action-call string built at runtime
+## (e.g. "give_item(\"%s\", %d)" % [id, qty]) -- lets any system hand off a
+## reward the same way QuestDef.reward already does, instead of calling
+## Inventory/Skills sinks directly. QuestManager pre-parses its reward arrays
+## once at _ready() for its hot completion path; this is for the common case
+## of a single ad hoc grant where pre-parsing isn't worth the boilerplate.
+## See docs/engine_roadmap.md, Phase 6.
+static func run(action_call: String) -> void:
+	var parser := VNExpressionParser.new()
+	var ast = parser.parse(action_call)
+	if ast == null:
+		push_error("VNExpressionEvaluator.run(): invalid action-call '%s'" % action_call)
+		return
+	evaluate(ast)
+
+
 ## Public entry point for callers applying a single named effect + numeric
 ## amount without a full VN expression tree -- UpgradeDef.effect_target and
 ## CurseDef penalty targets both route through here instead of keeping their

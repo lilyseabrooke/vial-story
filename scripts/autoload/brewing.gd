@@ -64,8 +64,9 @@ func purchase_station(station_id: String) -> String:
 		return "No such station."
 	if station.purchased:
 		return "Already purchased."
-	if not Inventory.spend_materials(station.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(station.cost)
+	if spend_err != "":
+		return spend_err
 	station.purchased = true
 	station_purchased.emit(station_id)
 	return ""
@@ -92,8 +93,9 @@ func purchase_alembic_upgrade(station_id: String, upgrade_id: String) -> String:
 		var owned := ContentRegistry.get_alembic_upgrade(owned_id)
 		if owned != null and upgrade_id in owned.excludes:
 			return "Conflicts with an equipped upgrade."
-	if not Inventory.spend_materials(upgrade.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(upgrade.cost)
+	if spend_err != "":
+		return spend_err
 	station.upgrade_ids.append(upgrade_id)
 	alembic_upgrade_purchased.emit(station_id, upgrade_id)
 	return ""

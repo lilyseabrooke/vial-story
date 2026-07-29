@@ -15,8 +15,9 @@ func is_purchased(upgrade_id: String) -> bool:
 ## Returns "" on success, or a short reason string on failure.
 func buy_ingredient(ingredient: IngredientDef, quantity: int = 1) -> String:
 	var total_cost := ingredient.buy_price * quantity
-	if not Inventory.spend_materials(total_cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(total_cost)
+	if spend_err != "":
+		return spend_err
 	Inventory.add_ingredient(ingredient.id, quantity)
 	ingredient_bought.emit(ingredient.id, quantity)
 	return ""
@@ -27,8 +28,9 @@ func buy_ingredient(ingredient: IngredientDef, quantity: int = 1) -> String:
 ## buy_ingredient rather than needing a separate inventory.
 func buy_seed(seed_def: SeedDef, quantity: int = 1) -> String:
 	var total_cost := seed_def.buy_price * quantity
-	if not Inventory.spend_materials(total_cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(total_cost)
+	if spend_err != "":
+		return spend_err
 	Inventory.add_ingredient(seed_def.id, quantity)
 	ingredient_bought.emit(seed_def.id, quantity)
 	return ""
@@ -38,8 +40,9 @@ func buy_seed(seed_def: SeedDef, quantity: int = 1) -> String:
 func purchase_upgrade(upgrade: UpgradeDef) -> String:
 	if is_purchased(upgrade.id):
 		return "Already purchased."
-	if not Inventory.spend_materials(upgrade.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(upgrade.cost)
+	if spend_err != "":
+		return spend_err
 	purchased_upgrade_ids.append(upgrade.id)
 	_apply_effect(upgrade)
 	upgrade_purchased.emit(upgrade.id)
