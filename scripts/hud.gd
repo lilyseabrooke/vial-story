@@ -10,6 +10,7 @@ extends CanvasLayer
 
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
 const ROLL_DISPLAY_SCENE := preload("res://scenes/ui/components/RollDisplay.tscn")
+const ITEM_TOAST_FEED_SCENE := preload("res://scenes/ui/components/ItemToastFeed.tscn")
 const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
@@ -46,6 +47,7 @@ var _pantry_tween: Tween
 var _curse_inventory_window: CurseInventoryWindow
 var _curse_inventory_tween: Tween
 var _roll_display: RollDisplay
+var _item_toast_feed: ItemToastFeed
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
 var _ley_line_overlay: LeyLineArenaOverlay
@@ -323,6 +325,17 @@ func build(starting_ingredients: Dictionary) -> void:
 	_roll_display.pivot_offset = RollDisplay.CARD_SIZE
 	_roll_display.scale = Vector2(2.0, 2.0)
 	add_child(_roll_display)
+
+	_item_toast_feed = ITEM_TOAST_FEED_SCENE.instantiate()
+	# Mirror of the RollDisplay pivot fix above, but for a bottom-left anchor:
+	# pivot at the box's own bottom-left corner so the doubled feed grows
+	# up-right in place instead of overshooting past the screen's left edge.
+	_item_toast_feed.pivot_offset = Vector2(0.0, ItemToastFeed.FEED_SIZE.y)
+	_item_toast_feed.scale = Vector2(2.0, 2.0)
+	add_child(_item_toast_feed)
+	Inventory.ingredient_gained.connect(func(ingredient_id: String, quantity: int, tier: int) -> void:
+		_item_toast_feed.show_item(ingredient_id, quantity, tier)
+	)
 
 	_connect_autoload_signals()
 

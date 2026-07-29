@@ -342,7 +342,7 @@ func update_inventory() -> void:
 			var count: int = tiers[tier]
 			if count <= 0:
 				continue
-			var type_label := "%s Ingredient" % IngredientDef.Category.keys()[ingredient.category].capitalize()
+			var type_label := ItemTooltip.ingredient_type_label(ingredient.category)
 			entries.append({
 				"name": ingredient.display_name,
 				"quality": IngredientQuality.label(tier),

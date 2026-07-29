@@ -25,7 +25,7 @@ func populate(item_name: String, price: int, tint: Color, icon: Texture2D = null
 	badge.add_theme_color_override("font_color", UiPalette.CREAM_PAGE)
 	badge.add_theme_color_override("font_outline_color", UiPalette.COCOA_INK)
 	badge.add_theme_constant_override("outline_size", BADGE_OUTLINE_SIZE)
-	tooltip_text = "%s\n%d Materials" % [item_name, price]
+	tooltip_text = ItemTooltip.compose(item_name, "", "%d Materials" % price)
 	_apply_icon(tint, icon)
 
 
@@ -43,11 +43,7 @@ func populate_item(item_name: String, quality_label: String, type_label: String,
 	badge.add_theme_color_override("font_color", UiPalette.CREAM_PAGE)
 	badge.add_theme_color_override("font_outline_color", UiPalette.COCOA_INK)
 	badge.add_theme_constant_override("outline_size", BADGE_OUTLINE_SIZE)
-	var tooltip_lines: Array[String] = [item_name]
-	if quality_label != "":
-		tooltip_lines.append(quality_label)
-	tooltip_lines.append(type_label)
-	tooltip_text = "\n".join(tooltip_lines)
+	tooltip_text = ItemTooltip.compose(item_name, quality_label, type_label)
 	_apply_icon(tint, icon)
 
 

@@ -1797,12 +1797,39 @@ Rng (autoload)
   `hud.gd` reads `RollDisplay.CARD_SIZE` directly (rather than duplicating the
   literal) to size the doubled callout's pivot, specifically so the pivot and the box
   it's pivoting can't drift out of sync the way they did during the sizing-bug fix.
-  There is no scrollback or history here — an extended roll log in the
-  Escape menu, and a separate toast system for item/material grants, are both tracked
-  for later but out of scope for now; `GameHud.log_message()` (the old text-notice
-  path) is a console-only stub in the meantime. `RollDisplay` never rolls dice itself
-  — it only renders an already-produced result `Dictionary`, so headless code can call
-  `Rng.roll_2d10()` with no UI involvement.
+  There is no scrollback or history here — an extended roll log in the Escape menu is
+  still tracked for later but out of scope for now; `GameHud.log_message()` (the old
+  text-notice path) is a console-only stub in the meantime. `RollDisplay` never rolls
+  dice itself — it only renders an already-produced result `Dictionary`, so headless
+  code can call `Rng.roll_2d10()` with no UI involvement.
+- Item grants render through `ItemToastFeed` (`scripts/ui/components/item_toast_feed.gd`
+  + `item_toast.gd`), the other MessageWall-replacement half: a bottom-left stack of
+  small icon-plus-quantity-badge rows (same corner-badge look as `ItemSlot`'s inventory
+  grid cells) plus the ingredient's name. Unlike `RollDisplay`'s single replace-in-place
+  slot, this is a genuine feed — each `ItemToast` row pops in, lingers, fades out, and
+  frees itself independently, so several gains in quick succession (e.g. a
+  multi-ingredient harvest) stack briefly rather than clobbering each other.
+  `Inventory.ingredient_gained(id, quantity, tier)` is the trigger: emitted alongside
+  the existing `ingredient_changed` from `Inventory.add_ingredient()` itself, carrying
+  the delta just added rather than the new stack total, since every `add_ingredient()`
+  call site is a gain by construction (consumption always goes through
+  `consume_ingredient()`/`consume_ingredient_records()` instead) — so no call site has
+  to explicitly fire a toast. `hud.gd` wires that signal straight to
+  `ItemToastFeed.show_item(id, quantity, tier)`, which looks the id up in
+  `ContentRegistry` for its display name/icon/category tint. Mirrors `RollDisplay`'s
+  pivot-at-own-corner trick for the 2x HUD scale, just at the opposite (bottom-left)
+  corner. Materials grants are a separate, not-yet-built system — out of scope here,
+  this only reacts to ingredient gains. `ItemToastFeed` tracks currently-showing rows
+  in `_active_toasts` (id → `ItemToast`, pruned via each row's `tree_exiting`), so a
+  second gain of an ingredient whose toast hasn't faded yet bumps that row's quantity
+  (`ItemToast.add_quantity()`) instead of stacking a duplicate. Each row is also hover-
+  aware: `mouse_filter = STOP` (every other HUD overlay uses `IGNORE`) makes it
+  hit-testable, its native `tooltip_text` shows the same name/quality/type readout the
+  satchel does — composed via the shared `ItemTooltip.compose()`/`ingredient_type_label()`
+  helpers (`scripts/ui/item_tooltip.gd`) so `ItemSlot`'s inventory tooltip and this one
+  can't drift out of sync — and while the cursor is over it the row is pinned fully
+  visible with its countdown killed entirely, only resuming (fresh) once the mouse
+  actually leaves, so reading the tooltip never races the fade-out.
 - **Seeding**: `Rng.seed_new_game()` is called exactly once, from `main.gd`'s
   `GameFlow.is_new_game` branch, at the same point starting ingredients/quests are
   granted. Loading a save never reseeds — only `.state` (the stream's draw position)

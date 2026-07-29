@@ -3,6 +3,13 @@ extends Node
 ## Autoloaded as "Inventory". See docs/design/systems.md, systems 2 and 9.
 
 signal ingredient_changed(ingredient_id: String, tier: int, quantity: int)
+## Fired only on a gain, with the delta just added (not the new stack total,
+## which ingredient_changed already carries) -- every call site that calls
+## add_ingredient() represents the player receiving that ingredient, never a
+## consumption (those go through consume_ingredient()/consume_ingredient_records()
+## instead), so this can drive an item-received toast without any call site
+## having to say so explicitly. See scripts/ui/components/item_toast_feed.gd.
+signal ingredient_gained(ingredient_id: String, quantity: int, tier: int)
 signal potion_added(potion_id: String, potency: float, ease_value: float)
 signal materials_changed(amount: int)
 signal scrap_changed
@@ -30,6 +37,7 @@ func add_ingredient(id: String, quantity: int, tier: int = IngredientQuality.Tie
 	tiers[tier] = tiers.get(tier, 0) + quantity
 	ingredient_counts[id] = tiers
 	ingredient_changed.emit(id, tier, tiers[tier])
+	ingredient_gained.emit(id, quantity, tier)
 
 
 ## Total count across every quality tier.
