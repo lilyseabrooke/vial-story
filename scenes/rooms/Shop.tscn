@@ -42,6 +42,20 @@ tile_set = ExtResource("2_75n16")
 [node name="SpawnPoint" type="Marker2D" parent="." unique_id=1256181263]
 position = Vector2(350, 350)
 
+[node name="CustomerSpawnPoint" type="Marker2D" parent="."]
+position = Vector2(350, 540)
+
+[node name="CustomerBrowsePoints" type="Node2D" parent="."]
+
+[node name="Point1" type="Marker2D" parent="CustomerBrowsePoints"]
+position = Vector2(480, 130)
+
+[node name="Point2" type="Marker2D" parent="CustomerBrowsePoints"]
+position = Vector2(360, 110)
+
+[node name="Point3" type="Marker2D" parent="CustomerBrowsePoints"]
+position = Vector2(560, 170)
+
 [node name="Interactables" type="Node2D" parent="." unique_id=1772531943]
 
 [node name="BrewStation" parent="Interactables" unique_id=726202926 instance=ExtResource("2")]
@@ -186,6 +200,13 @@ npc_id = "mira"
 prompt_text = "talk to Mira"
 display_name = "Mira"
 visual_color = Color(0.35, 0.55, 0.75, 1)
+
+[node name="Garnet" parent="Interactables" instance=ExtResource("16")]
+position = Vector2(500, 130)
+npc_id = "garnet"
+prompt_text = "chat with Garnet"
+display_name = "Garnet"
+visual_color = Color(0.65, 0.15, 0.25, 1)
 
 [node name="StairsToShopBack" parent="Interactables" unique_id=1629299919 instance=ExtResource("6")]
 position = Vector2(250, 486)

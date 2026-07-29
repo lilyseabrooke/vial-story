@@ -373,6 +373,14 @@ func _connect_autoload_signals() -> void:
 		update_materials_label()
 		print("Collected %d Materials from the shop coffers." % amount)
 	)
+	Shop.persuasion_attempted.connect(func(visit: Dictionary, result: Dictionary, source: String) -> void:
+		if source == "player":
+			_show_roll(result, "insight")
+		else:
+			var customer: Dictionary = visit.customer
+			log_message("Garnet tries to win over %s %s..." % [customer.first_name, customer.last_name])
+		print("Persuasion attempt (%s): passed=%s" % [source, result.passed])
+	)
 	Curse.curse_activated.connect(func(_instance_id: String, curse_id: String) -> void:
 		var curse := ContentRegistry.get_curse(curse_id)
 		log_message("A curse takes hold: %s" % (curse.description if curse else curse_id))

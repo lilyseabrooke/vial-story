@@ -13,6 +13,7 @@ const CHARACTER_PATHS := [
 	"res://data/characters/zara.tres",
 	"res://data/characters/lyra.tres",
 	"res://data/characters/mira.tres",
+	"res://data/characters/garnet.tres",
 ]
 
 var _characters: Dictionary = {}   # id -> CharacterDef

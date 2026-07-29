@@ -56,6 +56,15 @@ func use_sprite(frames: SpriteFrames) -> void:
 	_shadow.visible = true
 
 
+## Tints the animated sprite -- used to tell instances that all share one
+## placeholder SpriteFrames (e.g. CustomerBase.tres) apart, the same way
+## visual_color already distinguishes untextured ColorRect placeholders.
+## No-op has no meaning before use_sprite() since there's no sprite to tint,
+## but harmless to call in either order.
+func set_sprite_tint(color: Color) -> void:
+	_animated_visual.modulate = color
+
+
 ## Picks the Idle/Walking + facing animation to match movement, mirroring
 ## player.gd's _update_animation. No-op when use_sprite() was never called,
 ## so callers don't need to guard every call site themselves.

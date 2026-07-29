@@ -1,7 +1,7 @@
 class_name CustomerEntry
 extends VBoxContainer
 ## One simulated customer's visit in GameMenu's Shop tab "Recent Customers"
-## list. See Shop._log_customer_visit() for where the record Dictionary this
+## list. See Shop.log_visit() for where the record Dictionary this
 ## populate()s from is built, and docs/design/systems.md system 5.
 ##
 ## Node refs are resolved inside populate() rather than @onready: see the

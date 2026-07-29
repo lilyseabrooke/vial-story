@@ -11,6 +11,24 @@ signal price_changed(slot_index: int, price: int)
 ## Dictionary that's now sitting at the front of recent_customers — lets the
 ## Shop tab update its "Recent Customers" list without rebuilding from scratch.
 signal customer_visited(record: Dictionary)
+## Fired the instant a visit is rolled into existence (see _roll_sales()) —
+## CustomerDirector listens to spawn a visible CustomerInteractable if (and
+## only if) the Shop room happens to be active; the visit itself is already
+## live in active_visits regardless of whether anyone's watching.
+signal customer_visit_started(visit: Dictionary)
+## Fired when a visit's resolve_timestamp is reached (see _on_minute_tick())
+## and its purchases have actually been resolved against live shop state —
+## CustomerDirector uses this to know when to animate a visible customer's
+## decision/departure; purely a presentation hook, the resolution itself
+## already happened by the time this fires.
+signal customer_visit_resolved(visit: Dictionary, purchased: Array)
+## Fired every time a persuasion roll happens against a customer — either the
+## player's (via CustomerInteractable.interact() -> attempt_persuasion(),
+## source "player") or Garnet's own ambient one (source "garnet", see
+## _maybe_attempt_garnet_persuasion()). `result` is a Rng.roll_2d10()
+## Dictionary. GameHud uses this to show the player's own rolls via
+## RollDisplay and log Garnet's as flavor text.
+signal persuasion_attempted(visit: Dictionary, result: Dictionary, source: String)
 
 const OPEN_MINUTE_OF_DAY := 9 * 60    # 9:00 AM
 const CLOSE_MINUTE_OF_DAY := 20 * 60  # 8:00 PM
@@ -28,19 +46,56 @@ const MAX_CUSTOMER_BUDGET := 220.0
 # How far above their flat budget a customer will stretch for a potion whose
 # potency/ease they happen to value highly.
 const BUDGET_STRETCH_SCALE := 0.8
-const BASE_BUY_CHANCE := 0.55
-const TRAIT_BUY_BONUS := 0.35
+# Lowered from an old (0.55, 0.35, ..., 0.95) spread that let a great tag
+# match/trait score sit right at "basically guaranteed" -- a customer wanting
+# something on offer should still be a real roll, not a formality, and
+# leaves room below MAX_BUY_CHANCE for persuasion_sway (see below) to matter
+# either direction.
+const BASE_BUY_CHANCE := 0.32
+const TRAIT_BUY_BONUS := 0.28
 # How strongly deal-savviness reacts to price sitting above/below a slot's
 # computed "fair" value (base_price).
 const DEAL_SAVVY_SCALE := 0.6
 const MIN_BUY_CHANCE := 0.05
-const MAX_BUY_CHANCE := 0.95
+const MAX_BUY_CHANCE := 0.75
 # Off-tag impulse buys: only a very good potion at a very good discount turns
 # a sufficiently deal-savvy customer's head.
 const OFF_TAG_TRAIT_THRESHOLD := 0.75
 const OFF_TAG_DISCOUNT_THRESHOLD := 0.85  # price must be <= this fraction of base_price
 const OFF_TAG_SAVVY_THRESHOLD := 0.5
 const OFF_TAG_CHANCE_SCALE := 0.6
+
+# Persuasion -- see attempt_persuasion()/_maybe_attempt_garnet_persuasion()
+# and docs/design/systems.md system 5. difficulty is generated per customer
+# as a Rng.roll_2d10() DC, the same DC scale (2d10, midpoint 11) every other
+# system in this game rolls against (Academy.CLASS_PERFORMANCE_DC,
+# Brewing.DICE_DC, etc.) -- a spread around that midpoint rather than a fixed
+# 11 for every customer is what makes some customers a harder sell than
+# others.
+const MIN_DIFFICULTY_DC := 7.0
+const MAX_DIFFICULTY_DC := 15.0
+# Each degree of success/failure (Rng.roll_2d10()'s degrees_of_success/
+# degrees_of_failure) nudges a customer's persuasion_sway by this much,
+# additively folded into _evaluate_purchase_chance() (see
+# _buy_rate_multiplier() call sites) -- capped at
+# MIN_/MAX_PERSUASION_SWAY so repeated attempts (the player once, Garnet
+# potentially several times over a long browse) can't push a customer to a
+# guaranteed sale or a guaranteed walkout.
+const PERSUASION_SWAY_PER_DEGREE := 0.08
+const MIN_PERSUASION_SWAY := -0.3
+const MAX_PERSUASION_SWAY := 0.3
+# A strong persuasion outcome (multiple degrees of success/failure) is
+# noteworthy enough to nudge the shop's standing a little either way, not
+# just this one customer's odds.
+const REPUTATION_PER_PERSUASION_DEGREE := 1
+# Garnet's own persuasion competence -- a flat modifier (same role
+# Academy._roll_class_reward() gives Skills.level("focus")) until a real
+# Garnet ability/upgrade system exists (see docs/design/systems.md system 5).
+const GARNET_INSIGHT_MODIFIER := 2.0
+# Rolled once per minute tick while the shop's open and at least one visit is
+# active -- keeps Garnet's ambient attempts occasional background flavor
+# rather than a roll spamming every single minute.
+const GARNET_PERSUASION_CHANCE_PER_MINUTE := 0.15
 
 # Reputation influence on ambient customer simulation — see docs/design/
 # systems.md system 5. Reputation makes a visit more likely each roll
@@ -67,6 +122,14 @@ const MAX_RECENT_CUSTOMERS := 20
 # every visit, but only occasionally worth a Shop-tab entry — logging every
 # single no-sale visit would flood "Recent Customers" with noise.
 const NO_PURCHASE_LOG_CHANCE := 0.2
+
+# How long (in Clock minutes) a visit browses before Garnet resolves it — see
+# active_visits below and docs/design/systems.md system 5. Deliberately a
+# real Clock-time window (not an instant roll) so a visible CustomerInteractable
+# has time to walk in and idle, and so a price change or restock mid-browse can
+# genuinely change the outcome (see try_purchase()).
+const BROWSE_DURATION_MIN_MINUTES := 15
+const BROWSE_DURATION_MAX_MINUTES := 30
 
 var capacity: int = 8
 var slots: Array[Dictionary] = []   # {potion_id, potency, ease, price, base_price}
@@ -95,6 +158,14 @@ var coffers: int = 0
 ## it's flavor/status color, not save-relevant state.
 var recent_customers: Array[Dictionary] = []
 
+## Live, in-progress visits — see _roll_sales()/_on_minute_tick() and
+## docs/design/systems.md system 5. Each entry: {visit_id, customer,
+## start_timestamp, resolve_timestamp}. Same "ephemeral, not save-relevant"
+## treatment as recent_customers — not persisted, resets empty on load, same
+## as a save simply not preserving mid-flight ambient flavor state.
+var active_visits: Array[Dictionary] = []
+
+var _next_visit_id: int = 0
 var _minutes_since_last_roll: int = 0
 var _first_names: Array = []
 var _last_names: Array = []
@@ -155,10 +226,15 @@ func collect_coffers() -> int:
 	return amount
 
 
-func _on_minute_tick(_timestamp: int) -> void:
+func _on_minute_tick(timestamp: int) -> void:
+	_resolve_due_visits(timestamp)
+
 	if not is_open():
 		_minutes_since_last_roll = 0
 		return
+
+	_maybe_attempt_garnet_persuasion()
+
 	_minutes_since_last_roll += 1
 	if _minutes_since_last_roll < ROLL_INTERVAL_MINUTES:
 		return
@@ -166,45 +242,165 @@ func _on_minute_tick(_timestamp: int) -> void:
 	_roll_sales()
 
 
-## Simulates one customer's visit: they walk in wanting a tag, with a budget
-## and a preference for potency vs. ease, and leave with up to
-## MAX_PURCHASES_PER_VISIT potions. Nothing about the customer is ever shown
-## to the player — this just replaces the old flat per-slot sale-chance roll.
-## Higher reputation makes a customer more likely to show up at all this
-## interval (see _visit_chance()) — a quiet shop can roll no-visit intervals.
+## Rolls whether a customer shows up at all this interval (see _visit_chance()
+## — higher reputation makes a visit more likely) and, if so, generates one
+## and starts a live visit job in active_visits rather than resolving it on
+## the spot. The actual purchase decision happens later, in
+## _resolve_due_visits(), against whatever the shop's stock/prices look like
+## at that moment — see docs/design/systems.md system 5.
 func _roll_sales() -> void:
 	if slots.is_empty():
 		return
 	if not Rng.chance(_visit_chance()):
 		return
 	var customer := _generate_customer()
+	var now := Clock.get_timestamp()
+	var visit := {
+		"visit_id": _next_visit_id,
+		"customer": customer,
+		"start_timestamp": now,
+		"resolve_timestamp": now + Rng.range_i(BROWSE_DURATION_MIN_MINUTES, BROWSE_DURATION_MAX_MINUTES),
+	}
+	_next_visit_id += 1
+	active_visits.append(visit)
+	customer_visit_started.emit(visit)
+
+
+## Resolves every active_visits entry whose browse window has elapsed —
+## called every minute tick unconditionally (including inside
+## Clock.skip_to()'s per-minute loop), so a visit that both starts and
+## resolves during e.g. a sleep skip still resolves correctly with no visual
+## and no stall.
+func _resolve_due_visits(timestamp: int) -> void:
+	if active_visits.is_empty():
+		return
+	var still_active: Array[Dictionary] = []
+	for visit in active_visits:
+		if timestamp < int(visit.resolve_timestamp):
+			still_active.append(visit)
+			continue
+		var purchased := _resolve_visit(visit.customer)
+		customer_visit_resolved.emit(visit, purchased)
+		if not purchased.is_empty() or Rng.chance(NO_PURCHASE_LOG_CHANCE):
+			log_visit(visit.customer, purchased)
+	active_visits = still_active
+
+
+## Player-initiated persuasion attempt against the visit identified by
+## visit_id -- see CustomerInteractable.interact(). One attempt per visit
+## (persuaded_by_player); returns {} if the visit no longer exists (already
+## resolved, or the customer already left) or was already attempted this
+## visit. Uses Skills.level("insight") as the roll modifier, the same "raw
+## skill level as modifier" shape Academy._roll_class_reward() gives Focus.
+func attempt_persuasion(visit_id: int) -> Dictionary:
+	for visit in active_visits:
+		if visit.visit_id != visit_id:
+			continue
+		var customer: Dictionary = visit.customer
+		if customer.get("persuaded_by_player", false):
+			return {}
+		var result := _apply_persuasion(visit, float(Skills.level("insight")), "player")
+		customer.persuaded_by_player = true
+		return result
+	return {}
+
+
+## Garnet's own ambient persuasion attempt -- background flavor, not player-
+## initiated, rolled at most once per open minute (GARNET_PERSUASION_CHANCE_
+## PER_MINUTE) against a random still-browsing visit. Independent of
+## persuaded_by_player: Garnet can work a customer the player already tried,
+## and can attempt the same customer more than once across a long enough
+## browse window -- she's the one actually running the counter the whole
+## time, not a one-shot like the player's single interact().
+func _maybe_attempt_garnet_persuasion() -> void:
+	if active_visits.is_empty():
+		return
+	if not Rng.chance(GARNET_PERSUASION_CHANCE_PER_MINUTE):
+		return
+	var visit: Dictionary = active_visits[Rng.range_i(0, active_visits.size() - 1)]
+	_apply_persuasion(visit, GARNET_INSIGHT_MODIFIER, "garnet")
+
+
+## Shared roll-and-apply logic behind attempt_persuasion() (player) and
+## _maybe_attempt_garnet_persuasion() (Garnet): rolls modifier against the
+## customer's own difficulty DC, nudges persuasion_sway by
+## PERSUASION_SWAY_PER_DEGREE per degree of success/failure (clamped to
+## [MIN_/MAX_PERSUASION_SWAY]), nudges reputation the same way scaled by
+## REPUTATION_PER_PERSUASION_DEGREE, and emits persuasion_attempted. Mutating
+## `customer` (a reference into `visit`, itself a reference into
+## active_visits) here is enough to update the real stored visit -- Godot
+## Dictionaries are reference types, so no reassignment back into
+## active_visits is needed, same as try_purchase()'s slot mutation above.
+func _apply_persuasion(visit: Dictionary, modifier: float, source: String) -> Dictionary:
+	var customer: Dictionary = visit.customer
+	var result := Rng.roll_2d10(modifier, customer.difficulty)
+	var degrees: int = result.degrees_of_success - result.degrees_of_failure
+	customer.persuasion_sway = clampf(
+		customer.get("persuasion_sway", 0.0) + degrees * PERSUASION_SWAY_PER_DEGREE,
+		MIN_PERSUASION_SWAY,
+		MAX_PERSUASION_SWAY
+	)
+	var reputation_delta := degrees * REPUTATION_PER_PERSUASION_DEGREE
+	if reputation_delta != 0:
+		add_reputation(reputation_delta)
+	persuasion_attempted.emit(visit, result, source)
+	return result
+
+
+## Attempts a purchase against every candidate slot (best-matching first,
+## capped at MAX_PURCHASES_PER_VISIT), using try_purchase() so each roll sees
+## live shop state at resolution time. Candidate indices are captured once,
+## up front, against the pre-removal slots array (same as the old inline
+## _roll_sales() loop) — every remaining candidate's index is shifted down by
+## one whenever an earlier-indexed slot is actually removed, so later rolls
+## still hit the right slot.
+func _resolve_visit(customer: Dictionary) -> Array[Dictionary]:
+	var purchased: Array[Dictionary] = []
+	var candidates := get_purchase_candidates(customer)
+	for entry in candidates:
+		if purchased.size() >= MAX_PURCHASES_PER_VISIT:
+			break
+		var index: int = entry.index
+		var result := try_purchase(customer, index)
+		if result.get("success", false):
+			purchased.append({"potion_id": result.potion_id, "price": result.price})
+			for other in candidates:
+				if other.index > index:
+					other.index -= 1
+	return purchased
+
+
+## Scores every currently-stocked slot against `customer`, returning
+## {index, chance} entries (chance > 0 only), best-matching/best-value first.
+## Pulled out of the old inline _roll_sales() loop so both the live
+## resolution path and any future caller can reuse the same scoring pass.
+func get_purchase_candidates(customer: Dictionary) -> Array[Dictionary]:
 	var candidates: Array[Dictionary] = []   # {index, chance}
 	for i in range(slots.size()):
 		var chance := _evaluate_purchase_chance(customer, slots[i])
 		if chance > 0.0:
 			candidates.append({"index": i, "chance": chance})
-	# Best-matching, best-value potions get first crack at the customer's cart.
 	candidates.sort_custom(func(a, b): return a.chance > b.chance)
+	return candidates
 
-	var to_remove: Array[int] = []
-	for entry in candidates:
-		if to_remove.size() >= MAX_PURCHASES_PER_VISIT:
-			break
-		if Rng.chance(entry.chance):
-			to_remove.append(entry.index)
 
-	to_remove.sort()
-	to_remove.reverse()  # remove_at from the back so earlier indices stay valid
-	var purchased: Array[Dictionary] = []   # {potion_id, price}, oldest-removed-index first
-	for index in to_remove:
-		var slot: Dictionary = slots[index]
-		slots.remove_at(index)
-		coffers += slot.price
-		potion_sold.emit(slot.potion_id, slot.price)
-		purchased.append({"potion_id": slot.potion_id, "price": slot.price})
-
-	if not purchased.is_empty() or Rng.chance(NO_PURCHASE_LOG_CHANCE):
-		_log_customer_visit(customer, purchased)
+## Re-scores slot `slot_index` against *current* slots state (not a cached
+## snapshot from when the visit started) and rolls it. Returns
+## {"success": bool, "potion_id": String, "price": int} — potion_id/price are
+## only meaningful when success is true. On success, removes the slot, adds
+## its price to coffers, and emits potion_sold, same side effects the old
+## inline _roll_sales() loop had.
+func try_purchase(customer: Dictionary, slot_index: int) -> Dictionary:
+	if slot_index < 0 or slot_index >= slots.size():
+		return {"success": false}
+	var slot: Dictionary = slots[slot_index]
+	var chance := _evaluate_purchase_chance(customer, slot)
+	if chance <= 0.0 or not Rng.chance(chance):
+		return {"success": false}
+	slots.remove_at(slot_index)
+	coffers += slot.price
+	potion_sold.emit(slot.potion_id, slot.price)
+	return {"success": true, "potion_id": slot.potion_id, "price": slot.price}
 
 
 ## Chance a customer shows up at all this roll interval — rises with
@@ -228,7 +424,7 @@ func _budget_range() -> Vector2:
 
 ## first_name/last_name/occupation/magic_discipline/portrait are pure flavor —
 ## nothing in _evaluate_purchase_chance() reads them, they only ever surface
-## in the Shop tab's "Recent Customers" log (see _log_customer_visit()).
+## in the Shop tab's "Recent Customers" log (see log_visit()).
 func _generate_customer() -> Dictionary:
 	var budget_range := _budget_range()
 	return {
@@ -245,6 +441,18 @@ func _generate_customer() -> Dictionary:
 		"potency_weight": Rng.range_f(0.0, 1.0),
 		"ease_weight": Rng.range_f(0.0, 1.0),
 		"deal_savvy": Rng.range_f(0.0, 1.0),
+		# How hard this customer is to sell to -- a Rng.roll_2d10() DC (see
+		# attempt_persuasion()), independent of deal_savvy (which is about
+		# price sensitivity, not persuadability).
+		"difficulty": Rng.range_f(MIN_DIFFICULTY_DC, MAX_DIFFICULTY_DC),
+		# Accumulates from persuasion attempts across the visit (player and/or
+		# Garnet) -- see attempt_persuasion(). Additive into
+		# _evaluate_purchase_chance(), clamped to [MIN_/MAX_PERSUASION_SWAY].
+		"persuasion_sway": 0.0,
+		# The player gets one persuasion attempt per visit -- see
+		# attempt_persuasion(). Garnet's ambient attempts aren't limited by
+		# this flag.
+		"persuaded_by_player": false,
 	}
 
 
@@ -259,7 +467,7 @@ func _random_from(pool: Array, fallback: String) -> String:
 ## ease_weight) are only ever exposed as rough qualitative labels here — see
 ## _rough_budget_label()/_rough_trait_label() — never the raw float, per the
 ## "estimate, not exact figures" spec in docs/design/systems.md system 5.
-func _log_customer_visit(customer: Dictionary, purchased: Array[Dictionary]) -> void:
+func log_visit(customer: Dictionary, purchased: Array[Dictionary]) -> void:
 	var purchase_lines: Array[String] = []
 	var total_spent := 0
 	for item in purchased:
@@ -367,7 +575,8 @@ func _evaluate_purchase_chance(customer: Dictionary, slot: Dictionary) -> float:
 		# Deal-savvy customers are drawn to a markdown and wary of a markup;
 		# less-savvy customers barely notice either way.
 		chance *= 1.0 + customer.deal_savvy * (1.0 - markup_ratio) * DEAL_SAVVY_SCALE
-		chance *= _buy_rate_multiplier()
+		chance *= _buy_rate_multiplier("shop_sales")
+		chance += customer.get("persuasion_sway", 0.0)
 		return clampf(chance, MIN_BUY_CHANCE, MAX_BUY_CHANCE)
 
 	# Off-tag impulse buy: needs to be a genuinely great potion, at a genuine
@@ -382,7 +591,8 @@ func _evaluate_purchase_chance(customer: Dictionary, slot: Dictionary) -> float:
 		return 0.0
 	var discount_bonus: float = (1.0 - markup_ratio) * customer.deal_savvy
 	var chance: float = (trait_score - OFF_TAG_TRAIT_THRESHOLD + discount_bonus) * OFF_TAG_CHANCE_SCALE
-	chance *= _buy_rate_multiplier()
+	chance *= _buy_rate_multiplier("customer_retention")
+	chance += customer.get("persuasion_sway", 0.0)
 	return clampf(chance, 0.0, MAX_BUY_CHANCE)
 
 
@@ -395,11 +605,13 @@ func adjust_price(index: int, delta: int) -> void:
 	slot.price = maxi(MIN_PRICE, slot.price + delta)
 	slots[index] = slot
 	price_changed.emit(index, slot.price)
+	ShopEvents.emit_event("price_changed", {"slot_index": index, "price": slot.price})
 
 
 func add_reputation(amount: int) -> void:
 	reputation += amount
 	reputation_changed.emit(reputation)
+	ShopEvents.emit_event("reputation_changed", {"reputation": reputation})
 
 
 func add_buy_rate_modifier(amount: float) -> void:
@@ -408,8 +620,13 @@ func add_buy_rate_modifier(amount: float) -> void:
 
 ## Floored at 0 so a stack of curse penalties can zero out purchases entirely
 ## but never flip the multiplier negative into a nonsensical chance.
-func _buy_rate_multiplier() -> float:
-	return maxf(0.0, 1.0 + buy_rate_modifier / 100.0)
+## skill_bonus_target selects which of Insight's two stubbed effect targets
+## (data/skills/insight.tres: "shop_sales" for tag-matched purchases,
+## "customer_retention" for off-tag impulse buys) represents Garnet's own
+## handling of that particular kind of sale — see docs/design/systems.md
+## system 5/6.
+func _buy_rate_multiplier(skill_bonus_target: String) -> float:
+	return maxf(0.0, 1.0 + (buy_rate_modifier + Skills.get_bonus(skill_bonus_target)) / 100.0)
 
 
 func get_save_data() -> Dictionary:

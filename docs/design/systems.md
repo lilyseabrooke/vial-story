@@ -488,11 +488,114 @@ ShopStock
 - Stocking interaction is low-friction: one action dumps all sellable potions from
   inventory into stock, up to capacity.
 - While the current clock time falls within the shop's Ambient open-hours window
-  (system 1), the shop simulates one customer visit per fixed interval (e.g. every
-  N in-game minutes) instead of rolling a flat per-slot sell-chance
-  (`Shop._roll_sales()`). Entirely invisible to the player — no customer sprite
-  ever appears, no message-wall row — same "quiet background roll" feel as before,
-  just a richer model behind it.
+  (system 1), the shop rolls one customer visit per fixed interval (e.g. every N
+  in-game minutes) instead of a flat per-slot sell-chance (`Shop._roll_sales()`).
+- **Live, always-on visits [BUILT]**: Garnet — the player's fey companion (see
+  `docs/design/characters.md`) — is the one actually running the counter while
+  the player is off doing anything else, so a visit is no longer resolved
+  instantly inside `_roll_sales()`. Instead it becomes a job in
+  `Shop.active_visits` (`{visit_id, customer, start_timestamp,
+  resolve_timestamp}`), with `resolve_timestamp` a real Clock-minutes deadline
+  (`Shop.BROWSE_DURATION_MIN_MINUTES`/`_MAX_MINUTES`, 15-30) rather than an
+  instant roll. Every `Clock.minute_tick` (`Shop._resolve_due_visits()`) — this
+  runs unconditionally, including inside `Clock.skip_to()`'s tight per-minute
+  loop during a sleep skip, so a visit that both starts and resolves mid-skip
+  still resolves correctly with no stall — any visit whose deadline has passed
+  gets resolved against **live** shop state at that exact moment (a price
+  change or restock mid-browse genuinely changes the outcome), not a snapshot
+  from when the visit started. This is the same "job ticks on Clock time
+  regardless of presence, only gets a visual when convenient" shape as
+  `BrewJob`/`GrowPlotInstance`/`DragonStashJob` elsewhere in this doc.
+  `Shop.get_purchase_candidates(customer)` (public, scores every slot) and
+  `Shop.try_purchase(customer, slot_index)` (public, re-evaluates + rolls one
+  slot against current state, applying removal/coffers/`potion_sold` on
+  success) are the two calls that do this; `Shop.log_visit()` (renamed from
+  `_log_customer_visit()`) still builds the Shop-tab-facing record afterward.
+  `Shop.customer_visit_started`/`Shop.customer_visit_resolved` fire at job
+  creation/resolution respectively.
+- **Visible customers [BUILT]**: `CustomerInteractable`
+  (`scripts/customer_interactable.gd`) and its director `CustomerDirector`
+  (`scripts/customer_director.gd`, code-instanced by `RoomBuilder.build_rooms()`
+  the same way `NPCDirector` is) are a *presentation-only* layer over the
+  above — they never decide anything, they only visualize a
+  `Shop.active_visits` entry when it's worth drawing. `CustomerDirector` shows
+  a customer sprite (shared `assets/sprites/CustomerBase.tres` — same
+  `CharacterBase.png` grid/animation layout as the player's
+  `AlchemistCharacter.tres`, tinted per-instance via
+  `InteractableBase.set_sprite_tint()` for visual variety off one sheet) only
+  when the Shop is the active room, capped at `CustomerDirector.MAX_VISIBLE_CUSTOMERS`
+  (a room-clutter cap on sprites — `Shop.active_visits` itself is uncapped and
+  keeps simulating regardless). A customer walks from the room's
+  `CustomerSpawnPoint` marker to a random point under its `CustomerBrowsePoints`
+  container, dwells there (`CustomerInteractable.BROWSE_DWELL_MIN_SECONDS`/
+  `_MAX_SECONDS`), then wanders to another random point and repeats —
+  `CustomerBrowsePoints` accepts any number of hand-placed `Marker2D`/`Node2D`
+  children (`CustomerDirector._browse_points_for_room()` just enumerates them
+  fresh on every spawn), so adding, removing, or dragging points around in the
+  editor changes browsing behavior with no script change. This continues until
+  `customer_visit_resolved` fires for its bound visit, at which point it walks
+  back to `CustomerSpawnPoint` and despawns. Walking into the Shop mid-visit
+  (`RoomBuilder.switch_room()` → `CustomerDirector.on_shop_room_activated()`)
+  shows any in-progress, not-yet-visualized visits already standing at a
+  browse point rather than nothing. The player can `interact()`
+  (`CustomerInteractable.interact()`) with a visible customer to attempt a
+  persuasion roll (see "Persuasion" below) — a flavor log line
+  (`GameHud.log_message()`) naming them/their wanted tag on any later
+  interaction, once that visit's one player attempt is spent.
+- **Persuasion [BUILT]**: a purchase is never a formality — `BASE_BUY_CHANCE`/
+  `TRAIT_BUY_BONUS`/`MAX_BUY_CHANCE` were deliberately lowered (0.55/0.35/0.95
+  → 0.32/0.28/0.75) so even a perfect tag/trait match stays a real roll. Each
+  customer also generates a `difficulty` (`Shop.MIN_DIFFICULTY_DC`-`MAX_DIFFICULTY_DC`,
+  7-15) — a `Rng.roll_2d10()` DC on the same 2d10/midpoint-11 scale every
+  other system in this game rolls against (`Academy.CLASS_PERFORMANCE_DC`,
+  `Brewing.DICE_DC`, etc.), so some customers are simply harder sells than
+  others. `Shop.attempt_persuasion(visit_id)` (called from
+  `CustomerInteractable.interact()`) rolls `Skills.level("insight")` (the
+  same "raw skill level as modifier" shape `Academy._roll_class_reward()`
+  gives Focus) against that DC — once per visit, tracked via the customer's
+  own `persuaded_by_player` flag. `Shop._apply_persuasion()` (shared with
+  Garnet's ambient attempts below) turns the roll's
+  `degrees_of_success`/`degrees_of_failure` into a `persuasion_sway` delta
+  (`Shop.PERSUASION_SWAY_PER_DEGREE` per degree, clamped to
+  `[MIN_/MAX_PERSUASION_SWAY]`, ±0.3) added directly into
+  `_evaluate_purchase_chance()`'s final chance (both the tag-match and
+  off-tag-impulse branches) — a good pitch measurably helps, a bad one
+  measurably hurts, but neither can force a guaranteed sale or walkout. A
+  strong roll (multiple degrees either way) also nudges
+  `Shop.reputation` a little (`Shop.REPUTATION_PER_PERSUASION_DEGREE`) — a
+  visibly great or terrible sales pitch is the kind of thing that gets
+  talked about around town, not just this one customer's business.
+  `Shop.persuasion_attempted` fires on every attempt (player or Garnet);
+  `GameHud` shows the player's own via the same `RollDisplay` callout every
+  other skill check uses (`_show_roll(result, "insight")`) and logs Garnet's
+  as ambient flavor text instead, so the background rolls stay part of the
+  "shop feels alive" texture rather than competing for the player's
+  attention.
+- **Garnet's own ambient rolls [BUILT]**: `Shop._maybe_attempt_garnet_persuasion()`
+  runs every open-hours minute tick, rolling `Shop.GARNET_PERSUASION_CHANCE_PER_MINUTE`
+  (0.15) to fire at all, and if so picks a random still-browsing visit and
+  calls the same `_apply_persuasion()` path the player's `attempt_persuasion()`
+  uses — with `Shop.GARNET_INSIGHT_MODIFIER` (a flat placeholder modifier,
+  2.0) standing in for her own Insight until a dedicated Garnet ability/
+  upgrade system exists. Unlike the player's one-shot,
+  `persuaded_by_player` doesn't gate Garnet — she's the one actually running
+  the counter continuously, so she can work (and re-work) a customer
+  multiple times across a long enough browse window, independent of whether
+  the player also tried.
+- **Garnet, the counter fixture [BUILT]**: a hand-placed `NPCInteractable` in
+  `Shop.tscn` (`npc_id = "garnet"`, `data/characters/garnet.tres`, same shared
+  `CustomerBase.tres` sheet, tinted garnet-red via a dedicated
+  `set_sprite_tint()` call scoped to just her —
+  `RoomBuilder.wire_interactable()`'s `npc_id == "garnet"` branch, not a
+  generic tint on every `NPCInteractable`, since the 5 love interests already
+  have their own bespoke recolored sheets and would just get muddied by a
+  tint on top), paced within a small box near the `CustomerBrowsePoints`
+  cluster (same branch — a hand-placed NPC needs an explicit
+  `set_meander_bounds()` call or it drifts toward world-origin, since an unset
+  `meander_bounds` defaults to zero-size). Garnet's actual effect on visit
+  outcomes isn't a bespoke ability system yet — it's the Insight skill bonuses
+  below, now finally wired in. A dedicated Garnet moves/upgrade system is a
+  future pass.
 - **Reputation drives whether/how much a customer shows up**: each roll
   interval, before generating a customer at all, `Shop._roll_sales()` first
   rolls `Shop._visit_chance()` — `BASE_CUSTOMER_VISIT_CHANCE` (0.5) plus
@@ -511,8 +614,11 @@ ShopStock
   reputation-scaled range above); a `wanted_tag` drawn from
   the tag vocabulary across all `PotionDef.tags` (system 3); independent
   `potency_weight`/`ease_weight` (0-1, how much they personally value each
-  trait); and `deal_savvy` (0-1). All draws go through `Rng` (system 16), so
-  they're deterministic/replayable like every other roll.
+  trait); `deal_savvy` (0-1); `difficulty` (a persuasion DC, see "Persuasion"
+  below); and `persuasion_sway`/`persuaded_by_player` (start at `0.0`/`false`,
+  mutated over the visit's lifetime by persuasion attempts — the only
+  customer fields that change after generation). All draws go through `Rng`
+  (system 16), so they're deterministic/replayable like every other roll.
 - **Per-slot purchase chance** (`Shop._evaluate_purchase_chance()`): a slot
   whose potion has the wanted tag is a normal candidate; a `trait_score` (0-1,
   the slot's potency/ease normalized against `PotionDef.potency_range`/
@@ -522,7 +628,9 @@ ShopStock
   the slot's current `price` compares to its `base_price` (the fair-value price
   computed at stocking time, per the formula below, and never itself changed by
   later price edits) — a savvy customer is drawn to a markdown and wary of a
-  markup; a non-savvy one barely reacts either way.
+  markup; a non-savvy one barely reacts either way. This branch also applies
+  `Shop._buy_rate_multiplier("shop_sales")` — Garnet's general knack for a
+  sale, driven by the Insight skill (system 6).
 - **Off-tag impulse buys**: a slot whose potion does *not* have the wanted tag
   can still sell, but only to a customer whose `deal_savvy` clears
   `OFF_TAG_SAVVY_THRESHOLD`, on a slot whose `trait_score` clears
@@ -530,11 +638,15 @@ ShopStock
   `OFF_TAG_DISCOUNT_THRESHOLD` of its `base_price` — e.g. a very deal-savvy,
   ease-oriented customer shopping for a study potion may still walk out with an
   Empowerment Tonic that normally runs 1000 materials but is marked down to 500
-  and has great ease, too.
-- Each visit, every slot the customer would consider at all (chance > 0) is
-  sorted by that chance — favoring good tag matches with strong potency/ease
-  first — and rolled through `Rng.chance()` one at a time, capped at
-  `MAX_PURCHASES_PER_VISIT` (6) actual purchases per visit.
+  and has great ease, too. This branch applies
+  `Shop._buy_rate_multiplier("customer_retention")` instead — Garnet keeping a
+  browser from leaving empty-handed, the other half of Insight's bonus split.
+- Once a visit's browse window elapses (see "Live, always-on visits" above),
+  every slot it would consider at all (chance > 0,
+  `Shop.get_purchase_candidates()`) is sorted by that chance — favoring good
+  tag matches with strong potency/ease first — and rolled one at a time via
+  `Shop.try_purchase()`, capped at `MAX_PURCHASES_PER_VISIT` (6) actual
+  purchases per visit.
 - On sale: remove one unit, add the price to `coffers` (not directly to
   Inventory.materials) and log the sale for a "while you were away" summary shown
   to the player at the next check-in.
@@ -565,7 +677,8 @@ ShopStock
   `CustomerEntry` falling back to a tinted placeholder the same way
   `RelationshipRow`/item components already do for a `null` `icon`/`portrait`. None of
   this flavor data is read by `_evaluate_purchase_chance()` — it exists purely to
-  surface in the UI. `Shop._log_customer_visit()` turns one visit into a record in
+  surface in the UI. `Shop.log_visit()` (public, called from `_resolve_due_visits()`
+  once a visit's browse window elapses) turns one visit into a record in
   `Shop.recent_customers` (newest-first, capped at `Shop.MAX_RECENT_CUSTOMERS` (20), not
   persisted across save/load) and fires `Shop.customer_visited` — every visit that ends
   in a purchase gets logged, and a `Shop.NO_PURCHASE_LOG_CHANCE` (0.2) roll occasionally
@@ -626,8 +739,12 @@ Skill
      the roll modifier and awards Focus XP on attendance.
   10. **Creativity** — better art-creation success (second material source or shop-status boost).
       `art_success` **[STUB — no art system yet]**.
-  11. **Insight** — better shop sales and customer retention. `shop_sales`, `customer_retention`
-      **[STUB — Shop doesn't read these yet]**.
+  11. **Insight** — better shop sales and customer retention. `shop_sales` boosts the
+      purchase chance of any tag-matched sale; `customer_retention` boosts off-tag
+      impulse buys — both read via `Shop._buy_rate_multiplier(effect_target)` in
+      `Shop._evaluate_purchase_chance()` (system 5), the mechanical expression of
+      Garnet (system 5's counter fixture) getting better at running the shop as the
+      player's own Insight grows.
 - Skills whose category-linked ingredient-learning effect isn't consumed anywhere yet (Summoning,
   Arcane History, Draconology, Transmutation, and Demonology's own `learn_speed_demonic`) still exist
   fully as data — only the mechanic that would read `learn_speed_*` is unbuilt, same scope choice as

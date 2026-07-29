@@ -89,6 +89,7 @@ var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
 var _heap_nodes: Dictionary = {}        # heap_id -> ScrapHeapInteractable
 var _ley_line_nodes: Dictionary = {}    # node_id -> LeyLineNodeInteractable
 var _art_studio_nodes: Dictionary = {}  # studio_id -> ArtStudioInteractable
+var _customer_director: CustomerDirector
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -220,6 +221,10 @@ func build_rooms() -> void:
 	add_child(npc_director)
 	npc_director.setup(self)
 
+	_customer_director = CustomerDirector.new()
+	add_child(_customer_director)
+	_customer_director.setup(self)
+
 
 func get_room(room_id: String) -> Room:
 	return _rooms.get(room_id)
@@ -314,6 +319,26 @@ func _wire_shop_back_door() -> void:
 func wire_interactable(interactable: InteractableBase) -> void:
 	interactable.player_entered.connect(func(i: InteractableBase) -> void: player_entered_interactable.emit(i))
 	interactable.player_exited.connect(func(i: InteractableBase) -> void: player_exited_interactable.emit(i))
+	if interactable is NPCInteractable and interactable.npc_id == "garnet":
+		# Garnet is a hand-placed counter fixture (Shop.tscn), not one of
+		# NPCDirector's room-scheduled love interests -- an unset
+		# meander_bounds defaults to Rect2() (zero size), which
+		# NPCInteractable._pick_new_target() treats as "never set a target,"
+		# leaving her walking toward world-origin forever instead of staying
+		# put. A small box around her placed position keeps her pacing near
+		# the counter instead.
+		interactable.set_meander_bounds(Rect2(interactable.position - Vector2(20, 20), Vector2(40, 40)))
+		# Garnet shares CustomerBase.tres with every ambient customer (no
+		# bespoke recolored art yet) -- tint her specifically so she reads as
+		# a fixture rather than just another anonymous customer. Deliberately
+		# not done generically for every NPCInteractable in npc_interactable.gd
+		# -- the 5 love interests already have their own bespoke recolored
+		# sheets (CallieCharacter.tres etc.) and placeholder_color is already
+		# their UI-swatch color (dialogue nametag, relationship row) — tinting
+		# their real art on top of itself would muddy it.
+		var garnet_def := Characters.get_character("garnet")
+		if garnet_def != null:
+			interactable.set_sprite_tint(garnet_def.placeholder_color)
 	if interactable is BrewStationInteractable:
 		var lab_manager := interactable.get_node_or_null(interactable.lab_manager_path)
 		var lab_manager_id: String = lab_manager.target_id if lab_manager != null else ""
@@ -461,6 +486,13 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	_camera.limit_right = int(room.room_size.x)
 	_camera.limit_bottom = int(room.room_size.y)
 	_camera.reset_smoothing()  # snap instead of gliding in from the previous room
+
+	# _customer_director doesn't exist yet on the very first switch_room()
+	# call (build_rooms() activates the Shop before code-instancing it below)
+	# -- nothing to show yet regardless, since no visit could have started
+	# before the game itself has.
+	if room_id == SHOP_ROOM_ID and _customer_director != null:
+		_customer_director.on_shop_room_activated()
 
 	SceneDirector.recheck()
 
