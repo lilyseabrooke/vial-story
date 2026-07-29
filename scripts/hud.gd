@@ -9,7 +9,7 @@ extends CanvasLayer
 ## wired in main.gd instead, which orchestrates both this and RoomBuilder.
 
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
-const MESSAGE_WALL_SCENE := preload("res://scenes/ui/components/MessageWall.tscn")
+const ROLL_DISPLAY_SCENE := preload("res://scenes/ui/components/RollDisplay.tscn")
 const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
@@ -45,7 +45,7 @@ var _pantry_window: PantryWindow
 var _pantry_tween: Tween
 var _curse_inventory_window: CurseInventoryWindow
 var _curse_inventory_tween: Tween
-var _message_wall: MessageWall
+var _roll_display: RollDisplay
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
 var _ley_line_overlay: LeyLineArenaOverlay
@@ -313,14 +313,16 @@ func build(starting_ingredients: Dictionary) -> void:
 		_hide_curse_inventory()
 	)
 
-	_message_wall = MESSAGE_WALL_SCENE.instantiate()
+	_roll_display = ROLL_DISPLAY_SCENE.instantiate()
 	# Doubled in size to match the 2x world-camera zoom. Pivot is set to the
-	# wall's bottom-right corner (its fixed anchor point, per its .tscn
+	# card's own bottom-right corner (its fixed anchor point, per its .tscn
 	# offsets) so it grows up-left in place instead of overshooting past the
-	# bottom-right of the screen.
-	_message_wall.pivot_offset = Vector2(260.0, 260.0)
-	_message_wall.scale = Vector2(2.0, 2.0)
-	add_child(_message_wall)
+	# bottom-right of the screen -- read from RollDisplay.CARD_SIZE itself
+	# (not a duplicated literal) so the two can never drift out of sync again
+	# the way a half-size pivot once did.
+	_roll_display.pivot_offset = RollDisplay.CARD_SIZE
+	_roll_display.scale = Vector2(2.0, 2.0)
+	add_child(_roll_display)
 
 	_connect_autoload_signals()
 
@@ -372,8 +374,8 @@ func _connect_autoload_signals() -> void:
 		log_message("Brew botched at %s: %s! Resolve took a hit." % [station_id, recipe_id])
 		print("Brew botched at %s: %s" % [station_id, recipe_id])
 	)
-	Brewing.brew_roll_resolved.connect(func(_brewing_station_id: String, recipe_id: String, roll: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Brewing: %s" % recipe_id)
+	Brewing.brew_roll_resolved.connect(func(_brewing_station_id: String, _recipe_id: String, roll: Dictionary) -> void:
+		_roll_display.show_roll(roll, "alchemy")
 	)
 	Skills.leveled_up.connect(func(skill_id: String, new_level: int) -> void:
 		log_message("%s leveled up to %d!" % [skill_id.capitalize(), new_level])
@@ -423,10 +425,10 @@ func _connect_autoload_signals() -> void:
 		print("Exam %s. Score: %.1f, Strikes: %d" % ["passed" if passed else "failed", score, strikes])
 	)
 	Academy.class_performance_rolled.connect(func(result: Dictionary) -> void:
-		_message_wall.add_dice_result(result, "Class Performance")
+		_roll_display.show_roll(result, "focus")
 	)
 	Academy.class_reward_rolled.connect(func(result: Dictionary) -> void:
-		_message_wall.add_dice_result(result, "Class Focus")
+		_roll_display.show_roll(result, "focus")
 	)
 	Academy.class_reward_granted.connect(func(_reward_type: String, description: String) -> void:
 		log_message("Class reward: %s" % description)
@@ -447,7 +449,7 @@ func _connect_autoload_signals() -> void:
 		print("Writ revised at %s: revision %d, quality %.1f" % [book_id, revisions_completed, quality])
 	)
 	Demonology.writ_submitted.connect(func(book_id: String, roll: Dictionary, ingredients: Dictionary, drawback_messages: Array) -> void:
-		_message_wall.add_dice_result(roll, "Demonology: %s" % book_id)
+		_roll_display.show_roll(roll, "demonology")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -461,7 +463,7 @@ func _connect_autoload_signals() -> void:
 		print("Delayed demonic consequence: %s" % message)
 	)
 	Draconology.stash_resolved.connect(func(stash_id: String, roll: Dictionary, ingredients: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Draconology: %s" % stash_id)
+		_roll_display.show_roll(roll, "draconology")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -478,7 +480,7 @@ func _connect_autoload_signals() -> void:
 	LeyLines.meditation_check_rolled.connect(func(_node_id: String, surge_id: String, roll: Dictionary) -> void:
 		if surge_id == "none":
 			return
-		_message_wall.add_dice_result(roll, "Arcane History: %s" % surge_id)
+		_roll_display.show_roll(roll, "arcane_history")
 		if not roll.get("passed", false):
 			log_message("A surge of %s ripples through the ley line -- you can't quite grasp it. Meditation continues." % surge_id)
 		print("Ley line Surge rolled: %s -- passed %s" % [surge_id, roll.get("passed", false)])
@@ -506,7 +508,7 @@ func _connect_autoload_signals() -> void:
 		log_message("The rift yawns open — trace a summoning sequence before it closes.")
 	)
 	Summoning.rift_quality_rolled.connect(func(_rift_id: String, _bundle_id: String, quality: float, roll: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Summoning")
+		_roll_display.show_roll(roll, "summoning")
 		log_message("The summoning steadies at %s quality (%d%%)." % [Summoning.quality_word(quality), int(round(quality * 100.0))])
 	)
 	Summoning.rift_started.connect(func(rift_id: String, bundle_id: String, reward_multiplier: int) -> void:
@@ -549,7 +551,7 @@ func _connect_autoload_signals() -> void:
 		update_materials_label()
 	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Transmutation")
+		_roll_display.show_roll(roll, "transmutation")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -558,7 +560,7 @@ func _connect_autoload_signals() -> void:
 		update_ingredients_label()
 	)
 	Transmutation.heap_resolved.connect(func(heap_id: String, roll: Dictionary, scrap_granted: int, ingredients: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Transmutation: %s" % heap_id)
+		_roll_display.show_roll(roll, "transmutation")
 		var outcome_parts: Array[String] = ["%d Scrap" % scrap_granted]
 		for id in ingredients:
 			outcome_parts.append("%d %s" % [ingredients[id], id])
@@ -587,7 +589,7 @@ func _connect_autoload_signals() -> void:
 		log_message("You settle in at the Art Studio, waiting for inspiration to strike...")
 	)
 	ArtStudio.roll_rolled.connect(func(_studio_id: String, roll: Dictionary) -> void:
-		_message_wall.add_dice_result(roll, "Creativity: gathering inspiration")
+		_roll_display.show_roll(roll, "creativity")
 	)
 	ArtStudio.inspirations_offered.connect(func(_studio_id: String, offered_ids: Array) -> void:
 		log_message("Inspiration strikes! %d idea(s) are waiting at the Art Studio." % offered_ids.size())
@@ -607,14 +609,19 @@ func _connect_autoload_signals() -> void:
 	)
 	ArtStudio.work_completed.connect(func(_studio_id: String, inspiration_id: String, roll: Dictionary, xp_gained: int) -> void:
 		var def := ContentRegistry.get_inspiration(inspiration_id)
-		_message_wall.add_dice_result(roll, "Creativity: %s" % (def.display_name if def else inspiration_id))
+		_roll_display.show_roll(roll, "creativity")
 		log_message("Finished %s! Gained %d Creativity XP." % [def.display_name if def else inspiration_id, xp_gained])
 		print("Art Studio work completed: %s, xp %d" % [inspiration_id, xp_gained])
 	)
 
 
+## Was routed to the MessageWall scrollback; playtesting showed rolls were the
+## only part of that wall players actually tracked (see RollDisplay), so
+## these item/material/status notices have no on-screen home for now --
+## they're console-only until a dedicated item/materials-obtained toast
+## system (out of scope here) replaces this stub.
 func log_message(text: String) -> void:
-	_message_wall.add_notice(text)
+	print(text)
 
 
 ## The potion's own display name for a learned recipe id, falling back to the

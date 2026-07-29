@@ -316,7 +316,7 @@ BrewJob
   not bucketed into tiers — they feed shop pricing/sale-chance and, later, buyer- and
   love-interest-specific preferences.
 - Starting a brew rolls **one** visible 2d10 check (`Rng.roll_2d10`, system 16) — a
-  BG3-style dice check surfaced in the message wall (system 16), `DICE_DC := 11.0`, modifier = the averaged
+  BG3-style dice check surfaced in the roll display (system 16), `DICE_DC := 11.0`, modifier = the averaged
   `potency_modifier`/`ease_modifier` (station + `Skills.get_bonus()`). The roll's
   total sets a shared quality scalar `t`, lerped onto the potion's
   `potency_range`/`ease_range` (`PotionDef`, system 3 — not per-recipe data), and each stat then
@@ -339,7 +339,7 @@ BrewJob
   chance. No `BrewJob` is ever created for a botched roll, so the station is free
   again the instant `start_brew()` returns. A natural 10 on either die is a critical
   success and sets `potion_count = 2` (no stacking if both dice show 10). A natural
-  1+10 pair is an "inflection point" — shown distinctly in the message wall, but has
+  1+10 pair is an "inflection point" — shown distinctly in the roll display, but has
   no mechanics attached yet.
 - Each `BrewStationInteractable` shows a bottom-to-top progress bar above it while
   `Brewing`, swapping to a "Ready!" popup once the job's status flips to `Ready`
@@ -1765,18 +1765,43 @@ Rng (autoload)
   overrides both into an `inflection_point` — currently flavor-only, no mechanics
   attached to it anywhere yet. It's on each caller to decide what (if anything) these
   mean; Brewing (system 4) is the only current consumer of the crit fields.
-- Visible rolls render through the message wall (`scripts/ui/components/message_wall.gd`
-  + `message_entry.gd`), a bottom-right translucent scrollback that replaced the old
-  modal `DiceRollPopup`/`MenuScene` pairing — dice results and info notices (e.g. a
-  potion selling in the shop) both land there as rows that fade in, linger a few
-  seconds, then dim rather than pausing the game (`GameHud.log_message()` and
-  `MessageWall.add_dice_result()` are the two entry points; `hud.gd` calls the latter
-  directly off each roll signal instead of opening a menu). A row never actually
-  disappears once posted, only dims — the wall scrolls (wheel, or click-drag) back
-  through history, and hovering a row brightens it to full opacity and expands its
-  detail line. The wall collapses to a small icon in the corner once nothing is
-  recent and the mouse isn't over it. Neither component ever rolls dice itself — they
-  only render an already-produced result `Dictionary`, so headless code can call
+- Visible rolls render through `RollDisplay` (`scripts/ui/components/roll_display.gd`
+  + `roll_die_gem.gd`/`roll_skill_icon.gd`/`roll_pip_gauge.gd`), a bottom-right
+  graphical callout that replaced the old `MessageWall` scrollback (which in turn had
+  replaced a modal `DiceRollPopup`/`MenuScene` pairing) — playtesting showed the
+  scrollback's info notices (a potion selling, a recipe learned, etc.) mostly went
+  unread, and only dice results and item/material grants actually registered with
+  players. Several further playtesting passes pared `RollDisplay` itself down and then
+  partly back up: the first cut it to icon + dice only (and fixed a sizing/pivot bug
+  that let it overflow the screen); the second added back the modifier, DC, and
+  degrees of success/failure the first pass had cut too far, but as compact
+  numbers/pips rather than the original's wordy result banner and gauge, and moved the
+  DC onto its own line next to the pips it's measured against; the third added the
+  roll total back in on the first line, and fixed the dice gems' digits bleeding past
+  their diamond edges (`RollDieGem.VALUE_FONT_SIZE`, well below the shared
+  `NumericLabel` theme size the diamond's inscribed-square interior can't actually
+  fit); the fourth dropped `RollPipGauge`'s dim/empty placeholder pips (previously
+  drawn out to a fixed cap regardless of the actual count) in favor of drawing and
+  sizing for only the pips actually earned, and raised that cap from 5 to 10. Today it
+  shows only the single most recent roll: a skill icon (`RollSkillIcon` — a
+  placeholder colored-circle-plus-initials glyph per `Skills` id, swappable for real
+  icon art later), its two dice "gems" (green on a natural 10, red on a natural 1,
+  parchment otherwise), the modifier and total on the first line, then the DC and a
+  row of pips (`RollPipGauge`, capped at 10, sized to exactly however many are filled)
+  on the second — pips filling green for each degree of success or red for each
+  degree of failure — no "Success!"/"CRITICAL FAILURE" text anywhere, the pip color
+  already carries that. It pops in, lingers a few seconds, then fades out; a new roll
+  arriving mid-display replaces it immediately rather than queuing
+  (`RollDisplay.show_roll(roll, skill_id)` is the one entry point; `hud.gd` calls it
+  directly off each roll signal, passing the `Skills` id the roll counts toward).
+  `hud.gd` reads `RollDisplay.CARD_SIZE` directly (rather than duplicating the
+  literal) to size the doubled callout's pivot, specifically so the pivot and the box
+  it's pivoting can't drift out of sync the way they did during the sizing-bug fix.
+  There is no scrollback or history here — an extended roll log in the
+  Escape menu, and a separate toast system for item/material grants, are both tracked
+  for later but out of scope for now; `GameHud.log_message()` (the old text-notice
+  path) is a console-only stub in the meantime. `RollDisplay` never rolls dice itself
+  — it only renders an already-produced result `Dictionary`, so headless code can call
   `Rng.roll_2d10()` with no UI involvement.
 - **Seeding**: `Rng.seed_new_game()` is called exactly once, from `main.gd`'s
   `GameFlow.is_new_game` branch, at the same point starting ingredients/quests are
@@ -1789,9 +1814,9 @@ Rng (autoload)
   `Brewing`, `Shop`, `Herbalism`, `Academy`, ...).
 - **Which checks are quiet vs. visible** (a deliberate per-call-site choice, not a
   blanket rule): shop passive sale-chance ticks (system 5) stay quiet/background —
-  frequent and ambient, even an unobtrusive message-wall row would be noise. Brewing's
-  combined roll and Academy class performance are visible 2d10 checks — infrequent,
-  player-meaningful moments worth surfacing in the message wall.
+  frequent and ambient, even an unobtrusive roll-display callout would be noise.
+  Brewing's combined roll and Academy class performance are visible 2d10 checks —
+  infrequent, player-meaningful moments worth surfacing in the roll display.
 
 ---
 
@@ -1964,8 +1989,8 @@ Transmutation (autoload)
 - **`WorkbenchInteractable`** (`scripts/workbench_interactable.gd` +
   `scenes/interactables/WorkbenchInteractable.tscn`) calls `Transmutation.break_down_scrap()`
   directly on `interact()` — no `MenuScene` panel, matching `StockBoxInteractable`'s
-  one-shot shape. Success feedback (dice result + ingredient log, both via the
-  message wall) is driven off
+  one-shot shape. Success feedback (a roll shown in the roll display, plus an
+  ingredient-grant notice) is driven off
   `Transmutation.scrap_broken_down` in `hud.gd`, same pattern as
   `Demonology.writ_submitted`; the interactable only has to handle the "nothing to break
   down" case itself, since no signal fires for a no-op.
@@ -2313,7 +2338,7 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   "arcane_history"), surge.dc)`) against that Surge's own `dc`; a failed check resets the bar exactly
   like `"none"` does. Both outcomes emit `meditation_check_rolled(node_id, surge_id, roll)` — `roll`
   is an empty `Dictionary` for `"none"` (nothing to show) and a real `Rng.roll_2d10()` result
-  otherwise, which `hud.gd` forwards to the message wall via `add_dice_result()`. A **passed** check
+  otherwise, which `hud.gd` forwards to the roll display via `show_roll()`. A **passed** check
   erases the meditation job outright (a Surge only gets one shot per bar-fill) and calls
   `_launch_minigame()`.
 - **`_launch_minigame()`** applies `Skills.get_bonus("leyline_ease")` against the triggering Surge's

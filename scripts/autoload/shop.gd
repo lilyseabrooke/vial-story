@@ -91,8 +91,8 @@ var coffers: int = 0
 ## every purchase, plus an occasional no-sale visit (NO_PURCHASE_LOG_CHANCE)
 ## so the Shop tab's "Recent Customers" list still reads as a living shop
 ## instead of only ever reporting good news. Capped at MAX_RECENT_CUSTOMERS
-## and, like MessageWall's scrollback, not persisted across save/load — it's
-## flavor/status color, not save-relevant state.
+## and, like the old MessageWall scrollback, not persisted across save/load —
+## it's flavor/status color, not save-relevant state.
 var recent_customers: Array[Dictionary] = []
 
 var _minutes_since_last_roll: int = 0
