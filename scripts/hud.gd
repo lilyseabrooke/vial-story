@@ -273,8 +273,8 @@ func build(starting_ingredients: Dictionary) -> void:
 	art_studio_discard_confirm_panel.discard_confirmed.connect(_on_art_studio_discard_confirmed)
 	art_studio_discard_confirm_panel.kept.connect(func(_studio_id: String) -> void: close_menu())
 
-	curse_panel = CursePanel.new()
-	curse_panel.build()
+	curse_panel = preload("res://scenes/ui/CursePanel.tscn").instantiate()
+	curse_panel.setup()
 
 	# Same detached-window-riding-alongside-a-MenuScene-panel pattern as
 	# _pantry_window/BrewMenu — split out so the curse panel itself stays

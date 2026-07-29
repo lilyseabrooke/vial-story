@@ -38,57 +38,18 @@ var _dispel_button: Button
 var _result_label: Label
 
 
-func build() -> void:
-	var title := Label.new()
-	title.text = "Curse"
-	title.add_theme_font_size_override("font_size", 16)
-	add_child(title)
-
-	_description_label = Label.new()
-	_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	add_child(_description_label)
-
-	add_child(HSeparator.new())
-
-	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 20)
-	add_child(columns)
-
-	columns.add_child(_build_requirements_column())
-	columns.add_child(_build_tray_column())
-
-	_result_label = Label.new()
-	_result_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	add_child(_result_label)
-
-
-func _build_requirements_column() -> Control:
-	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(400, 0)
-	column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-
-	_requirements_label = Label.new()
-	_requirements_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	column.add_child(_requirements_label)
-
-	return column
-
-
-func _build_tray_column() -> Control:
-	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(200, 0)
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	_tray_row = VBoxContainer.new()
-	_tray_row.add_theme_constant_override("separation", 8)
-	column.add_child(_tray_row)
-
-	_dispel_button = Button.new()
-	_dispel_button.text = "Dispel"
+## Called once right after instantiate(), same as the old build() -- NOT
+## @onready, because this panel is only added to the scene tree the first
+## time MenuScene.open() reparents it (see CurseInteractable's open_for()
+## then open_menu() ordering), by which point open_for() has already run and
+## needs these refs populated.
+func setup() -> void:
+	_description_label = $DescriptionLabel
+	_requirements_label = $Columns/RequirementsColumn/RequirementsLabel
+	_tray_row = $Columns/TrayColumn/TrayRow
+	_dispel_button = $Columns/TrayColumn/DispelButton
+	_result_label = $ResultLabel
 	_dispel_button.pressed.connect(_on_dispel_pressed)
-	column.add_child(_dispel_button)
-
-	return column
 
 
 ## Called each time the player opens this panel for a specific curse instance

@@ -18,6 +18,7 @@ func build() -> void:
 	_panel = preload("res://scenes/ui/components/ConfirmPanel.tscn").instantiate()
 	_panel.confirm_text = "Discard progress"
 	_panel.cancel_text = "Keep working"
+	_panel.setup()
 	_panel.confirmed.connect(func() -> void: discard_confirmed.emit(_studio_id))
 	_panel.cancelled.connect(func() -> void: kept.emit(_studio_id))
 	add_child(_panel)

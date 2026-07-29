@@ -188,6 +188,20 @@ instances them.
 and `Notifications` (Phase 8) rather than migrated once and then immediately reworked again once
 those primitives land. Use Phase 2's scaffolding tool to generate the new panel scenes.
 
+**Status:** `CursePanel` converted first (smallest, most self-contained panel) to prove the pattern —
+its static chrome (title, description label, requirements/tray two-column layout, Dispel button) now
+lives in `scenes/ui/CursePanel.tscn`, with `curse_panel.gd` reduced to a `setup()` node-ref resolution
+plus its existing dynamic logic. Note `setup()` rather than `@onready`: these MenuScene-hosted panels
+are only reparented into the live tree on first `MenuScene.open()`, and some open call sites (e.g.
+`CurseInteractable`) call `open_for()` *before* `open_menu()`, so node refs must resolve eagerly right
+after `instantiate()`, not lazily in `_ready()` — the same pitfall bit `ConfirmPanel` in Phase 7 and was
+fixed the same way. The remaining panels (`GameMenu`, `AlchemyLabMenu`, `GardenMenu`,
+`PantryStorageMenu`, `brew_panel`, `discover_panel`, `supply_panel`, the help popover) are left as
+incremental follow-up migrations using this proven pattern + Phase 2's scaffolding tool, rather than
+converted in one large sweep — each conversion needs in-game verification of its actual open/interact
+flow (not just a clean headless boot) to catch the `setup()`-vs-`@onready` class of bug above, which a
+full-sweep pass in one sitting can't safely get for every panel.
+
 ## Deferred / not currently scoped
 
 Flagged during discussion but not part of this roadmap unless priorities change:

@@ -12,12 +12,19 @@ signal cancelled
 @export var confirm_text: String = "Confirm"
 @export var cancel_text: String = "Cancel"
 
-@onready var _message_label: Label = $MessageLabel
-@onready var _confirm_button: Button = $ConfirmButton
-@onready var _cancel_button: Button = $CancelButton
+var _message_label: Label
+var _confirm_button: Button
+var _cancel_button: Button
 
 
-func _ready() -> void:
+## Called once right after instantiate(), NOT @onready -- a host may call
+## set_message() before this panel is ever added to the scene tree (it's
+## only reparented into MenuScene on first open), so node refs and confirm_
+## text/cancel_text must be resolved eagerly instead of waiting for _ready().
+func setup() -> void:
+	_message_label = $MessageLabel
+	_confirm_button = $ConfirmButton
+	_cancel_button = $CancelButton
 	_confirm_button.text = confirm_text
 	_cancel_button.text = cancel_text
 	_confirm_button.pressed.connect(func() -> void: confirmed.emit())

@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/curse_panel.gd" id="1"]
+
+[node name="CursePanel" type="VBoxContainer"]
+script = ExtResource("1")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Curse"
+
+[node name="DescriptionLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="Columns" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="RequirementsColumn" type="VBoxContainer" parent="Columns"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="RequirementsLabel" type="Label" parent="Columns/RequirementsColumn"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="TrayColumn" type="VBoxContainer" parent="Columns"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TrayRow" type="VBoxContainer" parent="Columns/TrayColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DispelButton" type="Button" parent="Columns/TrayColumn"]
+layout_mode = 2
+text = "Dispel"
+
+[node name="ResultLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2
