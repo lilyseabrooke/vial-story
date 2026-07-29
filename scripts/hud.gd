@@ -12,6 +12,7 @@ const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "colla
 const MAX_ROLL_LOG_ENTRIES := 20
 const ROLL_DISPLAY_SCENE := preload("res://scenes/ui/components/RollDisplay.tscn")
 const ITEM_TOAST_FEED_SCENE := preload("res://scenes/ui/components/ItemToastFeed.tscn")
+const NOTIFICATION_FEED_SCENE := preload("res://scenes/ui/components/NotificationFeed.tscn")
 const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
 const LEY_LINE_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/LeyLineMinigamePanel.tscn")
 const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMinigamePanel.tscn")
@@ -49,6 +50,7 @@ var _curse_inventory_window: CurseInventoryWindow
 var _curse_inventory_tween: Tween
 var _roll_display: RollDisplay
 var _item_toast_feed: ItemToastFeed
+var _notification_feed: NotificationFeed
 var _roll_log: Array[Dictionary] = []   # most-recent-first, capped at MAX_ROLL_LOG_ENTRIES
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
@@ -337,6 +339,21 @@ func build(starting_ingredients: Dictionary) -> void:
 	add_child(_item_toast_feed)
 	Inventory.ingredient_gained.connect(func(ingredient_id: String, quantity: int, tier: int) -> void:
 		_item_toast_feed.show_item(ingredient_id, quantity, tier)
+	)
+
+	_notification_feed = NOTIFICATION_FEED_SCENE.instantiate()
+	# Anchored top-center in its own .tscn and scaled to match the 2x
+	# world-camera zoom, same convention as RollDisplay/ItemToastFeed above --
+	# pivot at top-center so it grows down in place.
+	_notification_feed.pivot_offset = Vector2(NotificationFeed.FEED_SIZE.x / 2.0, 0.0)
+	_notification_feed.scale = Vector2(2.0, 2.0)
+	add_child(_notification_feed)
+	Notifications.pushed.connect(func(text: String, icon: Texture2D, tint: Color) -> void:
+		_notification_feed.show_notification(text, icon, tint)
+	)
+	QuestManager.quest_completed.connect(func(id: String) -> void:
+		var quest := ContentRegistry.get_quest(id)
+		log_message("Quest complete: %s!" % (quest.display_name if quest != null else id))
 	)
 
 	_connect_autoload_signals()
@@ -643,12 +660,14 @@ func _show_roll(roll: Dictionary, skill_id: String) -> void:
 
 
 ## Was routed to the MessageWall scrollback; playtesting showed rolls were the
-## only part of that wall players actually tracked (see RollDisplay), so
-## these item/material/status notices have no on-screen home for now --
-## they're console-only until a dedicated item/materials-obtained toast
-## system (out of scope here) replaces this stub.
+## only part of that wall players actually tracked (see RollDisplay). Now
+## routes to the Notifications queue (docs/engine_roadmap.md, Phase 8)
+## instead of being console-only -- every level-up/quest/writ/dragon/ley
+## line/summoning/scrap/alchemy/Art Studio message that already called this
+## gets an on-screen toast for free.
 func log_message(text: String) -> void:
 	print(text)
+	Notifications.push(text)
 
 
 ## The potion's own display name for a learned recipe id, falling back to the
