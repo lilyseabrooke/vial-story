@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_ingredient.svg")
 class_name IngredientDef
 extends Resource
 ## Static definition of an ingredient. See docs/design/systems.md, system 2.

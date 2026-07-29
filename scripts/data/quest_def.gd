@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_quest.svg")
 class_name QuestDef
 extends Resource
 ## Static definition of a quest. See docs/design/systems.md, system 15.

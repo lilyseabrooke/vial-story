@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_trigger.svg")
 class_name SceneTriggerDef
 extends Resource
 ## Static definition of a VN scene trigger. See docs/design/systems.md,

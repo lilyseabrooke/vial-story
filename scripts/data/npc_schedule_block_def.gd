@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_character.svg")
 class_name NPCScheduleBlockDef
 extends Resource
 ## Static definition of one candidate schedule block for a love interest. See

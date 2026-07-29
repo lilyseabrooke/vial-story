@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_character.svg")
 class_name NPCLineSetDef
 extends Resource
 ## Static definition of one candidate NPC conversation. See

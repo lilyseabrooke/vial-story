@@ -117,14 +117,11 @@ func _dispel(instance_id: String, curse: CurseDef) -> void:
 	curse_dispelled.emit(instance_id, curse.id)
 
 
+## Routed through VNExpressionEvaluator's shared dispatch table (see
+## docs/engine_roadmap.md, Phase 3) instead of its own match block — same
+## registry Economy._apply_effect() and VN action-calls use.
 func _apply_penalty(target: String, amount: float) -> void:
-	match target:
-		"change_reputation":
-			Shop.add_reputation(int(amount))
-		"change_buy_rate":
-			Shop.add_buy_rate_modifier(amount)
-		_:
-			push_warning("Unknown curse penalty target: %s" % target)
+	VNExpressionEvaluator.call_effect(target, amount)
 
 
 func _pick_random_curse_id() -> String:

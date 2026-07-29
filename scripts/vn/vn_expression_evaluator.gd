@@ -17,6 +17,38 @@ extends RefCounted
 
 static var _degrees_of_success: int = 0
 
+## The subset of _call_function()'s dispatch table that's valid as a single
+## UpgradeDef.effect_target / curse penalty target (a bare name + one numeric
+## amount, as opposed to the richer VN action-call functions like give_item
+## which take multiple typed args). Read by the effect_target dropdown
+## EditorInspectorPlugin (addons/engine_scaffolding) instead of the plugin
+## hardcoding its own copy of these names. See docs/engine_roadmap.md, Phase 4.
+const EFFECT_TARGET_KEYS := [
+	"shop_capacity",
+	"change_reputation",
+	"change_buy_rate",
+]
+
+## The subset of _call_function()'s dispatch table that's a side-effecting
+## action call (returns null) rather than a condition-check value read --
+## i.e. everything valid inside a QuestDef.reward / SceneTriggerDef-style
+## action-call list. Read by the reward smart-field EditorInspectorPlugin
+## (addons/engine_scaffolding) instead of hand-typing action-call strings
+## blind. See docs/engine_roadmap.md, Phase 5.
+const ACTION_FUNCTION_KEYS := [
+	"set_flag",
+	"clear_flag",
+	"add_affection",
+	"give_item",
+	"add_materials",
+	"add_reputation",
+	"start_quest",
+	"set_dating",
+	"shop_capacity",
+	"change_reputation",
+	"change_buy_rate",
+]
+
 
 ## Called by a roll-resolving caller (e.g. ArtStudio._complete_work()) right
 ## before evaluating a batch of expressions that may reference
@@ -24,6 +56,32 @@ static var _degrees_of_success: int = 0
 ## unrelated evaluation doesn't see a stale roll's result.
 static func set_degrees_of_success(value: int) -> void:
 	_degrees_of_success = value
+
+
+## One-shot parse-and-run for a single action-call string built at runtime
+## (e.g. "give_item(\"%s\", %d)" % [id, qty]) -- lets any system hand off a
+## reward the same way QuestDef.reward already does, instead of calling
+## Inventory/Skills sinks directly. QuestManager pre-parses its reward arrays
+## once at _ready() for its hot completion path; this is for the common case
+## of a single ad hoc grant where pre-parsing isn't worth the boilerplate.
+## See docs/engine_roadmap.md, Phase 6.
+static func run(action_call: String) -> void:
+	var parser := VNExpressionParser.new()
+	var ast = parser.parse(action_call)
+	if ast == null:
+		push_error("VNExpressionEvaluator.run(): invalid action-call '%s'" % action_call)
+		return
+	evaluate(ast)
+
+
+## Public entry point for callers applying a single named effect + numeric
+## amount without a full VN expression tree -- UpgradeDef.effect_target and
+## CurseDef penalty targets both route through here instead of keeping their
+## own match/dispatch blocks, so there's one registry with one list of valid
+## keys shared with the VN/quest action-call language above. See
+## docs/engine_roadmap.md, Phase 3.
+static func call_effect(name: String, amount: float) -> void:
+	_call_function(name, [amount])
 
 
 static func evaluate(node: Dictionary) -> Variant:
@@ -122,6 +180,17 @@ static func _call_function(function_name: String, args: Array) -> Variant:
 			return NPCState.get_funds(args[0])
 		"npc_relationship":
 			return NPCState.get_relationship(args[0], args[1])
+		# --- UpgradeDef.effect_target / CurseDef penalty targets, routed
+		# through call_effect() above rather than the VN parser. ---
+		"shop_capacity":
+			Shop.capacity += int(args[0])
+			return null
+		"change_reputation":
+			Shop.add_reputation(int(args[0]))
+			return null
+		"change_buy_rate":
+			Shop.add_buy_rate_modifier(args[0])
+			return null
 		_:
 			push_warning("VNExpressionEvaluator: unknown function '%s'" % function_name)
 			return null

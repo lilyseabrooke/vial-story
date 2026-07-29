@@ -305,7 +305,7 @@ func _grant_into(granted: Dictionary, id: String, quantity: int) -> void:
 func _on_minute_tick(timestamp: int) -> void:
 	for rift_id in _jobs.keys():
 		var job: PlanarRiftJob = _jobs[rift_id]
-		if job.status == PlanarRiftJob.Status.SUMMONING and timestamp >= job.ready_timestamp:
+		if job.status == PlanarRiftJob.Status.SUMMONING and job.is_due(timestamp):
 			job.status = PlanarRiftJob.Status.READY
 			rift_ready.emit(rift_id, job.bundle_id)
 

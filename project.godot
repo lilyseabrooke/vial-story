@@ -58,6 +58,10 @@ window/size/mode=2
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/engine_scaffolding/plugin.cfg")
+
 [gui]
 
 theme/default_theme_scale=2.0

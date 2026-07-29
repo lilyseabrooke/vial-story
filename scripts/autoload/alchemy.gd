@@ -134,21 +134,21 @@ func _check_constraint(potion: PotionDef, index: int, ingredients: Array[Ingredi
 	var max_value: float = potion.puzzle_constraint_max[index]
 
 	match potion.puzzle_constraint_types[index]:
-		"characteristic_range":
+		PuzzleConstraintType.CHARACTERISTIC_RANGE:
 			var total := 0
 			for ingredient in ingredients:
 				total += ingredient.characteristic_value(target)
 			return total >= min_value and total <= max_value
-		"total_weight_range":
+		PuzzleConstraintType.TOTAL_WEIGHT_RANGE:
 			var total_weight := 0.0
 			for ingredient in ingredients:
 				total_weight += ingredient.weight
 			return total_weight >= min_value and total_weight <= max_value
-		"ingredient_count_range":
+		PuzzleConstraintType.INGREDIENT_COUNT_RANGE:
 			return ingredients.size() >= min_value and ingredients.size() <= max_value
-		"role_lightest":
+		PuzzleConstraintType.ROLE_LIGHTEST:
 			return _role_is_extreme(IngredientDef.role_from_name(target), ingredients, true)
-		"role_heaviest":
+		PuzzleConstraintType.ROLE_HEAVIEST:
 			return _role_is_extreme(IngredientDef.role_from_name(target), ingredients, false)
 	return false
 

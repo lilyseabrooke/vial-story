@@ -200,8 +200,9 @@ func purchase_pantry(pantry_id: String) -> String:
 		return "No such pantry."
 	if pantry.purchased:
 		return "Already purchased."
-	if not spend_materials(pantry.cost):
-		return "Not enough Materials."
+	var spend_err := try_spend_materials(pantry.cost)
+	if spend_err != "":
+		return spend_err
 	pantry.purchased = true
 	pantry_purchased.emit(pantry_id)
 	return ""
@@ -297,6 +298,17 @@ func spend_materials(amount: int) -> bool:
 	materials -= amount
 	materials_changed.emit(materials)
 	return true
+
+
+## Returns "" on success, or the standard "Not enough Materials." failure
+## string on failure -- the check-then-return-reason idiom that was
+## copy-pasted near verbatim across Economy/Brewing/Herbalism's purchase_*()
+## functions (and this file's own purchase_pantry()). See
+## docs/engine_roadmap.md, Phase 6.
+func try_spend_materials(amount: int) -> String:
+	if not spend_materials(amount):
+		return "Not enough Materials."
+	return ""
 
 
 func get_save_data() -> Dictionary:

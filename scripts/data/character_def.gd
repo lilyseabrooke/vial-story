@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_character.svg")
 class_name CharacterDef
 extends Resource
 ## Static display data for anyone who can appear in a VN scene — love

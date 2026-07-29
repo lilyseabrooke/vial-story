@@ -64,8 +64,9 @@ func purchase_plot(plot_id: String) -> String:
 		return "No such plot."
 	if plot.purchased:
 		return "Already purchased."
-	if not Inventory.spend_materials(plot.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(plot.cost)
+	if spend_err != "":
+		return spend_err
 	plot.purchased = true
 	plot_purchased.emit(plot_id)
 	return ""
@@ -87,8 +88,8 @@ func plant(plot_id: String, seed_def: SeedDef) -> String:
 		growth_minutes = int(growth_minutes / speed_modifier)
 
 	plot.planted_seed = seed_def
-	plot.planted_timestamp = Clock.get_timestamp()
-	plot.ready_timestamp = plot.planted_timestamp + growth_minutes
+	plot.start_timestamp = Clock.get_timestamp()
+	plot.ready_timestamp = plot.start_timestamp + growth_minutes
 	plot.status = GrowPlotInstance.Status.GROWING
 	planted.emit(plot.id, seed_def.id)
 	return ""
@@ -149,8 +150,9 @@ func purchase_water_pump(pump_id: String) -> String:
 		return "No such pump."
 	if pump.purchased:
 		return "Already purchased."
-	if not Inventory.spend_materials(pump.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(pump.cost)
+	if spend_err != "":
+		return spend_err
 	pump.purchased = true
 	water_pump_purchased.emit(pump_id)
 	return ""
@@ -170,8 +172,9 @@ func purchase_water_pump_upgrade(pump_id: String, upgrade_id: String) -> String:
 	var upgrade := ContentRegistry.get_water_pump_upgrade(upgrade_id)
 	if upgrade == null:
 		return "No such upgrade."
-	if not Inventory.spend_materials(upgrade.cost):
-		return "Not enough Materials."
+	var spend_err := Inventory.try_spend_materials(upgrade.cost)
+	if spend_err != "":
+		return spend_err
 	pump.upgrade_ids.append(upgrade_id)
 	water_pump_upgrade_purchased.emit(pump_id, upgrade_id)
 	return ""
@@ -214,7 +217,7 @@ func _yield_multiplier(plot: GrowPlotInstance) -> float:
 
 func _on_minute_tick(timestamp: int) -> void:
 	for plot in plots:
-		if plot.status == GrowPlotInstance.Status.GROWING and timestamp >= plot.ready_timestamp:
+		if plot.status == GrowPlotInstance.Status.GROWING and plot.is_due(timestamp):
 			plot.status = GrowPlotInstance.Status.READY_TO_HARVEST
 			ready_to_harvest.emit(plot.id, plot.planted_seed.id)
 
@@ -230,7 +233,7 @@ func get_save_data() -> Dictionary:
 			"lab_manager_id": plot.lab_manager_id,
 			"status": int(plot.status),
 			"planted_seed_id": plot.planted_seed.id if plot.planted_seed != null else "",
-			"planted_timestamp": plot.planted_timestamp,
+			"planted_timestamp": plot.start_timestamp,
 			"ready_timestamp": plot.ready_timestamp,
 		})
 	var water_pump_data: Array[Dictionary] = []
@@ -263,7 +266,7 @@ func load_save_data(data: Dictionary) -> void:
 		plot.status = entry.get("status", GrowPlotInstance.Status.EMPTY) as GrowPlotInstance.Status
 		var seed_id: String = entry.get("planted_seed_id", "")
 		plot.planted_seed = ContentRegistry.get_seed(seed_id) if seed_id != "" else null
-		plot.planted_timestamp = entry.get("planted_timestamp", 0)
+		plot.start_timestamp = entry.get("planted_timestamp", 0)
 		plot.ready_timestamp = entry.get("ready_timestamp", 0)
 		plots.append(plot)
 

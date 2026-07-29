@@ -173,6 +173,15 @@ into it.
 **Depends on:** Phase 7's component patterns (row scenes, animation-in/out chrome) are the natural
 template for notification rows.
 
+**Status: reverted.** Built and wired (`Notifications` autoload + `NotificationFeed`/`NotificationToast`
+components, `hud.gd`'s `log_message()` pushing every message through it), but playtesting showed every
+message it surfaced was unwanted noise — level-ups, quest completion, writ/dragon/ley line/summoning
+progress, etc. all read as clutter once actually on screen next to rolls and item toasts. Removed
+entirely rather than left disabled: `log_message()` is back to console-only on purpose. If a future
+system genuinely needs to reach the player beyond a roll (`RollDisplay`) or an item gain
+(`ItemToastFeed`), route it through the VN dialogue box with no speaker instead of reintroducing a
+toast queue.
+
 ## Phase 9 — `hud.gd` decomposition
 
 **Problem:** `hud.gd` is 1013 lines with 75 manual signal connections and no backing `.tscn` — every
@@ -187,6 +196,20 @@ instances them.
 **Depends on:** deliberately last — panels should be built as consumers of `ChoiceListMenu` (Phase 7)
 and `Notifications` (Phase 8) rather than migrated once and then immediately reworked again once
 those primitives land. Use Phase 2's scaffolding tool to generate the new panel scenes.
+
+**Status:** `CursePanel` converted first (smallest, most self-contained panel) to prove the pattern —
+its static chrome (title, description label, requirements/tray two-column layout, Dispel button) now
+lives in `scenes/ui/CursePanel.tscn`, with `curse_panel.gd` reduced to a `setup()` node-ref resolution
+plus its existing dynamic logic. Note `setup()` rather than `@onready`: these MenuScene-hosted panels
+are only reparented into the live tree on first `MenuScene.open()`, and some open call sites (e.g.
+`CurseInteractable`) call `open_for()` *before* `open_menu()`, so node refs must resolve eagerly right
+after `instantiate()`, not lazily in `_ready()` — the same pitfall bit `ConfirmPanel` in Phase 7 and was
+fixed the same way. The remaining panels (`GameMenu`, `AlchemyLabMenu`, `GardenMenu`,
+`PantryStorageMenu`, `brew_panel`, `discover_panel`, `supply_panel`, the help popover) are left as
+incremental follow-up migrations using this proven pattern + Phase 2's scaffolding tool, rather than
+converted in one large sweep — each conversion needs in-game verification of its actual open/interact
+flow (not just a clean headless boot) to catch the `setup()`-vs-`@onready` class of bug above, which a
+full-sweep pass in one sitting can't safely get for every panel.
 
 ## Deferred / not currently scoped
 

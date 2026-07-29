@@ -605,7 +605,7 @@ func _sync_art_studio_indicator(studio_id: String) -> void:
 	elif job.phase == ArtStudioJob.Phase.CHOOSING:
 		node.show_ready_to_choose()
 	elif job.phase == ArtStudioJob.Phase.ROLLING:
-		node.set_progress(job.roll_progress_fraction())
+		node.set_progress(job.progress_fraction(Clock.get_timestamp()))
 	else:
 		node.set_progress(job.work_progress_fraction())
 

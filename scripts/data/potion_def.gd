@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_recipe.svg")
 class_name PotionDef
 extends Resource
 ## Static definition of a potion. See docs/design/systems.md, system 3.
@@ -9,7 +10,7 @@ extends Resource
 @export var id: String
 @export var display_name: String
 @export var icon: Texture2D
-@export var station_type: String = "alembic"
+@export_enum("alembic") var station_type: String = "alembic"
 @export var brew_time_minutes: int = 60
 @export var potency_range: Vector2 = Vector2(0, 100)
 @export var ease_range: Vector2 = Vector2(0, 100)
@@ -63,15 +64,15 @@ func describe_puzzle_constraint(index: int) -> String:
 	var min_value := puzzle_constraint_min[index]
 	var max_value := puzzle_constraint_max[index]
 	match puzzle_constraint_types[index]:
-		"characteristic_range":
+		PuzzleConstraintType.CHARACTERISTIC_RANGE:
 			return "%s must total between %s and %s" % [target.capitalize(), _fmt_num(min_value), _fmt_num(max_value)]
-		"total_weight_range":
+		PuzzleConstraintType.TOTAL_WEIGHT_RANGE:
 			return "Total weight must be between %s and %s" % [_fmt_num(min_value), _fmt_num(max_value)]
-		"ingredient_count_range":
+		PuzzleConstraintType.INGREDIENT_COUNT_RANGE:
 			return "Must use between %d and %d ingredient unit(s)" % [int(min_value), int(max_value)]
-		"role_lightest":
+		PuzzleConstraintType.ROLE_LIGHTEST:
 			return "The %s must be the lightest component" % target
-		"role_heaviest":
+		PuzzleConstraintType.ROLE_HEAVIEST:
 			return "The %s must be the heaviest component" % target
 	return ""
 

@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_dragon.svg")
 class_name DragonSpawnEntry
 extends Resource
 ## One weighted roster entry in a DragonSpawnerNode. Pairs a DragonDef with a

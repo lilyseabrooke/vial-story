@@ -1,5 +1,5 @@
 class_name WritJob
-extends RefCounted
+extends TetheredJobBase
 ## A demonic contract writ in progress at a Contract Book. See
 ## docs/design/systems.md, the Demonology / Contract System section.
 ##
@@ -14,14 +14,8 @@ enum Status { WRITING, REVISING }
 var book_id: String
 var status: Status = Status.WRITING
 var is_working: bool = false
-var minutes_elapsed: int = 0
-var minutes_required: int = 0
 var quality: float = 0.0
 var revisions_completed: int = 0
-
-
-func progress_fraction() -> float:
-	return clampf(float(minutes_elapsed) / float(minutes_required), 0.0, 1.0) if minutes_required > 0 else 0.0
 
 
 func can_submit() -> bool:

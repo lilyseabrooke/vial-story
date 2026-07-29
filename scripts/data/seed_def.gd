@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_ingredient.svg")
 class_name SeedDef
 extends Resource
 ## Static definition of a plantable seed. See docs/design/systems.md, system 7.

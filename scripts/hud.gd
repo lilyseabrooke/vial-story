@@ -19,7 +19,7 @@ const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMin
 var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
-var class_panel: VBoxContainer
+var class_panel: ChoiceListMenu
 var alchemy_lab_panel: AlchemyLabMenu
 var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
@@ -271,8 +271,8 @@ func build(starting_ingredients: Dictionary) -> void:
 	art_studio_discard_confirm_panel.discard_confirmed.connect(_on_art_studio_discard_confirmed)
 	art_studio_discard_confirm_panel.kept.connect(func(_studio_id: String) -> void: close_menu())
 
-	curse_panel = CursePanel.new()
-	curse_panel.build()
+	curse_panel = preload("res://scenes/ui/CursePanel.tscn").instantiate()
+	curse_panel.setup()
 
 	# Same detached-window-riding-alongside-a-MenuScene-panel pattern as
 	# _pantry_window/BrewMenu — split out so the curse panel itself stays
@@ -287,15 +287,15 @@ func build(starting_ingredients: Dictionary) -> void:
 	add_child(_curse_inventory_window)
 	UiFx.add_drop_shadow(_curse_inventory_window)
 
-	class_panel = VBoxContainer.new()
+	class_panel = preload("res://scenes/ui/components/ChoiceListMenu.tscn").instantiate()
 	class_panel.add_child(MenuKeyNav.new())
+	var effort_options: Array[ChoiceOption] = []
 	for effort in [Academy.Effort.LOW, Academy.Effort.NORMAL, Academy.Effort.HIGH]:
-		var effort_button := Button.new()
-		effort_button.text = "%s (-%d Resolve)" % [
+		effort_options.append(ChoiceOption.make(str(effort), "%s (-%d Resolve)" % [
 			Academy.EFFORT_NAMES[effort], Academy.EFFORT_RESOLVE_COST[effort]
-		]
-		effort_button.pressed.connect(on_attend_class_button_pressed.bind(effort))
-		class_panel.add_child(effort_button)
+		]))
+	class_panel.populate(effort_options)
+	class_panel.selected.connect(func(id: String) -> void: on_attend_class_button_pressed(int(id) as Academy.Effort))
 
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
@@ -337,6 +337,11 @@ func build(starting_ingredients: Dictionary) -> void:
 	add_child(_item_toast_feed)
 	Inventory.ingredient_gained.connect(func(ingredient_id: String, quantity: int, tier: int) -> void:
 		_item_toast_feed.show_item(ingredient_id, quantity, tier)
+	)
+
+	QuestManager.quest_completed.connect(func(id: String) -> void:
+		var quest := ContentRegistry.get_quest(id)
+		log_message("Quest complete: %s!" % (quest.display_name if quest != null else id))
 	)
 
 	_connect_autoload_signals()
@@ -643,10 +648,12 @@ func _show_roll(roll: Dictionary, skill_id: String) -> void:
 
 
 ## Was routed to the MessageWall scrollback; playtesting showed rolls were the
-## only part of that wall players actually tracked (see RollDisplay), so
-## these item/material/status notices have no on-screen home for now --
-## they're console-only until a dedicated item/materials-obtained toast
-## system (out of scope here) replaces this stub.
+## only part of that wall players actually tracked (see RollDisplay). A
+## dedicated Notifications toast queue was tried (docs/engine_roadmap.md,
+## Phase 8) but playtesting showed every message it carried was unwanted
+## noise, so this stays console-only on purpose -- if something genuinely
+## needs to reach the player beyond a roll or an item gain, it should go
+## through the VN dialogue box with no speaker instead of back through here.
 func log_message(text: String) -> void:
 	print(text)
 
