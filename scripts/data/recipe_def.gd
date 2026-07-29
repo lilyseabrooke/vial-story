@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_recipe.svg")
 class_name RecipeDef
 extends Resource
 ## Static definition of a recipe — one learned *way* to make a potion. See

@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_upgrade.svg")
 class_name UpgradeDef
 extends Resource
 ## Static definition of a purchasable upgrade. See docs/design/systems.md, system 10.

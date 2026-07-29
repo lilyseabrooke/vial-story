@@ -1,5 +1,5 @@
 class_name PlanarRiftJob
-extends RefCounted
+extends TimedJobBase
 ## A Planar Rift summon in progress. See docs/design/systems.md, the
 ## Summoning / Planar Rift System section.
 ##
@@ -12,8 +12,6 @@ enum Status { SUMMONING, READY }
 
 var rift_id: String
 var bundle_id: String
-var start_timestamp: int
-var ready_timestamp: int
 var status: Status = Status.SUMMONING
 ## 0..1 quality locked in when the minigame's sequence completed (built from
 ## time remaining + a Summoning roll). Scales/gates the bundle's rewards at
@@ -23,8 +21,3 @@ var quality: float = 0.0
 ## RiftArena._submit_sequence()). Multiplies every reward -- ingredients,
 ## materials, resolve -- at collection.
 var reward_multiplier: int = 1
-
-
-func progress_fraction(now: int) -> float:
-	var total := float(ready_timestamp - start_timestamp)
-	return clampf(float(now - start_timestamp) / total, 0.0, 1.0) if total > 0.0 else 1.0

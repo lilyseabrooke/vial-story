@@ -1,5 +1,5 @@
 class_name LeyLineMeditationJob
-extends RefCounted
+extends TetheredJobBase
 ## A Ley Line Node's meditation bar in progress. See docs/design/systems.md,
 ## the Ley Line Node System section.
 ##
@@ -12,14 +12,8 @@ extends RefCounted
 ## until a Surge is rolled and its check succeeds.
 
 var node_id: String
-var minutes_elapsed: int = 0
-var minutes_required: int = 0
 ## Parallel arrays copied from LeyLineNodeInteractable at start_meditation()
 ## time -- this particular node's configured Surge odds, e.g. surge_ids[i] has
 ## a surge_weights[i] chance of being rolled once the bar fills.
 var surge_ids: Array[String] = []
 var surge_weights: Array[float] = []
-
-
-func progress_fraction() -> float:
-	return clampf(float(minutes_elapsed) / float(minutes_required), 0.0, 1.0) if minutes_required > 0 else 0.0

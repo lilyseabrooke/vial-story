@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_location.svg")
 class_name ShopLocationDef
 extends Resource
 ## Static definition of a shop-origin choice offered at character creation. Each

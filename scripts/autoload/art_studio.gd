@@ -187,7 +187,7 @@ func _on_minute_tick(timestamp: int) -> void:
 		var job: ArtStudioJob = _studios[studio_id]
 		match job.phase:
 			ArtStudioJob.Phase.ROLLING:
-				if timestamp >= job.ready_timestamp:
+				if job.is_due(timestamp):
 					_resolve_roll(studio_id, job)
 			ArtStudioJob.Phase.WORKING:
 				if job.is_working:

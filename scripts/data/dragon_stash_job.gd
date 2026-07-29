@@ -1,5 +1,5 @@
 class_name DragonStashJob
-extends RefCounted
+extends TetheredJobBase
 ## A Dragon's Stash dig in progress. See docs/design/systems.md, the
 ## Draconology / Dragon's Stash System section.
 ##
@@ -12,10 +12,4 @@ extends RefCounted
 ## all means it's actively being dug.
 
 var stash_id: String
-var minutes_elapsed: int = 0
-var minutes_required: int = 0
 var quality: float = 0.0
-
-
-func progress_fraction() -> float:
-	return clampf(float(minutes_elapsed) / float(minutes_required), 0.0, 1.0) if minutes_required > 0 else 0.0

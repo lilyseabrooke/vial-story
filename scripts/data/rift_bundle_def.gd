@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_rift.svg")
 class_name RiftBundleDef
 extends Resource
 ## Static definition of one Planar Rift summoning outcome. See

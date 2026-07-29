@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_house.svg")
 class_name HouseDef
 extends Resource
 ## Static display data for an academy House, chosen at character creation.

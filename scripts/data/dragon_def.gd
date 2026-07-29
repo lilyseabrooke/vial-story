@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_dragon.svg")
 class_name DragonDef
 extends Resource
 ## Static tuning data for one dragon size tier roaming the Dragons' Ground.

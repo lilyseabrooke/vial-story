@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_skill.svg")
 class_name SkillDef
 extends Resource
 ## Static definition of a skill. See docs/design/systems.md, system 6.

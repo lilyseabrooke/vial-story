@@ -268,7 +268,7 @@ func collect(station_id: String) -> bool:
 func _on_minute_tick(timestamp: int) -> void:
 	for station in stations:
 		var job := station.current_job
-		if job and job.status == BrewJob.Status.BREWING and timestamp >= job.ready_timestamp:
+		if job and job.status == BrewJob.Status.BREWING and job.is_due(timestamp):
 			job.status = BrewJob.Status.READY
 			brew_ready.emit(station.id, job.recipe.id)
 

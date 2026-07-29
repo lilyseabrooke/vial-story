@@ -1,3 +1,4 @@
+@icon("res://assets/editor_icons/icon_recipe.svg")
 class_name PotionDef
 extends Resource
 ## Static definition of a potion. See docs/design/systems.md, system 3.
