@@ -4,12 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Vial Story is a Godot 4.7 (GDScript) prototype for a sim RPG about running a cursed alchemy shop as a
-magic-academy student, with a dating-sim/VN layer planned on top later. The current build is the
-sim-loop prototype only — no VN/relationship content yet. **`docs/design/systems.md` is the
-authoritative design spec**: every gameplay system, its concrete data shape, prototype scope vs.
-stubbed-for-later, and open tunable values. Read the relevant section there before adding or changing
-a system, and update it when a system's behavior changes.
+Vial Story is a Godot 4.7 (GDScript) sim RPG about running a cursed alchemy shop as a magic-academy
+student, with a dating-sim/VN layer on top. The project has moved out of pure prototyping: the sim
+loop is established and the VN/relationship layer now has its fundamentals built. **`docs/design/systems.md`
+is the authoritative design spec**: every gameplay system, its concrete data shape, scope, and open
+tunable values. Read the relevant section there before adding or changing a system, and update it when
+a system's behavior changes.
+
+## Development philosophy
+
+**We are building an engine, not patching together one-off solutions.** Now that the project is past
+the prototyping phase, every new system or feature should be designed for modularity, extensibility,
+and reuse — not the fastest path to a working demo. In practice:
+
+- Favor composition via nodes, scenes, and `Resource` subclasses over hardcoded, case-by-case logic.
+  If a behavior is likely to have more than one variant (item types, interactable behaviors, menu
+  content, effects), model it as data or a scene/script pairing that a designer or future system can
+  extend without touching the dispatching code, following the existing `InteractableBase` /
+  `scenes/ui/components/*.tscn` conventions below.
+- Avoid `match`/`if` chains keyed on type strings or IDs scattered across call sites; prefer a shared
+  base with per-type overrides, or data-driven dispatch, so adding a new variant is additive rather
+  than a multi-file edit.
+- When a requirement is ambiguous or could be solved multiple ways, ask before building — a quick
+  clarifying question up front is cheaper than reworking a hardcoded solution later. Don't guess at
+  the "correct form" of a system when the shape materially affects extensibility.
+- This doesn't mean over-engineering trivial, truly one-off code — but default to asking "how would a
+  second instance of this thing be added later?" before writing the first one.
 
 ## Running and verifying changes
 
@@ -77,11 +97,9 @@ event bus or game-state object.
 - **Exploration layer**: `InteractableBase` (`scripts/interactable_base.gd`) is a shared `Area2D`
   scene/script owning only what every interactable has in common — the proximity signals
   (`player_entered`/`player_exited`) and the visual/label chrome (`target_id`, `prompt_text`,
-  `display_name`, `visual_color`). One subclass per behavior (`BrewStationInteractable`,
-  `ContractBookInteractable`, `DragonStashInteractable`, `GrowPlotInteractable`,
-  `LeyLineNodeInteractable`, `StockBoxInteractable`, `SupplyShelfInteractable`,
-  `WorkbenchInteractable`, `ScrapHeapInteractable`, `BedInteractable`, `ClassDoorInteractable`,
-  `TransferInteractable`, `PotionBookInteractable`) overrides
+  `display_name`, `visual_color`). One subclass per behavior (see `scenes/interactables/` for the
+  current full list — brew station, contract book, grow plot, supply shelf, class door, NPC, etc.)
+  overrides
   `interact(main: MainScene) -> void` with that type's actual action — calling straight into whichever
   autoload owns it, opening a `MenuScene` panel, or both — rather than a type match living in
   `main.gd`; `_on_interact_pressed()` just calls `_current_interactable.interact(self)`. Each subclass
