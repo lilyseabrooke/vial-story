@@ -29,6 +29,26 @@ const EFFECT_TARGET_KEYS := [
 	"change_buy_rate",
 ]
 
+## The subset of _call_function()'s dispatch table that's a side-effecting
+## action call (returns null) rather than a condition-check value read --
+## i.e. everything valid inside a QuestDef.reward / SceneTriggerDef-style
+## action-call list. Read by the reward smart-field EditorInspectorPlugin
+## (addons/engine_scaffolding) instead of hand-typing action-call strings
+## blind. See docs/engine_roadmap.md, Phase 5.
+const ACTION_FUNCTION_KEYS := [
+	"set_flag",
+	"clear_flag",
+	"add_affection",
+	"give_item",
+	"add_materials",
+	"add_reputation",
+	"start_quest",
+	"set_dating",
+	"shop_capacity",
+	"change_reputation",
+	"change_buy_rate",
+]
+
 
 ## Called by a roll-resolving caller (e.g. ArtStudio._complete_work()) right
 ## before evaluating a batch of expressions that may reference

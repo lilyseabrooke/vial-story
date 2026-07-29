@@ -43,24 +43,38 @@ script = ExtResource("1")
 """
 
 const EffectTargetInspector := preload("res://addons/engine_scaffolding/effect_target_inspector.gd")
+const ActionCallListInspector := preload("res://addons/engine_scaffolding/action_call_list_inspector.gd")
+const ContentAuthoringDock := preload("res://addons/engine_scaffolding/content_authoring_dock.gd")
 
 var _dialog: ConfirmationDialog
 var _name_edit: LineEdit
 var _pending_kind: String = ""
 var _effect_target_inspector: EditorInspectorPlugin
+var _action_call_list_inspector: EditorInspectorPlugin
+var _content_authoring_dock: Control
 
 
 func _enter_tree() -> void:
 	add_tool_menu_item("New Interactable...", _on_new_interactable)
 	add_tool_menu_item("New UI Component...", _on_new_ui_component)
+
 	_effect_target_inspector = EffectTargetInspector.new()
 	add_inspector_plugin(_effect_target_inspector)
+	_action_call_list_inspector = ActionCallListInspector.new()
+	add_inspector_plugin(_action_call_list_inspector)
+
+	_content_authoring_dock = ContentAuthoringDock.new()
+	_content_authoring_dock.setup(get_editor_interface())
+	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _content_authoring_dock)
 
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("New Interactable...")
 	remove_tool_menu_item("New UI Component...")
 	remove_inspector_plugin(_effect_target_inspector)
+	remove_inspector_plugin(_action_call_list_inspector)
+	remove_control_from_docks(_content_authoring_dock)
+	_content_authoring_dock.queue_free()
 
 
 func _on_new_interactable() -> void:

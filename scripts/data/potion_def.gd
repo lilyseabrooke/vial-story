@@ -10,7 +10,7 @@ extends Resource
 @export var id: String
 @export var display_name: String
 @export var icon: Texture2D
-@export var station_type: String = "alembic"
+@export_enum("alembic") var station_type: String = "alembic"
 @export var brew_time_minutes: int = 60
 @export var potency_range: Vector2 = Vector2(0, 100)
 @export var ease_range: Vector2 = Vector2(0, 100)
