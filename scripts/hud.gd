@@ -9,6 +9,7 @@ extends CanvasLayer
 ## wired in main.gd instead, which orchestrates both this and RoomBuilder.
 
 const END_REASON_NAMES := ["slept", "collapsed from staying up too late", "collapsed (Resolve hit zero)"]
+const MAX_ROLL_LOG_ENTRIES := 20
 const ROLL_DISPLAY_SCENE := preload("res://scenes/ui/components/RollDisplay.tscn")
 const ITEM_TOAST_FEED_SCENE := preload("res://scenes/ui/components/ItemToastFeed.tscn")
 const RESOLVE_VIAL_SCENE := preload("res://scenes/ui/hud/ResolveVial.tscn")
@@ -48,6 +49,7 @@ var _curse_inventory_window: CurseInventoryWindow
 var _curse_inventory_tween: Tween
 var _roll_display: RollDisplay
 var _item_toast_feed: ItemToastFeed
+var _roll_log: Array[Dictionary] = []   # most-recent-first, capped at MAX_ROLL_LOG_ENTRIES
 var _attempt_puzzle_panel: AttemptPuzzlePanel
 var _ley_line_panel: LeyLineMinigamePanel
 var _ley_line_overlay: LeyLineArenaOverlay
@@ -388,7 +390,7 @@ func _connect_autoload_signals() -> void:
 		print("Brew botched at %s: %s" % [station_id, recipe_id])
 	)
 	Brewing.brew_roll_resolved.connect(func(_brewing_station_id: String, _recipe_id: String, roll: Dictionary) -> void:
-		_roll_display.show_roll(roll, "alchemy")
+		_show_roll(roll, "alchemy")
 	)
 	Skills.leveled_up.connect(func(skill_id: String, new_level: int) -> void:
 		log_message("%s leveled up to %d!" % [skill_id.capitalize(), new_level])
@@ -438,10 +440,10 @@ func _connect_autoload_signals() -> void:
 		print("Exam %s. Score: %.1f, Strikes: %d" % ["passed" if passed else "failed", score, strikes])
 	)
 	Academy.class_performance_rolled.connect(func(result: Dictionary) -> void:
-		_roll_display.show_roll(result, "focus")
+		_show_roll(result, "focus")
 	)
 	Academy.class_reward_rolled.connect(func(result: Dictionary) -> void:
-		_roll_display.show_roll(result, "focus")
+		_show_roll(result, "focus")
 	)
 	Academy.class_reward_granted.connect(func(_reward_type: String, description: String) -> void:
 		log_message("Class reward: %s" % description)
@@ -462,7 +464,7 @@ func _connect_autoload_signals() -> void:
 		print("Writ revised at %s: revision %d, quality %.1f" % [book_id, revisions_completed, quality])
 	)
 	Demonology.writ_submitted.connect(func(book_id: String, roll: Dictionary, ingredients: Dictionary, drawback_messages: Array) -> void:
-		_roll_display.show_roll(roll, "demonology")
+		_show_roll(roll, "demonology")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -476,7 +478,7 @@ func _connect_autoload_signals() -> void:
 		print("Delayed demonic consequence: %s" % message)
 	)
 	Draconology.stash_resolved.connect(func(stash_id: String, roll: Dictionary, ingredients: Dictionary) -> void:
-		_roll_display.show_roll(roll, "draconology")
+		_show_roll(roll, "draconology")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -493,7 +495,7 @@ func _connect_autoload_signals() -> void:
 	LeyLines.meditation_check_rolled.connect(func(_node_id: String, surge_id: String, roll: Dictionary) -> void:
 		if surge_id == "none":
 			return
-		_roll_display.show_roll(roll, "arcane_history")
+		_show_roll(roll, "arcane_history")
 		if not roll.get("passed", false):
 			log_message("A surge of %s ripples through the ley line -- you can't quite grasp it. Meditation continues." % surge_id)
 		print("Ley line Surge rolled: %s -- passed %s" % [surge_id, roll.get("passed", false)])
@@ -521,7 +523,7 @@ func _connect_autoload_signals() -> void:
 		log_message("The rift yawns open — trace a summoning sequence before it closes.")
 	)
 	Summoning.rift_quality_rolled.connect(func(_rift_id: String, _bundle_id: String, quality: float, roll: Dictionary) -> void:
-		_roll_display.show_roll(roll, "summoning")
+		_show_roll(roll, "summoning")
 		log_message("The summoning steadies at %s quality (%d%%)." % [Summoning.quality_word(quality), int(round(quality * 100.0))])
 	)
 	Summoning.rift_started.connect(func(rift_id: String, bundle_id: String, reward_multiplier: int) -> void:
@@ -564,7 +566,7 @@ func _connect_autoload_signals() -> void:
 		update_materials_label()
 	)
 	Transmutation.scrap_broken_down.connect(func(roll: Dictionary, ingredients: Dictionary) -> void:
-		_roll_display.show_roll(roll, "transmutation")
+		_show_roll(roll, "transmutation")
 		var ingredient_summary: Array[String] = []
 		for id in ingredients:
 			ingredient_summary.append("%d %s" % [ingredients[id], id])
@@ -573,7 +575,7 @@ func _connect_autoload_signals() -> void:
 		update_ingredients_label()
 	)
 	Transmutation.heap_resolved.connect(func(heap_id: String, roll: Dictionary, scrap_granted: int, ingredients: Dictionary) -> void:
-		_roll_display.show_roll(roll, "transmutation")
+		_show_roll(roll, "transmutation")
 		var outcome_parts: Array[String] = ["%d Scrap" % scrap_granted]
 		for id in ingredients:
 			outcome_parts.append("%d %s" % [ingredients[id], id])
@@ -602,7 +604,7 @@ func _connect_autoload_signals() -> void:
 		log_message("You settle in at the Art Studio, waiting for inspiration to strike...")
 	)
 	ArtStudio.roll_rolled.connect(func(_studio_id: String, roll: Dictionary) -> void:
-		_roll_display.show_roll(roll, "creativity")
+		_show_roll(roll, "creativity")
 	)
 	ArtStudio.inspirations_offered.connect(func(_studio_id: String, offered_ids: Array) -> void:
 		log_message("Inspiration strikes! %d idea(s) are waiting at the Art Studio." % offered_ids.size())
@@ -622,10 +624,22 @@ func _connect_autoload_signals() -> void:
 	)
 	ArtStudio.work_completed.connect(func(_studio_id: String, inspiration_id: String, roll: Dictionary, xp_gained: int) -> void:
 		var def := ContentRegistry.get_inspiration(inspiration_id)
-		_roll_display.show_roll(roll, "creativity")
+		_show_roll(roll, "creativity")
 		log_message("Finished %s! Gained %d Creativity XP." % [def.display_name if def else inspiration_id, xp_gained])
 		print("Art Studio work completed: %s, xp %d" % [inspiration_id, xp_gained])
 	)
+
+
+## Fans a roll out to both its transient callout (RollDisplay) and the
+## persistent Escape-menu roll log (GameMenu's Rolls section) — every roll
+## site in _connect_autoload_signals() goes through here instead of calling
+## _roll_display directly, so the two never drift out of sync.
+func _show_roll(roll: Dictionary, skill_id: String) -> void:
+	_roll_display.show_roll(roll, skill_id)
+	_roll_log.push_front({"skill_id": skill_id, "roll": roll})
+	if _roll_log.size() > MAX_ROLL_LOG_ENTRIES:
+		_roll_log.resize(MAX_ROLL_LOG_ENTRIES)
+	_game_menu.update_rolls(_roll_log)
 
 
 ## Was routed to the MessageWall scrollback; playtesting showed rolls were the

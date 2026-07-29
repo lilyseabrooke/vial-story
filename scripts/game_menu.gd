@@ -48,6 +48,22 @@ const CUSTOMER_ENTRY_SCENE := preload("res://scenes/ui/components/CustomerEntry.
 
 const RECENT_CUSTOMERS_LIST_HEIGHT := 260
 
+## Mirrors the skill ids hud.gd passes into RollDisplay.show_roll()/
+## RollSkillIcon.SKILL_STYLE — those are Skills ids where a skill exists
+## ("alchemy", "demonology", ...), but "focus" (Academy) and "creativity"
+## (Art Studio) aren't real Skills entries, so this can't just read
+## Skills.get_def().display_name and needs its own small display-name map.
+const ROLL_SKILL_DISPLAY_NAMES := {
+	"alchemy": "Alchemy",
+	"focus": "Focus",
+	"demonology": "Demonology",
+	"draconology": "Draconology",
+	"arcane_history": "Arcane History",
+	"summoning": "Summoning",
+	"transmutation": "Transmutation",
+	"creativity": "Creativity",
+}
+
 const RAIL_TIP := "W/S section\nE step in\nEsc/Q close"
 const SECTION_TIP := "W/S move\nA/D adjust\nE use\nEsc/Q back"
 
@@ -76,6 +92,7 @@ var _relationships_list: VBoxContainer
 var _recipes_list: VBoxContainer
 var _report_card_label: Label
 var _journal_list: VBoxContainer
+var _rolls_list: VBoxContainer
 var _save_status_label: Label
 
 
@@ -119,6 +136,7 @@ func build() -> void:
 	_add_section("classes", "Classes", _build_classes_tab())
 	_add_section("hearts", "Hearts", _build_relationships_tab())
 	_add_section("journal", "Journal", _build_journal_tab())
+	_add_section("rolls", "Rolls", _build_rolls_tab())
 	_add_section("settings", "Settings", _build_settings_tab())
 
 	# Keyboard hint pinned to the bottom of the rail; swaps between the rail
@@ -160,6 +178,7 @@ func build() -> void:
 	update_recipes()
 	update_report_card()
 	update_journal()
+	update_rolls([])
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +718,57 @@ func _add_journal_section(section_title: String, quest_ids: Array[String], color
 		row.turn_in_pressed.connect(QuestManager.turn_in)
 
 	_journal_list.add_child(HSeparator.new())
+
+
+# ---------------------------------------------------------------------------
+# Rolls (roll log)
+# ---------------------------------------------------------------------------
+
+func _build_rolls_tab() -> Control:
+	var root := VBoxContainer.new()
+	_rolls_list = VBoxContainer.new()
+	root.add_child(_rolls_list)
+	return root
+
+
+## roll_log is hud.gd's _roll_log — already most-recent-first (it
+## push_front()s) and already capped, so this just renders it top-to-bottom
+## with no sorting/trimming of its own.
+func update_rolls(roll_log: Array[Dictionary]) -> void:
+	for child in _rolls_list.get_children():
+		child.queue_free()
+
+	if roll_log.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "No rolls yet."
+		empty_label.modulate = UiPalette.TEXT_MUTED
+		_rolls_list.add_child(empty_label)
+		return
+
+	for entry in roll_log:
+		var roll: Dictionary = entry.roll
+		var skill_id: String = entry.skill_id
+		var skill_name: String = ROLL_SKILL_DISPLAY_NAMES.get(skill_id, skill_id.capitalize())
+		var passed: bool = roll.get("passed", false)
+		var degrees: int = roll.get("degrees_of_success", 0) if passed else roll.get("degrees_of_failure", 0)
+		var row_color := UiPalette.TEXT_PRIMARY if passed else UiPalette.TEXT_MUTED
+
+		var roll_label := Label.new()
+		roll_label.text = "%s: %d + %d %+.1f = %.1f" % [
+			skill_name, roll.die_a, roll.die_b, roll.modifier, roll.total
+		]
+		roll_label.modulate = row_color
+		_rolls_list.add_child(roll_label)
+
+		var dc_label := Label.new()
+		dc_label.text = "DC %.1f (%d degree%s of %s)" % [
+			roll.dc, degrees, "" if degrees == 1 else "s", "success" if passed else "failure"
+		]
+		dc_label.theme_type_variation = &"CaptionLabel"
+		dc_label.modulate = row_color
+		_rolls_list.add_child(dc_label)
+
+		_rolls_list.add_child(HSeparator.new())
 
 
 # ---------------------------------------------------------------------------
