@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/choice_list_menu.gd" id="1"]
+
+[node name="ChoiceListMenu" type="VBoxContainer"]
+theme_override_constants/separation = 4
+script = ExtResource("1")

@@ -19,7 +19,7 @@ const PLANAR_RIFT_MINIGAME_PANEL_SCENE := preload("res://scenes/ui/PlanarRiftMin
 var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
-var class_panel: VBoxContainer
+var class_panel: ChoiceListMenu
 var alchemy_lab_panel: AlchemyLabMenu
 var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
@@ -287,15 +287,15 @@ func build(starting_ingredients: Dictionary) -> void:
 	add_child(_curse_inventory_window)
 	UiFx.add_drop_shadow(_curse_inventory_window)
 
-	class_panel = VBoxContainer.new()
+	class_panel = preload("res://scenes/ui/components/ChoiceListMenu.tscn").instantiate()
 	class_panel.add_child(MenuKeyNav.new())
+	var effort_options: Array[ChoiceOption] = []
 	for effort in [Academy.Effort.LOW, Academy.Effort.NORMAL, Academy.Effort.HIGH]:
-		var effort_button := Button.new()
-		effort_button.text = "%s (-%d Resolve)" % [
+		effort_options.append(ChoiceOption.make(str(effort), "%s (-%d Resolve)" % [
 			Academy.EFFORT_NAMES[effort], Academy.EFFORT_RESOLVE_COST[effort]
-		]
-		effort_button.pressed.connect(on_attend_class_button_pressed.bind(effort))
-		class_panel.add_child(effort_button)
+		]))
+	class_panel.populate(effort_options)
+	class_panel.selected.connect(func(id: String) -> void: on_attend_class_button_pressed(int(id) as Academy.Effort))
 
 	_menu_scene = MenuScene.new()
 	add_child(_menu_scene)
