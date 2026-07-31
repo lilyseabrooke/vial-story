@@ -16,3 +16,15 @@ collision_mask = 0
 [node name="CollisionShape2D" type="CollisionShape2D" parent="CollisionBody"]
 position = Vector2(0, 34)
 shape = SubResource("1")
+
+[node name="NeedsHelpIcon" type="Label" parent="."]
+visible = false
+offset_left = -16.0
+offset_top = -84.0
+offset_right = 16.0
+offset_bottom = -60.0
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "!"

@@ -112,6 +112,7 @@ Clock
 Ingredient
   - id
   - display_name
+  - description                    # flavor text, ~20-80 chars, shown on grid hover
   - category: Natural | Artificial | Spectral | Demonic | Draconic | Extraplanar
   - tier: int                     # gates which recipes/stations can use it
   - source_methods: [Buy, Grow, Craft, Summon, Forage]  # unlocked per-save
@@ -537,11 +538,33 @@ ShopStock
   back to `CustomerSpawnPoint` and despawns. Walking into the Shop mid-visit
   (`RoomBuilder.switch_room()` → `CustomerDirector.on_shop_room_activated()`)
   shows any in-progress, not-yet-visualized visits already standing at a
-  browse point rather than nothing. The player can `interact()`
-  (`CustomerInteractable.interact()`) with a visible customer to attempt a
-  persuasion roll (see "Persuasion" below) — a flavor log line
-  (`GameHud.log_message()`) naming them/their wanted tag on any later
-  interaction, once that visit's one player attempt is spent.
+  browse point rather than nothing. `interact()`
+  (`CustomerInteractable.interact()`) only attempts a persuasion roll (see
+  "Persuasion" below) against a customer currently flagged `needs_help` — a
+  small status icon (`CustomerInteractable`'s `NeedsHelpIcon` label, a `!`)
+  appears over their head when they are (see "Needing help" below).
+  Interacting with a customer who isn't flagged, or re-interacting after
+  their one attempt is spent, just shows a flavor log line
+  (`GameHud.log_message()`) naming them/their wanted tag — so idly walking
+  the room and mashing the interact key on every browser does nothing, it
+  only ever produces a real roll against someone who's actually asked for
+  help.
+- **Needing help [BUILT]**: `Shop._maybe_flag_customer_needs_help()` runs
+  every open-hours minute tick alongside Garnet's ambient roll, and at
+  `Shop.NEEDS_HELP_CHANCE_PER_MINUTE` (0.1) odds flags one random
+  still-browsing customer who isn't already flagged and hasn't already used
+  up their one player attempt (`persuaded_by_player`) — setting
+  `customer.needs_help = true` and emitting `Shop.customer_needs_help_changed`.
+  `CustomerInteractable` listens to that signal directly (filtering by its
+  own `visit_id`, the same "listen to the autoload signal directly" pattern
+  `GameHud` uses for `persuasion_attempted`) to show/hide its icon, and also
+  checks the flag on spawn (`bind_visit()`) in case a visit picked up
+  mid-browse — via `CustomerDirector.on_shop_room_activated()` — was already
+  flagged before the sprite existed. The flag is cleared by whichever of the
+  player or Garnet actually rolls persuasion against that customer first
+  (`Shop._apply_persuasion()`, shared by both paths — see "Persuasion"
+  below), which also re-emits `customer_needs_help_changed` so the icon
+  disappears the moment the need is addressed, by either of them.
 - **Persuasion [BUILT]**: a purchase is never a formality — `BASE_BUY_CHANCE`/
   `TRAIT_BUY_BONUS`/`MAX_BUY_CHANCE` were deliberately lowered (0.55/0.35/0.95
   → 0.32/0.28/0.75) so even a perfect tag/trait match stays a real roll. Each

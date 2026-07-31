@@ -29,6 +29,14 @@ signal customer_visit_resolved(visit: Dictionary, purchased: Array)
 ## Dictionary. GameHud uses this to show the player's own rolls via
 ## RollDisplay and log Garnet's as flavor text.
 signal persuasion_attempted(visit: Dictionary, result: Dictionary, source: String)
+## Fired whenever a customer's needs_help flag flips, either direction --
+## _maybe_flag_customer_needs_help() setting it true, or _apply_persuasion()
+## clearing it back to false once the player or Garnet addresses it.
+## CustomerInteractable listens directly (filtering by its own visit_id) to
+## show/hide the status icon over that customer's head, the same "listen
+## directly to the autoload signal" pattern GameHud uses for
+## persuasion_attempted.
+signal customer_needs_help_changed(visit: Dictionary)
 
 const OPEN_MINUTE_OF_DAY := 9 * 60    # 9:00 AM
 const CLOSE_MINUTE_OF_DAY := 20 * 60  # 8:00 PM
@@ -96,6 +104,13 @@ const GARNET_INSIGHT_MODIFIER := 2.0
 # active -- keeps Garnet's ambient attempts occasional background flavor
 # rather than a roll spamming every single minute.
 const GARNET_PERSUASION_CHANCE_PER_MINUTE := 0.15
+# How often, per open-hours minute tick, a random still-browsing customer who
+# doesn't already need help gets flagged as needing it (see
+# _maybe_flag_customer_needs_help()) -- the player's interact() only rolls
+# persuasion against a flagged customer (see attempt_persuasion()), so idly
+# spamming interact on every browser in the room does nothing instead of
+# granting a free roll each time.
+const NEEDS_HELP_CHANCE_PER_MINUTE := 0.1
 
 # Reputation influence on ambient customer simulation — see docs/design/
 # systems.md system 5. Reputation makes a visit more likely each roll
@@ -234,6 +249,7 @@ func _on_minute_tick(timestamp: int) -> void:
 		return
 
 	_maybe_attempt_garnet_persuasion()
+	_maybe_flag_customer_needs_help()
 
 	_minutes_since_last_roll += 1
 	if _minutes_since_last_roll < ROLL_INTERVAL_MINUTES:
@@ -287,16 +303,22 @@ func _resolve_due_visits(timestamp: int) -> void:
 
 
 ## Player-initiated persuasion attempt against the visit identified by
-## visit_id -- see CustomerInteractable.interact(). One attempt per visit
-## (persuaded_by_player); returns {} if the visit no longer exists (already
-## resolved, or the customer already left) or was already attempted this
-## visit. Uses Skills.level("insight") as the roll modifier, the same "raw
-## skill level as modifier" shape Academy._roll_class_reward() gives Focus.
+## visit_id -- see CustomerInteractable.interact(). Only rolls against a
+## customer currently flagged needs_help (see _maybe_flag_customer_needs_help())
+## -- otherwise there's nothing to help with yet, and returns {} the same as
+## every other "can't roll" case, so a customer can't be pestered for a free
+## roll just by standing near them. One attempt per visit (persuaded_by_player);
+## also returns {} if the visit no longer exists (already resolved, or the
+## customer already left) or was already attempted this visit. Uses
+## Skills.level("insight") as the roll modifier, the same "raw skill level as
+## modifier" shape Academy._roll_class_reward() gives Focus.
 func attempt_persuasion(visit_id: int) -> Dictionary:
 	for visit in active_visits:
 		if visit.visit_id != visit_id:
 			continue
 		var customer: Dictionary = visit.customer
+		if not customer.get("needs_help", false):
+			return {}
 		if customer.get("persuaded_by_player", false):
 			return {}
 		var result := _apply_persuasion(visit, float(Skills.level("insight")), "player")
@@ -321,6 +343,29 @@ func _maybe_attempt_garnet_persuasion() -> void:
 	_apply_persuasion(visit, GARNET_INSIGHT_MODIFIER, "garnet")
 
 
+## Occasionally flags a random still-browsing customer as needing help --
+## rolled every open-hours minute tick against NEEDS_HELP_CHANCE_PER_MINUTE.
+## Only draws from customers who aren't already flagged and haven't already
+## used up their one player attempt (persuaded_by_player) -- a customer who's
+## already been helped or already walked away from the player has nothing left
+## to flag. The flag is cleared by _apply_persuasion() once either the player
+## or Garnet actually addresses it, so it never lingers after the need's been
+## met.
+func _maybe_flag_customer_needs_help() -> void:
+	if not Rng.chance(NEEDS_HELP_CHANCE_PER_MINUTE):
+		return
+	var candidates: Array[Dictionary] = []
+	for visit in active_visits:
+		var customer: Dictionary = visit.customer
+		if not customer.get("needs_help", false) and not customer.get("persuaded_by_player", false):
+			candidates.append(visit)
+	if candidates.is_empty():
+		return
+	var visit: Dictionary = candidates[Rng.range_i(0, candidates.size() - 1)]
+	visit.customer.needs_help = true
+	customer_needs_help_changed.emit(visit)
+
+
 ## Shared roll-and-apply logic behind attempt_persuasion() (player) and
 ## _maybe_attempt_garnet_persuasion() (Garnet): rolls modifier against the
 ## customer's own difficulty DC, nudges persuasion_sway by
@@ -343,6 +388,12 @@ func _apply_persuasion(visit: Dictionary, modifier: float, source: String) -> Di
 	var reputation_delta := degrees * REPUTATION_PER_PERSUASION_DEGREE
 	if reputation_delta != 0:
 		add_reputation(reputation_delta)
+	# Whoever gets here first (player or Garnet) has addressed this customer's
+	# need -- clear it so the status icon disappears and _maybe_flag_customer_
+	# needs_help() doesn't re-flag them for no reason.
+	if customer.get("needs_help", false):
+		customer.needs_help = false
+		customer_needs_help_changed.emit(visit)
 	persuasion_attempted.emit(visit, result, source)
 	return result
 
@@ -453,6 +504,11 @@ func _generate_customer() -> Dictionary:
 		# attempt_persuasion(). Garnet's ambient attempts aren't limited by
 		# this flag.
 		"persuaded_by_player": false,
+		# Whether this customer currently has a status icon over their head
+		# and can be interact()-ed with -- see _maybe_flag_customer_needs_help()
+		# and attempt_persuasion(). Starts false; a browsing customer isn't
+		# interactable until flagged.
+		"needs_help": false,
 	}
 
 

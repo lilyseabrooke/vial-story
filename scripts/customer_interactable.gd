@@ -41,12 +41,14 @@ var _browse_target: Vector2 = Vector2.ZERO
 var _browsing_idle_timer: float = 0.0
 
 @onready var _collision_body: Node2D = $CollisionBody
+@onready var _needs_help_icon: Label = $NeedsHelpIcon
 
 
 func _ready() -> void:
 	super._ready()
 	use_sprite(load("res://assets/sprites/CustomerBase.tres"))
 	set_sprite_tint(Color.from_hsv(Rng.range_f(0.0, 1.0), 0.35, 1.0))
+	Shop.customer_needs_help_changed.connect(_on_needs_help_changed)
 
 
 ## Called once by CustomerDirector right after instancing. browse_points is
@@ -62,6 +64,7 @@ func bind_visit(new_visit: Dictionary, entry_pos: Vector2, browse_points: Array[
 	var customer: Dictionary = visit.customer
 	display_name = "%s %s" % [customer.first_name, customer.last_name]
 	prompt_text = "talk to %s" % display_name
+	_needs_help_icon.visible = customer.get("needs_help", false)
 
 	if already_browsing:
 		position = _pick_browse_point()
@@ -94,6 +97,17 @@ func bind_visit(new_visit: Dictionary, entry_pos: Vector2, browse_points: Array[
 ## there's no reason to gate this by current state at all.
 func on_visit_resolved() -> void:
 	_state = State.LEAVING
+
+
+## Shop.customer_needs_help_changed fires for every visit, not just this
+## instance's -- filter by visit_id before touching the icon. Keeps the icon
+## in sync with Shop's own needs_help flag (the actual source of truth
+## interact() checks) whether it was Shop._maybe_flag_customer_needs_help()
+## turning it on or _apply_persuasion() clearing it once addressed.
+func _on_needs_help_changed(changed_visit: Dictionary) -> void:
+	if changed_visit.get("visit_id", -1) != visit.get("visit_id", -2):
+		return
+	_needs_help_icon.visible = changed_visit.customer.get("needs_help", false)
 
 
 func _physics_process(delta: float) -> void:
@@ -167,23 +181,30 @@ func _sync_collision_body() -> void:
 
 
 ## Tries an Insight persuasion roll against this customer (Shop.
-## attempt_persuasion(), see docs/design/systems.md system 5) -- one attempt
-## per visit; every subsequent interact() just re-shows the flavor line. The
-## roll itself (RollDisplay callout) is shown by GameHud, which listens to
-## Shop.persuasion_attempted directly rather than being driven from here, so
-## it fires the same way whether the player or Garnet triggered it.
+## attempt_persuasion(), see docs/design/systems.md system 5) -- but only
+## when they're actually flagged needs_help (the status icon above their
+## head): idly interacting with a browsing customer who hasn't asked for
+## anything is just flavor, not a free roll. One attempt per visit once
+## flagged; every subsequent interact() (before or after) just re-shows a
+## flavor line. The roll itself (RollDisplay callout) is shown by GameHud,
+## which listens to Shop.persuasion_attempted directly rather than being
+## driven from here, so it fires the same way whether the player or Garnet
+## triggered it.
 func interact(main: MainScene) -> void:
 	var customer: Dictionary = visit.get("customer", {})
 	if customer.is_empty():
 		return
-	var result := Shop.attempt_persuasion(visit.get("visit_id", -1))
-	if result.is_empty():
+	if not customer.get("needs_help", false):
 		main.hud.log_message("%s %s (%s) is browsing, looking for something %s." % [
 			customer.first_name,
 			customer.last_name,
 			customer.occupation,
 			customer.wanted_tag,
 		])
+		return
+	var result := Shop.attempt_persuasion(visit.get("visit_id", -1))
+	if result.is_empty():
+		main.hud.log_message("%s %s doesn't need anything else right now." % [customer.first_name, customer.last_name])
 		return
 	if result.passed:
 		main.hud.log_message("Your pitch lands with %s %s." % [customer.first_name, customer.last_name])
