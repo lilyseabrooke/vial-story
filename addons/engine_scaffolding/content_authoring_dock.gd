@@ -77,4 +77,17 @@ func _on_file_selected(path: String) -> void:
 		return
 	_editor_interface.get_resource_filesystem().scan()
 	_editor_interface.edit_resource(resource)
+	## Ctrl+S in the editor saves the open scene, not a standalone Resource
+	## opened via edit_resource() -- without this, edits made in the
+	## Inspector only ever exist in memory and silently revert to this
+	## empty placeholder the moment the resource falls out of Inspector
+	## history. Auto-save on every edit instead of relying on the user
+	## finding the Inspector's own (easy-to-miss) resource-save icon.
+	resource.changed.connect(_on_edited_resource_changed.bind(resource, path))
 	print("Content Authoring: created %s" % path)
+
+
+func _on_edited_resource_changed(resource: Resource, path: String) -> void:
+	var err := ResourceSaver.save(resource, path)
+	if err != OK:
+		push_error("Content Authoring: failed to auto-save %s (error %d)" % [path, err])
