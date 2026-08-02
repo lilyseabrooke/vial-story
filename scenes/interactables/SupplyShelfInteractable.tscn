@@ -1,7 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://bh54ciyjp1wtl"]
 
 [ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
-[ext_resource type="Script" path="res://scripts/supply_shelf_interactable.gd" id="2"]
+[ext_resource type="Script" uid="uid://dh22ss78sncr8" path="res://scripts/supply_shelf_interactable.gd" id="2"]
 
-[node name="SupplyShelfInteractable" instance=ExtResource("1")]
+[node name="SupplyShelfInteractable" unique_id=725610611 instance=ExtResource("1")]
 script = ExtResource("2")
