@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://ck4rnkop1yfr0"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_dragons_tongue.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "dragons_tongue"
+display_name = "Dragon's Tongue"
+description = "A plant with thick blooms that probe to grab and drain magic out of whatever they can reach."
+icon = ExtResource("2")
+weight = 4.0
+characteristic_ids = Array[String](["energy", "perception", "aggression", "necromantic"])
+characteristic_values = Array[int]([4, 5, 2, 2])

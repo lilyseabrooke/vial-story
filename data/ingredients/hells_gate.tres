@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://bfp1123u50j8y"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_hells_gate.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "hells_gate"
+display_name = "Hell's Gate"
+description = "A small stony ring that draws in fire directly from the demonic realm."
+icon = ExtResource("2")
+category = 4
+role = 2
+weight = 4.0
+characteristic_ids = Array[String](["fire", "teleportation", "astral"])
+characteristic_values = Array[int]([5, 6, -3])

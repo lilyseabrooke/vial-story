@@ -16,22 +16,12 @@ const POTION_PATHS := [
 	"res://data/potions/clarity_tonic.tres",
 	"res://data/potions/grave_ward_tonic.tres",
 ]
-const INGREDIENT_PATHS := [
-	"res://data/ingredients/moonpetal.tres",
-	"res://data/ingredients/iron_filings.tres",
-	"res://data/ingredients/ghostcap_mushroom.tres",
-	"res://data/ingredients/grave_dust.tres",
-	"res://data/ingredients/imp_ash.tres",
-	"res://data/ingredients/brimstone_shard.tres",
-	"res://data/ingredients/scrap_alloy.tres",
-	"res://data/ingredients/refined_component.tres",
-	"res://data/ingredients/dragon_scale.tres",
-	"res://data/ingredients/ember_dust.tres",
-	"res://data/ingredients/glimmer_dust.tres",
-	"res://data/ingredients/echo_shard.tres",
-	"res://data/ingredients/rift_glass.tres",
-	"res://data/ingredients/warped_ichor.tres",
-]
+## Scanned at runtime (see _scan_resource_paths) rather than hand-listed like
+## the other *_PATHS consts above — ingredients get added far more often than
+## any other content type, and a hand-maintained list silently drifts out of
+## sync (ids missing from it resolve to null everywhere, showing raw ids and
+## no icon instead of failing loudly).
+const INGREDIENT_DIR := "res://data/ingredients"
 const UPGRADE_PATHS := [
 	"res://data/upgrades/expanded_stock_shelf.tres",
 ]
@@ -114,7 +104,7 @@ func _ready() -> void:
 		var def := load(path) as PotionDef
 		potions.append(def)
 		_potions_by_id[def.id] = def
-	for path in INGREDIENT_PATHS:
+	for path in _scan_resource_paths(INGREDIENT_DIR):
 		var def := load(path) as IngredientDef
 		ingredients.append(def)
 		_ingredients_by_id[def.id] = def
@@ -172,6 +162,26 @@ func _ready() -> void:
 		var def := load(path) as RiftBundleDef
 		rift_bundles.append(def)
 		_rift_bundles_by_id[def.id] = def
+
+
+## Lists every *.tres directly inside dir_path, sorted for a deterministic
+## load order. Used for content types (currently just ingredients) that are
+## added too frequently for a hand-maintained path list to stay accurate.
+func _scan_resource_paths(dir_path: String) -> Array[String]:
+	var paths: Array[String] = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_error("ContentRegistry: could not open directory %s" % dir_path)
+		return paths
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if not dir.current_is_dir() and file_name.ends_with(".tres"):
+			paths.append(dir_path.path_join(file_name))
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	paths.sort()
+	return paths
 
 
 func get_recipe(id: String) -> RecipeDef:

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://bsg65cessyw1d"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_binding_ring.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "binding_ring"
+display_name = "Binding Ring"
+description = "A draconic sealing device in the shape of an ancient dragon's eye."
+icon = ExtResource("2")
+category = 4
+role = 1
+weight = 8.0
+characteristic_ids = Array[String](["energy", "volatility", "aggression", "metal"])
+characteristic_values = Array[int]([-5, -9, -3, 5])

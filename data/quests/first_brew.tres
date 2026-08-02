@@ -8,5 +8,5 @@ id = "first_brew"
 display_name = "First Brew"
 description = "Reach Brewing level 1 by completing brews at the station."
 complete_condition = "skill_level(\"brewing\") >= 1"
-reward = Array[String](["give_item(\"moonpetal\", 2)"])
+reward = Array[String](["give_item(\"burstblossom\", 2)"])
 auto_complete = true

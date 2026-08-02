@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://2hj011ln8dgn"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_spiny_heart.tres" id="1_6aer3"]
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_aergq"]
+
+[resource]
+script = ExtResource("1_aergq")
+id = "spiny_heart"
+display_name = "Spiny Heart"
+description = "Wear thick gloves when you're using this one."
+icon = ExtResource("1_6aer3")
+weight = 7.0
+characteristic_ids = Array[String](["sturdy", "aggression", "spectral"])
+characteristic_values = Array[int]([9, 4, 0])

@@ -13,9 +13,9 @@ extends Node2D
 ## them twice.
 
 const STARTING_INGREDIENTS := {
-	"moonpetal": 3,
-	"iron_filings": 3,
-	"ghostcap_mushroom": 3,
+	"burstblossom": 3,
+	"metal_scrap": 3,
+	"astral_stone": 3,
 }
 const STARTING_QUESTS := ["first_brew", "stock_the_shelf"]
 const STARTING_SCRAP_COUNT := 3

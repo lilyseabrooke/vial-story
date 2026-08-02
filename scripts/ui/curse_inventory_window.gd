@@ -72,7 +72,7 @@ func refresh(tray_ids: Array[String], tray_capacity: int) -> void:
 		var item_slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
 		var type_label := "%s Ingredient" % IngredientDef.Category.keys()[ingredient.category].capitalize()
 		item_slot.populate_item(ingredient.display_name, "", type_label, available,
-			IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon)
+			IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon, ingredient.description)
 
 		var cell := Button.new()
 		cell.custom_minimum_size = item_slot.custom_minimum_size

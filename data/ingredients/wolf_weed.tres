@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://b2met4etllbe0"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_b2l8r"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_wolf_weed.tres" id="1_m0wyr"]
+
+[resource]
+script = ExtResource("1_b2l8r")
+id = "wolf_weed"
+display_name = "Wolf Weed"
+description = "Grinds to make a powder that amplifies magic."
+icon = ExtResource("1_m0wyr")
+role = 2
+weight = 3.0
+characteristic_ids = Array[String](["spectral", "energy", "heart"])
+characteristic_values = Array[int]([3, 4, -2])
+metadata/_custom_type_script = "uid://bhw4l5esy6peb"

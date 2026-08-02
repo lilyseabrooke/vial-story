@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://f3g48ji5uclt"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_abyssal_dust.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "abyssal_dust"
+display_name = "Abyssal Dust"
+description = "Ashen silt from the depths of the demonic realm."
+icon = ExtResource("2")
+category = 3
+role = 2
+characteristic_ids = Array[String](["focus", "life"])
+characteristic_values = Array[int]([4, -5])

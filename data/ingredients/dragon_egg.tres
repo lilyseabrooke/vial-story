@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://cb4ntbqepj88b"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_dragon_egg.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "dragon_egg"
+display_name = "Dragon Egg"
+description = "The dulled colors tell you this one's a dud that won't hatch. Thankfully."
+icon = ExtResource("2")
+category = 4
+weight = 6.0
+characteristic_ids = Array[String](["creature", "fire", "astral"])
+characteristic_values = Array[int]([6, 2, -4])

@@ -40,7 +40,7 @@ const CRIT_QUALITY_SWING := 15.0
 const BASE_INGREDIENT_COUNT := 1
 const QUALITY_INGREDIENT_DIVISOR := 20.0
 
-const DRACONIC_INGREDIENT_IDS := ["dragon_scale", "ember_dust"]
+const DRACONIC_INGREDIENT_IDS := ["dragonscale", "smolderstone"]
 
 const XP_PER_STASH := 20
 

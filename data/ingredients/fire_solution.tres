@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://cjg4xo6spqmmn"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_fire_solution.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fire_solution"
+display_name = "Fire Solution"
+description = "Liquid flame waiting to be unleashed."
+icon = ExtResource("2")
+category = 4
+weight = 4.0
+characteristic_ids = Array[String](["fire", "aquatic", "astral"])
+characteristic_values = Array[int]([7, 7, -2])

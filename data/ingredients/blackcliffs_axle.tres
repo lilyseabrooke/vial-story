@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://dja4ndsqqwfbh"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/spectral/icon_blackcliffs_axle.tres" id="1_dnbwe"]
+
+[resource]
+script = ExtResource("1")
+id = "blackcliffs_axle"
+display_name = "Blackcliff's Axle"
+description = "A beam of pure energy made solid, used to force ley lines open."
+icon = ExtResource("1_dnbwe")
+category = 2
+role = 2
+characteristic_ids = Array[String](["energy", "heart"])
+characteristic_values = Array[int]([17, 9])

@@ -369,6 +369,7 @@ func update_inventory() -> void:
 				"quantity": count,
 				"color": _color_for_id(ingredient.id),
 				"icon": ingredient.icon,
+				"description": ingredient.description,
 			})
 
 	var potion_counts: Dictionary = {}
@@ -383,6 +384,7 @@ func update_inventory() -> void:
 			"quantity": potion_counts[potion_id],
 			"color": _color_for_id(potion_id),
 			"icon": null,
+			"description": "",
 		})
 
 	for i in GRID_COLUMNS * GRID_ROWS:
@@ -390,7 +392,7 @@ func update_inventory() -> void:
 		_inventory_grid.add_child(slot)
 		if i < entries.size():
 			var entry: Dictionary = entries[i]
-			slot.populate_item(entry.name, entry.quality, entry.type, entry.quantity, entry.color, entry.icon)
+			slot.populate_item(entry.name, entry.quality, entry.type, entry.quantity, entry.color, entry.icon, entry.description)
 		else:
 			slot.clear()
 

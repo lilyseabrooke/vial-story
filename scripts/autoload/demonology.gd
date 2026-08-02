@@ -54,7 +54,7 @@ const REVISION_DECAY := 0.85
 const SUBMIT_DC := 11.0
 const CRIT_QUALITY_SWING := 15.0
 
-const DEMONIC_INGREDIENT_IDS := ["imp_ash", "brimstone_shard"]
+const DEMONIC_INGREDIENT_IDS := ["abyss_feather", "black_ichor"]
 const BASE_INGREDIENT_COUNT := 1
 const QUALITY_INGREDIENT_DIVISOR := 20.0
 

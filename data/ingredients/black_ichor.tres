@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://cfdnhhmq4txe1"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_black_ichor.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "black_ichor"
+display_name = "Black Ichor"
+description = "A potent demonic substance that pools in areas of regret."
+icon = ExtResource("2")
+category = 3
+weight = 3.0
+characteristic_ids = Array[String](["restorative", "energy", "night"])
+characteristic_values = Array[int]([-8, -5, 7])

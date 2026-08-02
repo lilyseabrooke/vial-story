@@ -60,7 +60,7 @@ const TIER_THRESHOLDS := {
 ## Bonus motes grabbed mid-arena (unrelated to a Surge's own rewards table)
 ## always draw from this fixed pool, same as before -- only the tier reward
 ## itself now comes from whichever Surge triggered the run.
-const SPECTRAL_INGREDIENT_IDS := ["glimmer_dust", "echo_shard"]
+const SPECTRAL_INGREDIENT_IDS := ["astral_stone", "dream_bubble"]
 
 const XP_PER_MINIGAME := 20
 

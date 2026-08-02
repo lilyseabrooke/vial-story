@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://fyj1mf33iyru"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_abyssal_stone.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "abyssal_stone"
+display_name = "Abyssal Stone"
+description = "A common stone from the demonic realm."
+icon = ExtResource("2")
+category = 3
+role = 1
+weight = 7.0
+characteristic_ids = Array[String](["volatility", "night"])
+characteristic_values = Array[int]([-3, 4])

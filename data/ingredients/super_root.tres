@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://b5h2vgrml3x7l"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_super_root.tres" id="1_tunfm"]
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_vvl1f"]
+
+[resource]
+script = ExtResource("1_vvl1f")
+id = "super_root"
+display_name = "Super Root"
+description = "Grows on ley line networks to cast psychic messages to other Super Roots."
+icon = ExtResource("1_tunfm")
+weight = 7.0
+characteristic_ids = Array[String](["sturdy", "communication", "aerial", "spectral", "restorative"])
+characteristic_values = Array[int]([8, 4, -12, -5, 5])

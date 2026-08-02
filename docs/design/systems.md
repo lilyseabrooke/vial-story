@@ -180,8 +180,8 @@ Recipe                              # RecipeDef, scripts/data/recipe_def.gd
   combination up front. Instead, the player finds them — any ingredient selection that
   satisfies a `PotionDef`'s puzzle criteria becomes its own independently-learned
   `RecipeDef`, synthesized at runtime, so the same potion can end up with several
-  unrelated learned recipes (moonpetal + iron filings *and*, separately, ember dust +
-  rift glass) without either being pre-written as content.
+  unrelated learned recipes (burstblossom + metal scrap *and*, separately, smolderstone +
+  planar gem) without either being pre-written as content.
 - Two-stage unlock: a potion's discovery puzzle is *always available* at the Potion Book
   (not gated on whether the player already knows a recipe for it) before any resulting
   recipe becomes *learned* (brewable at the Alembic). Recipe *learned* state lives at
@@ -251,7 +251,7 @@ Recipe                              # RecipeDef, scripts/data/recipe_def.gd
   doesn't stop the player from finding a second, different one later.
 - On a successful attempt, `attempt_discovery()` builds a deterministic id from the
   potion and the exact ingredient multiset used (sorted `ingredient_id`×`count`
-  pairs, e.g. `minor_healing_draught__ember_dustx1_rift_glassx1`) — this doubles as
+  pairs, e.g. `minor_healing_draught__smolderstonex1_planar_gemx1`) — this doubles as
   the dedup key, so re-finding the exact same combination resolves to the
   already-learned `RecipeDef` (`already_known: true` in the returned result) instead
   of creating a duplicate. A genuinely new combination gets a freshly synthesized
@@ -2048,7 +2048,7 @@ Demonology (autoload)
   quality drives two independent outputs:
   - **Ingredient count** — `BASE_INGREDIENT_COUNT + floor(quality / QUALITY_INGREDIENT_DIVISOR)
     + Skills.get_bonus("demon_yield")`, granted from `DEMONIC_INGREDIENT_IDS` (currently
-    `imp_ash`, `brimstone_shard` — the first two `IngredientDef.Category.DEMONIC`
+    `abyss_feather`, `black_ichor` — the first two `IngredientDef.Category.DEMONIC`
     resources; `source_methods = [SourceMethod.SUMMON]`, `buy_price = 0` since they're
     only obtainable through a writ, never bought). **Ingredient quality [BUILT]** —
     the same `quality` (clamped `[0, 200]` — see `_roll_initial_quality()`) also
@@ -2144,7 +2144,7 @@ Transmutation (autoload)
   `Demonology.submit_writ()` uses. Final quality drives ingredient count:
   `BASE_INGREDIENT_COUNT (1) + floor(quality / QUALITY_INGREDIENT_DIVISOR (20.0)) +
   Skills.get_bonus("transmute_yield")`, granted from `ARTIFICIAL_INGREDIENT_IDS`
-  (`scrap_alloy`, `refined_component` — the first two `IngredientDef.Category.ARTIFICIAL`
+  (`metal_scrap`, `runic_core` — the first two `IngredientDef.Category.ARTIFICIAL`
   resources; `source_methods = [SourceMethod.CRAFT]`, `buy_price = 0`, only obtainable this
   way). Grants `XP_PER_BREAKDOWN` (15) Transmutation XP. Returns `{}` and does nothing else
   if there was no Scrap to break down.
@@ -2321,7 +2321,7 @@ scenes/spawners/DragonStashSpawner.tscn)
   nudges quality" rule `Demonology.submit_writ()`/`Transmutation.break_down_scrap()` both use.
   Final quality drives ingredient count: `BASE_INGREDIENT_COUNT (1) + floor(quality /
   QUALITY_INGREDIENT_DIVISOR (20.0)) + Skills.get_bonus("draconic_yield")`, granted from
-  `DRACONIC_INGREDIENT_IDS` (`dragon_scale`, `ember_dust` — the first two
+  `DRACONIC_INGREDIENT_IDS` (`dragonscale`, `smolderstone` — the first two
   `IngredientDef.Category.DRACONIC` resources; `source_methods = [SourceMethod.FORAGE]`,
   `buy_price = 0`, only obtainable this way). Grants `XP_PER_STASH` (20) Draconology XP.
 - **The bar fills pale green → rich maroon** instead of Brewing's red → green or the Contract
@@ -2630,7 +2630,7 @@ LeyLineSurgeDef (scripts/data/ley_line_surge_def.gd, RefCounted, loaded from
   (`leyline_yield` and `learn_speed_spectral` remain **[STUB]**, since yield is now entirely a
   per-Surge `rewards` design lever rather than a skill bonus). **Bonus motes are unrelated to the
   triggering Surge** — they still draw from the fixed `SPECTRAL_INGREDIENT_IDS` pool
-  (`glimmer_dust`, `echo_shard`), granted regardless of tier, same as before. **Ingredient quality
+  (`astral_stone`, `dream_bubble`), granted regardless of tier, same as before. **Ingredient quality
   [BUILT]** — `performance` is already 0.0–1.0, so it's reused directly (no rescaling) as the quality
   fraction fed to `IngredientQuality.tier_for_fraction()` (system 2): both the Surge-rolled tier
   reward and any bonus-mote ingredients from that resolution are granted at the resulting tier, so a
@@ -2873,14 +2873,14 @@ Summoning (autoload)
   **gated** rewards (`gated_ingredient_*` + `gated_ingredient_min_quality`) grant their full quantity
   only once quality clears the paired threshold — the "only a flawless summon brings this through"
   payoffs. The four starting bundles scale up in this respect with their duration/risk: `faint_echo`
-  just adds a scaled `rift_glass`, while `deep_communion` (3 days) scales up to +3 `warped_ichor` and
-  +15 Materials and gates 2 more `warped_ichor` behind a 0.9 quality. **On top of quality, every reward
+  just adds a scaled `planar_gem`, while `deep_communion` (3 days) scales up to +3 `distortion_stone` and
+  +15 Materials and gates 2 more `distortion_stone` behind a 0.9 quality. **On top of quality, every reward
   (base + scaled + gated ingredients, material delta, resolve delta) is then multiplied by
   `job.reward_multiplier`** — `1 +` however many planar keys landed inside the matched sequence at
   submit time — so a well-timed key gamble pays off as a flat multiple of the whole haul, independent of
   quality.
 - **Two new `IngredientDef.Category.EXTRAPLANAR` ingredients** back the initial bundle set:
-  `rift_glass` (tier 2) and `warped_ichor` (tier 3), both `source_methods = [SourceMethod.SUMMON]`,
+  `planar_gem` and `distortion_stone`, both `source_methods = [SourceMethod.SUMMON]`,
   `buy_price = 0` — only obtainable this way, same as the Ley Line System's spectral ingredients.
   Four starting bundles (`data/planar_rifts/*.tres`) span the design's "5 minutes to multiple days"
   range and a risk/reward spread: `faint_echo` (5 min, small free gain, 4-symbol sequence),

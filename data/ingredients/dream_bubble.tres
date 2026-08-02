@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://c2743nr3la6p4"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/spectral/icon_dream_bubble.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "dream_bubble"
+display_name = "Dream Bubble"
+description = "A watery substance formed out of illusory perception."
+icon = ExtResource("2")
+category = 2
+weight = 2.0
+characteristic_ids = Array[String](["aquatic", "perception", "illusion", "metal"])
+characteristic_values = Array[int]([7, 4, 7, -9])

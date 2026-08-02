@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://bxwicle6dkwq5"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_emperors_tooth.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "emperors_tooth"
+display_name = "Emperor's Tooth"
+description = "A shed tooth from the great and terrible spire emperors that blink across the demonic realm."
+icon = ExtResource("2")
+category = 3
+role = 2
+weight = 4.0
+characteristic_ids = Array[String](["aggression", "creature", "teleportation", "heart"])
+characteristic_values = Array[int]([6, 2, 4, -4])

@@ -7,8 +7,8 @@
 	"dc": 11,
 	"rounds": 3,
 	"rewards": [
-	  ["echo_shard", 1.5],
-	  ["glimmer_dust", 0.5]
+	  ["dream_bubble", 1.5],
+	  ["astral_stone", 0.5]
 	]
   },
   {
@@ -19,8 +19,8 @@
 	"dc": 15,
 	"rounds": 5,
 	"rewards": [
-	  ["glimmer_dust", 2.0],
-	  ["echo_shard", 1.0]
+	  ["astral_stone", 2.0],
+	  ["dream_bubble", 1.0]
 	]
   },
   {
@@ -31,7 +31,7 @@
 	"dc": 9,
 	"rounds": 2,
 	"rewards": [
-	  ["glimmer_dust", 1.0]
+	  ["astral_stone", 1.0]
 	]
   },
   {
@@ -42,8 +42,8 @@
 	"dc": 14,
 	"rounds": 4,
 	"rewards": [
-	  ["echo_shard", 1.75],
-	  ["glimmer_dust", 0.75]
+	  ["dream_bubble", 1.75],
+	  ["astral_stone", 0.75]
 	]
   },
   {
@@ -54,8 +54,8 @@
 	"dc": 12,
 	"rounds": 4,
 	"rewards": [
-	  ["glimmer_dust", 1.25],
-	  ["echo_shard", 0.5]
+	  ["astral_stone", 1.25],
+	  ["dream_bubble", 0.5]
 	]
   }
 ]

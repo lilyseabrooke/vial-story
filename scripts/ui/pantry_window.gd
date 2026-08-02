@@ -73,7 +73,7 @@ func refresh(station_id: String = "") -> void:
 		_grid.add_child(slot)
 		var type_label := "%s Ingredient" % IngredientDef.Category.keys()[ingredient.category].capitalize()
 		slot.populate_item(ingredient.display_name, "", type_label, count,
-			IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon)
+			IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon, ingredient.description)
 
 	if not any:
 		var empty := Label.new()

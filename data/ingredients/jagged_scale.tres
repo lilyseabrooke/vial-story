@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://e865aeuqi6f2"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_jagged_scale.tres" id="1_qunef"]
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="2_god6w"]
+
+[resource]
+script = ExtResource("2_god6w")
+id = "jagged_scale"
+display_name = "Jagged Scale"
+description = "A scale edge used for tearing and slashing."
+icon = ExtResource("1_qunef")
+category = 4
+role = 1
+weight = 4.0
+characteristic_ids = Array[String](["focus", "sturdy", "aggression"])
+characteristic_values = Array[int]([2, 4, 5])

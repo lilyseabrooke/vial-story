@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://dpshprbnvgdxd"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_gloomleaf.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "gloomleaf"
+display_name = "Gloomleaf"
+description = "Releases poison gas when touched. So don't touch."
+icon = ExtResource("2")
+weight = 4.0
+characteristic_ids = Array[String](["life", "aerial", "spectral"])
+characteristic_values = Array[int]([-6, 3, 2])

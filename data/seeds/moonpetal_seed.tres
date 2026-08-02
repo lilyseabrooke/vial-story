@@ -7,6 +7,6 @@ script = ExtResource("1")
 id = "moonpetal_seed"
 display_name = "Moonpetal Seed"
 buy_price = 3
-yields_ingredient_id = "moonpetal"
+yields_ingredient_id = "burstblossom"
 growth_minutes = 480
 base_yield = 3

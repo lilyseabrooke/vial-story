@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://d05i8dxs1ls5m"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_abyss_feather.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "abyss_feather"
+display_name = "Abyss Feather"
+description = "Shed by demonic chasm crows and frequently used to sign contracts."
+icon = ExtResource("2")
+category = 3
+role = 2
+characteristic_ids = Array[String](["aerial", "creature", "communication", "sturdy"])
+characteristic_values = Array[int]([6, 2, 4, -5])

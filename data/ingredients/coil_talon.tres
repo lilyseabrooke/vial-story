@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://b0s3rsbx5ns3l"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_coil_talon.tres" id="1_4e0ca"]
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="2_7whjp"]
+
+[resource]
+script = ExtResource("2_7whjp")
+id = "coil_talon"
+display_name = "Coil Talon"
+description = "A talon filled with a potent arcane marrow that makes a volatile potion base."
+icon = ExtResource("1_4e0ca")
+category = 4
+characteristic_ids = Array[String](["volatility", "aggression", "creature"])
+characteristic_values = Array[int]([8, 4, 6])

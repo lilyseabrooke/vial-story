@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://l3cm537cdglv"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_jitterbush_coils.tres" id="1_lsekw"]
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_mfaew"]
+
+[resource]
+script = ExtResource("1_mfaew")
+id = "jitterbush_coils"
+display_name = "Jitterbush Coils"
+description = "The coils vibrate with magic energy."
+icon = ExtResource("1_lsekw")
+role = 2
+weight = 3.0
+characteristic_ids = Array[String](["energy", "focus", "life", "volatility"])
+characteristic_values = Array[int]([9, -13, 3, 7])

@@ -27,7 +27,7 @@ signal heap_resolved(heap_id: String, roll: Dictionary, scrap_granted: int, ingr
 ## ids to RoomBuilder to place.
 signal ground_heaps_spawned(spawner_id: String, heap_ids: Array)
 
-const ARTIFICIAL_INGREDIENT_IDS := ["scrap_alloy", "refined_component"]
+const ARTIFICIAL_INGREDIENT_IDS := ["metal_scrap", "runic_core"]
 
 const BREAKDOWN_DC := 11.0
 const CRIT_QUALITY_SWING := 15.0

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://dn6cuyrl6exes"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/demonic/icon_deathgazer.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "deathgazer"
+display_name = "Deathgazer"
+description = "A demonic skull that lingers with malignant energy."
+icon = ExtResource("2")
+category = 3
+role = 1
+weight = 5.0
+characteristic_ids = Array[String](["creature", "spectral", "aggression", "necromantic"])
+characteristic_values = Array[int]([4, 5, 3, 4])

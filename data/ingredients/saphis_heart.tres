@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://b6lwh0wwg3c6y"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_0a4cs"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_saphis_heart.tres" id="1_kh8ht"]
+
+[resource]
+script = ExtResource("1_0a4cs")
+id = "saphis_heart"
+display_name = "Saphi's Heart"
+description = "Emits hypnomantic waves that sound like a lullaby and make you drowsy."
+icon = ExtResource("1_kh8ht")
+weight = 8.0
+characteristic_ids = Array[String](["energy", "dream", "aggression", "perception", "restorative"])
+characteristic_values = Array[int]([-6, 6, -4, -3, 4])
+metadata/_custom_type_script = "uid://bhw4l5esy6peb"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/artificial/icon_crystal_pack.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "crystal_pack"
+display_name = "Crystal Pack"
+icon = ExtResource("2")
+category = 1

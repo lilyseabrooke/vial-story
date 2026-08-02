@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://firmik016ceq"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_jq2e3"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_burstblossom.tres" id="1_tbe6f"]
+
+[resource]
+script = ExtResource("1_jq2e3")
+id = "burstblossom"
+display_name = "Burstblossom"
+description = "Spins like a pinwheel, peacefully. Explodes sometimes, unpeacefully."
+icon = ExtResource("1_tbe6f")
+weight = 4.0
+characteristic_ids = Array[String](["energy", "volatility", "aggression", "sturdy", "restorative"])
+characteristic_values = Array[int]([7, 9, 4, -6, -4])
+metadata/_custom_type_script = "uid://bhw4l5esy6peb"

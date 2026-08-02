@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://bv8ll5jb7vaby"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_bloodstone.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "bloodstone"
+display_name = "Bloodstone"
+description = "A piece of draconic rock that pumps powerful magic energy like blood."
+icon = ExtResource("2")
+category = 4
+role = 1
+weight = 8.0
+characteristic_ids = Array[String](["life", "fire"])
+characteristic_values = Array[int]([7, 10])

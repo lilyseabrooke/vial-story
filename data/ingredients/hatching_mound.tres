@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://c8nkl5qwean3k"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/draconic/icon_hatching_mound.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "hatching_mound"
+display_name = "Hatching Mound"
+description = "A warming stone pile that's good for dragon eggs."
+icon = ExtResource("2")
+category = 4
+role = 1
+weight = 10.0
+characteristic_ids = Array[String](["life", "creature", "fire", "energy"])
+characteristic_values = Array[int]([6, 2, 4, 2])

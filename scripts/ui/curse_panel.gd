@@ -130,7 +130,7 @@ func _refresh_tray() -> void:
 		if filled:
 			var ingredient := ContentRegistry.get_ingredient(ingredient_id)
 			item_slot.populate_item(ingredient.display_name, "", "", 1,
-				IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon)
+				IngredientDef.CATEGORY_COLORS[ingredient.category], ingredient.icon, ingredient.description)
 		else:
 			item_slot.clear()
 

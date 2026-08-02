@@ -24,7 +24,7 @@
 		"conditions": [],
 		"rewards": [
 			{"action": "add_materials(10)", "chance": 1.0, "condition": "true"},
-			{"action": "give_item(\"moonpetal\", 1)", "chance": 1.0, "condition": "degrees_of_success() >= 1"}
+			{"action": "give_item(\"burstblossom\", 1)", "chance": 1.0, "condition": "degrees_of_success() >= 1"}
 		]
 	},
 	{

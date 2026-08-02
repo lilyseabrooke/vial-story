@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://cs3nktbx70rfi"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1_8ichx"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_dreaming_princess.tres" id="1_pv1p5"]
+
+[resource]
+script = ExtResource("1_8ichx")
+id = "dreaming_princess"
+display_name = "Dreaming Princess"
+description = "A big, delicate flower bud full of hypnomantic mist."
+icon = ExtResource("1_pv1p5")
+weight = 2.0
+characteristic_ids = Array[String](["dream", "spectral", "illusion", "sturdy", "life"])
+characteristic_values = Array[int]([9, 5, 3, -10, 3])

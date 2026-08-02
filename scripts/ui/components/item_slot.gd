@@ -32,7 +32,7 @@ func populate(item_name: String, price: int, tint: Color, icon: Texture2D = null
 ## Inventory-tab display: icon only, quantity as a corner badge, and the rest
 ## (name/quality/type) surfaced via native hover tooltip instead of always-on
 ## text, so a full satchel grid stays readable at a glance.
-func populate_item(item_name: String, quality_label: String, type_label: String, quantity: int, tint: Color, icon: Texture2D = null) -> void:
+func populate_item(item_name: String, quality_label: String, type_label: String, quantity: int, tint: Color, icon: Texture2D = null, description: String = "") -> void:
 	modulate = Color(1, 1, 1, 1)
 	var name_label: Label = $Overlay/VBox/NameLabel
 	name_label.visible = false
@@ -43,7 +43,7 @@ func populate_item(item_name: String, quality_label: String, type_label: String,
 	badge.add_theme_color_override("font_color", UiPalette.CREAM_PAGE)
 	badge.add_theme_color_override("font_outline_color", UiPalette.COCOA_INK)
 	badge.add_theme_constant_override("outline_size", BADGE_OUTLINE_SIZE)
-	tooltip_text = ItemTooltip.compose(item_name, quality_label, type_label)
+	tooltip_text = ItemTooltip.compose(item_name, quality_label, type_label, description)
 	_apply_icon(tint, icon)
 
 

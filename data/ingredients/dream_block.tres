@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://cq7v7dkgburvv"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/spectral/icon_dream_block.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "dream_block"
+display_name = "Dream Block"
+description = "Dreamlike pseudoreality given crystallized form."
+icon = ExtResource("2")
+category = 2
+role = 2
+weight = 0.0
+characteristic_ids = Array[String](["astral", "dream", "illusion", "creature"])
+characteristic_values = Array[int]([8, 8, 8, -4])

@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1")
 id = "clarity_tonic"
-display_name = "Moonpetal + Ghostcap Mushroom"
+display_name = "Burstblossom + Astral Stone"
 known = true
 output_potion_id = "clarity_tonic"
-ingredient_ids = Array[String](["moonpetal", "ghostcap_mushroom"])
+ingredient_ids = Array[String](["burstblossom", "astral_stone"])
 ingredient_quantities = Array[int]([1, 2])

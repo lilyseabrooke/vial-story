@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://bsmi7aaah6yw7"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/spectral/icon_astral_stone.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "astral_stone"
+display_name = "Astral Stone"
+description = "A rock that refracts soul images, showing you reflections of what you see in yourself."
+icon = ExtResource("2")
+category = 2
+role = 1
+weight = 3.0
+characteristic_ids = Array[String](["astral", "dream", "perception", "heart", "illusion"])
+characteristic_values = Array[int]([8, 5, 6, 5, 4])

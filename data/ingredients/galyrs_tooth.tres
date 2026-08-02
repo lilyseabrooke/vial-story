@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="IngredientDef" format=3 uid="uid://dujl2smktpgob"]
+
+[ext_resource type="Script" uid="uid://bhw4l5esy6peb" path="res://scripts/data/ingredient_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/natural/icon_galyrs_tooth.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "galyrs_tooth"
+display_name = "Galyr's Tooth"
+description = "Forms a fine restorative powder when crushed."
+icon = ExtResource("2")
+role = 2
+weight = 2.0
+characteristic_ids = Array[String](["restorative", "life", "fire"])
+characteristic_values = Array[int]([8, 2, -2])
