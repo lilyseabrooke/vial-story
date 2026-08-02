@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/components/ingredient_chip.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/components/pixel_perfect_size.gd" id="2"]
 
 [node name="IngredientChip" type="VBoxContainer"]
 custom_minimum_size = Vector2(100, 0)
@@ -17,6 +18,7 @@ texture_filter = 1
 expand_mode = 1
 stretch_mode = 5
 visible = false
+script = ExtResource("2")
 
 [node name="FallbackDot" type="Label" parent="."]
 layout_mode = 2

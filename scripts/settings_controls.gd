@@ -11,11 +11,18 @@ extends RefCounted
 ## same reason. Volume sliders and Difficulty remain unwired placeholders —
 ## no audio bus or difficulty-scaling system exists yet for them to drive.
 
+## Options below the design/base viewport size (project.godot's
+## window/size/viewport_width/height, 1920x1080) downscale icon/tile/character
+## art non-integer with nearest-neighbor filtering, which aliases (see
+## [rendering] default_texture_filter) — kept in for now to eyeball how bad it
+## actually looks pending a fix (icons pinned to native size, world content on
+## its own SubViewport scale strategy).
 const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1600, 900),
 	Vector2i(1920, 1080),
 	Vector2i(2560, 1440),
+	Vector2i(3840, 2160),
 ]
 
 static func build(parent: VBoxContainer) -> void:
@@ -72,21 +79,33 @@ static func _add_resolution_setting(parent: VBoxContainer) -> void:
 	parent.add_child(option_button)
 
 
+static var _last_windowed_size: Vector2i = Vector2i(1920, 1080)
+
+
 static func _on_resolution_selected(index: int) -> void:
 	if index < 0 or index >= RESOLUTIONS.size():
 		return
-	var res := RESOLUTIONS[index]
-	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
+	_last_windowed_size = RESOLUTIONS[index]
+	_apply_windowed_size(_last_windowed_size)
+
+
+static func _on_fullscreen_toggled(pressed: bool) -> void:
+	if pressed:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	else:
+		_apply_windowed_size(_last_windowed_size)
+
+
+## Windowed size changes only take effect from WINDOW_MODE_WINDOWED — the OS
+## ignores window_set_size() while maximized or fullscreen, which is why the
+## resolution dropdown used to silently do nothing. Re-centering here also
+## keeps the window from landing partially off-screen after leaving fullscreen.
+static func _apply_windowed_size(res: Vector2i) -> void:
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_size(res)
 	var screen_size := DisplayServer.screen_get_size()
 	DisplayServer.window_set_position((screen_size - res) / 2)
-
-
-static func _on_fullscreen_toggled(pressed: bool) -> void:
-	DisplayServer.window_set_mode(
-		DisplayServer.WINDOW_MODE_FULLSCREEN if pressed else DisplayServer.WINDOW_MODE_WINDOWED
-	)
 
 
 static func _on_vsync_toggled(pressed: bool) -> void:

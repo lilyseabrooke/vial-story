@@ -55,7 +55,7 @@ GameFlow="*res://scripts/autoload/game_flow.gd"
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
-window/size/mode=2
+window/size/mode=0
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
@@ -67,6 +67,7 @@ enabled=PackedStringArray("res://addons/engine_scaffolding/plugin.cfg")
 
 theme/default_theme_scale=2.0
 theme/custom="res://theme/ui_theme.tres"
+common/snap_controls_to_pixels=true
 
 [importer_defaults]
 
@@ -81,6 +82,12 @@ texture={
 2d_physics/layer_2="Walls"
 2d_physics/layer_3="Enemies"
 2d_physics/layer_4="NPCs"
+
+[rendering]
+
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+textures/canvas_textures/default_texture_filter=0
 
 [physics]
 

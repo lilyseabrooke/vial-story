@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://d0eelih0yy6xw"]
 
 [ext_resource type="Script" uid="uid://frh7pfi2bpo3" path="res://scripts/ui/components/item_toast.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/components/pixel_perfect_size.gd" id="2"]
 
 [node name="ItemToast" type="PanelContainer" unique_id=278825270]
 mouse_filter = 0
@@ -17,6 +18,8 @@ custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
+script = ExtResource("2")
+native_pixel_size = Vector2(20, 20)
 
 [node name="Icon" type="TextureRect" parent="HBox/IconWrap" unique_id=1364832217]
 visible = false

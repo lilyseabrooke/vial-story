@@ -33,8 +33,18 @@ extends MarginContainer
 ## The mouse works alongside this; clicking a rail button drops back to rail
 ## level, since you're picking a new section, not acting inside the old one.
 
-const GRID_COLUMNS := 8
+## Satchel/Shop grid column count is computed at runtime (see
+## _compute_grid_columns()) from the available content width and how wide an
+## ItemSlot currently needs to be — ItemSlot pins its own size to a fixed
+## real-pixel footprint (see item_slot.gd), so its design-space width varies
+## inversely with the window scale factor rather than staying fixed at 72.
+## MAX_GRID_COLUMNS caps it at the previous fixed count for anything at or
+## above design resolution.
+const MAX_GRID_COLUMNS := 8
 const GRID_ROWS := 3
+const GRID_SLOT_NATIVE_PX := 72.0
+const GRID_H_SEPARATION := 4.0
+const CONTENT_WIDTH_BUDGET := 860.0
 
 const AFFECTION_PER_HEART := 20
 const MAX_HEARTS := 5
@@ -120,13 +130,15 @@ func build() -> void:
 	_content.clip_contents = true
 	# _content is a plain Control, not a Container, so unlike _rail above it does
 	# NOT auto-grow to fit its children — this width is a hard cap. It has to
-	# cover both: GRID_COLUMNS(8) * ItemSlot min width(72) + 7 * GridContainer
+	# cover both: MAX_GRID_COLUMNS(8) * ItemSlot min width(72) + 7 * GridContainer
 	# h_separation(4) = 604 (Satchel/Shop grids, untouched by the font-size
 	# doubling below), and the widest doubled row — SkillRow's
 	# NameLabel(240) + LevelLabel(120) + Progress(240) + ProgressLabel(~100) +
 	# separation ≈ 716. Horizontal scroll is disabled on these sections, so
 	# anything wider than this gets hard-clipped rather than wrapping.
-	_content.custom_minimum_size = Vector2(860, 0)
+	# _compute_grid_columns() below reflows Satchel/Shop below 8 columns using
+	# this same budget once a pinned-size ItemSlot no longer fits 8 across.
+	_content.custom_minimum_size = Vector2(CONTENT_WIDTH_BUDGET, 0)
 	hbox.add_child(_content)
 
 	_add_section("satchel", "Satchel", _build_inventory_tab())
@@ -238,6 +250,17 @@ func _show_section(id: String) -> void:
 # Keyboard navigation (rail level <-> section level)
 # ---------------------------------------------------------------------------
 
+## build() runs on a freshly-constructed, still-detached node (hud.gd calls
+## GameMenu.new() then build() before ever parenting it in), so get_window()
+## isn't available yet there — grid columns start at MAX_GRID_COLUMNS and get
+## corrected here once the node has actually entered a live tree and a window
+## exists. _ready() only ever fires once per node, unlike _enter_tree() below,
+## so this is a one-time setup, not a per-reopen one.
+func _ready() -> void:
+	get_window().size_changed.connect(_update_grid_columns)
+	_update_grid_columns()
+
+
 ## Re-opened via MenuScene (which reparents this in), so reset the cursor to
 ## rail level each time rather than resuming a stale in-section state.
 func _enter_tree() -> void:
@@ -345,7 +368,7 @@ func _set_section_highlight(control: Control) -> void:
 func _build_inventory_tab() -> Control:
 	var root := VBoxContainer.new()
 	_inventory_grid = GridContainer.new()
-	_inventory_grid.columns = GRID_COLUMNS
+	_inventory_grid.columns = MAX_GRID_COLUMNS
 	root.add_child(_inventory_grid)
 	return root
 
@@ -377,17 +400,18 @@ func update_inventory() -> void:
 		var potion_id: String = potion.potion_id
 		potion_counts[potion_id] = potion_counts.get(potion_id, 0) + 1
 	for potion_id in potion_counts:
+		var potion_def := ContentRegistry.get_potion(potion_id)
 		entries.append({
-			"name": String(potion_id).capitalize(),
+			"name": potion_def.display_name if potion_def != null else String(potion_id).capitalize(),
 			"quality": "",
 			"type": "Potion",
 			"quantity": potion_counts[potion_id],
 			"color": _color_for_id(potion_id),
-			"icon": null,
+			"icon": potion_def.icon if potion_def != null else null,
 			"description": "",
 		})
 
-	for i in GRID_COLUMNS * GRID_ROWS:
+	for i in MAX_GRID_COLUMNS * GRID_ROWS:
 		var slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
 		_inventory_grid.add_child(slot)
 		if i < entries.size():
@@ -395,6 +419,26 @@ func update_inventory() -> void:
 			slot.populate_item(entry.name, entry.quality, entry.type, entry.quantity, entry.color, entry.icon, entry.description)
 		else:
 			slot.clear()
+
+
+## Recomputed on every window resize (see build()) rather than cached, since
+## an ItemSlot's design-space width — and therefore how many fit across
+## CONTENT_WIDTH_BUDGET — depends on the current window scale factor.
+func _compute_grid_columns() -> int:
+	var scale_factor := WindowScale.get_factor(self)
+	var slot_width := GRID_SLOT_NATIVE_PX / scale_factor
+	var columns := int(
+		(CONTENT_WIDTH_BUDGET + GRID_H_SEPARATION) / (slot_width + GRID_H_SEPARATION)
+	)
+	return clampi(columns, 1, MAX_GRID_COLUMNS)
+
+
+func _update_grid_columns() -> void:
+	var columns := _compute_grid_columns()
+	if _inventory_grid != null:
+		_inventory_grid.columns = columns
+	if _shop_grid != null:
+		_shop_grid.columns = columns
 
 
 func _color_for_id(id: String) -> Color:
@@ -460,7 +504,7 @@ func _build_shop_tab() -> Control:
 	root.add_child(HSeparator.new())
 
 	_shop_grid = GridContainer.new()
-	_shop_grid.columns = GRID_COLUMNS
+	_shop_grid.columns = MAX_GRID_COLUMNS
 	root.add_child(_shop_grid)
 
 	root.add_child(HSeparator.new())

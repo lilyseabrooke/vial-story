@@ -9,6 +9,17 @@ extends Resource
 
 @export var id: String
 @export var display_name: String
+
+## Source data for the composited PotionIcon template (see
+## scenes/ui/components/PotionIcon.tscn) — which tier's layer art to use and
+## what color to modulate the base layer with. ContentRegistry bakes these into
+## `icon` at load time via an offscreen PotionIcon render, so every UI
+## component that reads `icon` (ItemSlot, RecipeEntry, brew_menu chips, etc.)
+## never needs to know PotionIcon exists.
+@export_range(1, 4) var icon_level: int = 1
+@export var icon_color: Color = Color.WHITE
+
+## Baked by ContentRegistry from icon_level/icon_color — leave unset in .tres.
 @export var icon: Texture2D
 @export_enum("alembic") var station_type: String = "alembic"
 @export var brew_time_minutes: int = 60

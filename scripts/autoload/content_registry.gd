@@ -16,6 +16,10 @@ const POTION_PATHS := [
 	"res://data/potions/clarity_tonic.tres",
 	"res://data/potions/grave_ward_tonic.tres",
 ]
+const POTION_ICON_SCENE := preload("res://scenes/ui/components/PotionIcon.tscn")
+## Matches the potion icon layer art's native resolution (see
+## assets/ui/icons/potion_icons/*/base_shape.png).
+const POTION_ICON_SIZE := Vector2i(48, 48)
 ## Scanned at runtime (see _scan_resource_paths) rather than hand-listed like
 ## the other *_PATHS consts above — ingredients get added far more often than
 ## any other content type, and a hand-maintained list silently drifts out of
@@ -104,6 +108,7 @@ func _ready() -> void:
 		var def := load(path) as PotionDef
 		potions.append(def)
 		_potions_by_id[def.id] = def
+	_bake_potion_icons()  # not awaited: other autoloads' _ready() must see fully-loaded ContentRegistry content synchronously; icons finish baking a few frames later
 	for path in _scan_resource_paths(INGREDIENT_DIR):
 		var def := load(path) as IngredientDef
 		ingredients.append(def)
@@ -162,6 +167,40 @@ func _ready() -> void:
 		var def := load(path) as RiftBundleDef
 		rift_bundles.append(def)
 		_rift_bundles_by_id[def.id] = def
+
+
+## Renders each PotionDef's icon_level/icon_color through PotionIcon offscreen
+## and caches the result on `def.icon`, so every existing icon consumer
+## (ItemSlot, RecipeEntry, brew_menu chips, ...) keeps reading a plain
+## Texture2D and never has to instance PotionIcon itself. Skips defs that
+## already have an icon set (e.g. hand-assigned placeholder art).
+##
+## Waits two frame_post_draw signals per potion, not one: setting a Sprite2D's
+## texture only marks it dirty, and the resulting draw command isn't actually
+## recorded/presented until the *next* render pass after that. A single wait
+## captured a mix of the previous and current potion's layers (visible as
+## stray/missing pixels once a second potion baked after the first).
+func _bake_potion_icons() -> void:
+	var pending := potions.filter(func(def: PotionDef) -> bool: return def.icon == null)
+	if pending.is_empty():
+		return
+
+	var viewport := SubViewport.new()
+	viewport.size = POTION_ICON_SIZE
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+
+	var icon: PotionIcon = POTION_ICON_SCENE.instantiate()
+	viewport.add_child(icon)
+
+	for def in pending:
+		icon.populate(def.icon_level, def.icon_color)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		def.icon = ImageTexture.create_from_image(viewport.get_texture().get_image())
+
+	viewport.queue_free()
 
 
 ## Lists every *.tres directly inside dir_path, sorted for a deterministic

@@ -11,6 +11,18 @@ extends PanelContainer
 
 const BADGE_OUTLINE_SIZE := 6
 
+## Matches the .tscn's custom_minimum_size, pinned here to a fixed real
+## screen-pixel size the same way the inner Icon is (PixelPerfectSize) — the
+## Icon lives under Overlay, a plain Control (not a Container), which doesn't
+## propagate a child's growing minimum size upward the way a real Container
+## would. Without also pinning the slot itself, the panel just kept shrinking
+## with the window and the pinned Icon overflowed its shrunken bounds.
+const NATIVE_SIZE := Vector2(72, 72)
+
+
+func _ready() -> void:
+	WindowScale.pin_size(self, NATIVE_SIZE)
+
 ## Shop-tab display: icon only, price as a corner badge, and the potion name
 ## surfaced via hover tooltip — the same icon-first pattern as populate_item()
 ## below (used by the Satchel), so the two grids read consistently.
