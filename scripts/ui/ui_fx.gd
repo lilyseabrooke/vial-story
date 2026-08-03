@@ -20,11 +20,15 @@ extends RefCounted
 ##   item of its own, so the target is swapped for a MarginContainer wrapper
 ##   holding shadow + target overlaid in the same rect — the container lays
 ##   out the wrapper, and the wrapper keeps the pair aligned.
-static func add_drop_shadow(target: Control, shadow_alpha := 0.45, size_px := 13, offset := Vector2(0, 8)) -> void:
+##
+## Returns the shadow node so callers can further adjust its draw order (e.g.
+## moving it behind a third, unrelated sibling it should render underneath
+## rather than just behind `target`) — see resolve_vial.gd's icon shadow.
+static func add_drop_shadow(target: Control, shadow_alpha := 0.45, size_px := 13, offset := Vector2(0, 8), corner_radius_px := 10) -> Control:
 	var parent := target.get_parent()
 	if parent == null:
 		push_error("UiFx.add_drop_shadow: target must be added to a parent first.")
-		return
+		return null
 
 	var shadow := DropShadowPanel.new()
 	shadow.target = target
@@ -35,7 +39,7 @@ static func add_drop_shadow(target: Control, shadow_alpha := 0.45, size_px := 13
 	style.shadow_color = Color(UiPalette.COCOA_INK.r, UiPalette.COCOA_INK.g, UiPalette.COCOA_INK.b, shadow_alpha)
 	style.shadow_size = size_px
 	style.shadow_offset = offset
-	style.set_corner_radius_all(10)
+	style.set_corner_radius_all(corner_radius_px)
 	shadow.add_theme_stylebox_override("panel", style)
 
 	if parent is Container:
@@ -48,9 +52,10 @@ static func add_drop_shadow(target: Control, shadow_alpha := 0.45, size_px := 13
 		parent.move_child(wrapper, index)
 		wrapper.add_child(shadow)
 		wrapper.add_child(target)
-		return
+		return shadow
 
 	parent.add_child(shadow)
 	# Slot the shadow into the target's index, pushing the target after it, so
 	# it draws immediately behind the target and nothing else.
 	parent.move_child(shadow, target.get_index())
+	return shadow

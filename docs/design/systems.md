@@ -3034,6 +3034,90 @@ ArtStudio (autoload)
 11. Quest/Journal system (system 15) — reuses the VN expression language, so it slots in
     any time after system 13's expression evaluator exists
 
+## 24. Lighting / Day-Night System **[BUILT]**
+
+Ambient world lighting driven by `Clock`, graded as a shadow/highlight split rather than a
+flat tint, with per-room overrides for spaces that shouldn't follow the day/night cycle at all.
+
+```
+LightingProfileDef (scripts/data/lighting_profile_def.gd, Resource; data/lighting/*.tres)
+  - day_night_shadow_gradient, day_night_highlight_gradient: Gradient
+  - contrast_curve: Curve
+  - time_of_day_strength: float(0..1)   # how much of the above shows through — see below
+  - base_shadow_color, base_highlight_color: Color, base_contrast: float   # the room's own baseline
+  - transition_seconds: float       # minute-tick re-sample duration; also the room-switch "settle" leg
+
+RoomLighting (scripts/lighting_controller.gd, plain Node — owned by RoomBuilder)
+  - one CanvasLayer(layer=1) + full-rect ColorRect running
+    shaders/day_night_grading.gdshader over the world's backbuffer
+```
+
+- **A luminance-split shader, not a CanvasModulate multiply.** `CanvasModulate` darkens/tints
+  every pixel by the same factor regardless of how bright it already is, which is what made an
+  early flat night tint read as crushing the whole scene uniformly instead of just deepening
+  shadows. `shaders/day_night_grading.gdshader` instead reads the already-rendered world via
+  `hint_screen_texture`, computes each pixel's luminance, and blends toward `shadow_tint` in the
+  dark end / `highlight_tint` in the bright end — a `contrast` uniform pushes luminance away
+  from mid-gray before that blend, so how hard shadows/highlights separate ("pop") is tunable
+  independently of the tint colors, and can be animated across the day the same way the colors
+  are (`contrast_curve`).
+- **One overlay for the whole world, not one per room.** Every `Room` lives at the same
+  `(0,0)` origin and only one is ever `visible`/processing at a time (`RoomBuilder.switch_room`),
+  so a single overlay — instanced and owned by `RoomBuilder` (`RoomLighting`, same "plain Node
+  child, `setup(self)`" shape as `NPCDirector`/`CustomerDirector`) — is enough.
+  `switch_room()` calls `RoomLighting.set_profile(room.lighting_profile)` after reparenting the
+  player, so the new room's lighting starts tweening in immediately rather than waiting for the
+  next minute tick.
+- **`time_of_day_strength` replaces the old TIME_OF_DAY/STATIC mode split with a blend.**
+  `RoomLighting._values_for()` always starts from `base_shadow_color`/`base_highlight_color`/
+  `base_contrast` (a room's own baseline look) and, if `time_of_day_strength > 0`, lerps that
+  toward the gradient/curve sample by that fraction — `0.0` is the old STATIC behavior (a
+  windowless basement, or the Altar's magic ambience, `data/lighting/altar_static_purple.tres`),
+  `1.0` is the old TIME_OF_DAY behavior (full outdoor swing, `data/lighting/
+  default_time_of_day.tres`), and anywhere between lets e.g. a small room with one window take
+  just a hint of the outside cycle over its own dim indoor base rather than being all-or-nothing.
+  `_on_minute_tick` skips re-sampling entirely when strength is `0` — a base-only room's values
+  never change, so there's nothing to tween every tick.
+- **Room switches overshoot before settling, like eyes adapting to a sudden brightness change.**
+  `set_profile()` doesn't tween straight to the new room's values — for each shader parameter it
+  computes an overshoot point `ROOM_SWITCH_OVERSHOOT_FACTOR` (1.4) times past the real target in
+  the same direction, snaps there fast (`ROOM_SWITCH_OVERSHOOT_SECONDS`, 0.18s, `TRANS_EXPO`/
+  `EASE_OUT`), then eases back to the actual target over the profile's own `transition_seconds`
+  (`TRANS_SINE`/`EASE_OUT`) — reusing that field as the "settle" leg's duration rather than adding
+  a second tunable. All three parameters' overshoot legs run in parallel, then all three settle
+  legs run in parallel after — built as two explicit groups on one `Tween` (`set_parallel(true)`,
+  a single `chain()` between them) rather than one loop toggling `chain()` per parameter, since
+  `chain()` marks a breakpoint on the `Tween`'s own timeline, not a per-key one; interleaving it
+  inside a per-parameter loop would stagger each parameter's legs against its neighbors' instead
+  of grouping all three together. Ordinary minute-tick re-sampling within an already-active room
+  never overshoots — only an actual `switch_room()` call does.
+- **Layer ordering is explicit, not tree-order-dependent.** The overlay's `CanvasLayer.layer`
+  is `1`; `GameHud.build()` explicitly sets `layer = 2` (previously relied on `CanvasLayer`'s
+  default of `1`) so the overlay is guaranteed to draw after the world but before any UI —
+  `hint_screen_texture` only captures whatever's been rendered to the backbuffer so far, so if
+  the overlay ever drew *after* the HUD/menus, it would grade the UI too. `MenuScene`/the Planar
+  Rift arena overlay/`ScreenFade` already claim `10`/`20`/`50` above this.
+- **`Room.lighting_profile`** picks the look, same hand-authored-`.tres`-per-instance
+  convention as everything else — defaults to `data/lighting/default_time_of_day.tres`
+  (`time_of_day_strength = 1.0`) so every existing room gets the full day/night cycle for free.
+  Adding a new look — static, dimmed-outdoor, whatever a room needs — is a new `.tres`, not a
+  code change.
+- **The gradients *are* the golden-hour pulse.** `Gradient` already interpolates between color
+  keys, so `day_night_shadow_gradient.tres`/`day_night_highlight_gradient.tres` are authored
+  with a warm spike key at dawn (6:00) and dusk (18:00) between the flat night and day keys,
+  rather than a separate mechanism — same for `contrast_curve`'s punchier spike at those same
+  offsets. The dusk/dawn ramps deliberately span ~1.5-3 hours between keys (not a same-hour jump
+  from golden-hour peak to full night) so the transition reads as gradual rather than snapping.
+  Colors are graded off the art direction's designated light/shadow hues (`UiPalette.BUTTER_SUN`
+  for day/golden-hour highlights, `UiPalette.LAVENDER_MIST` for night shadows) blended toward
+  white rather than toward black/gray, since the highlight gradient staying close to white all
+  day is what keeps already-bright pixels from getting crushed at night.
+- **Time-skips snap instead of tweening.** `Clock._skip_overnight_to_next_day_start` fires
+  dozens of `minute_tick`s in one frame while the screen is held black
+  (`Clock.time_skip_started`/`time_skip_finished`, shared with `ScreenFade`) — `RoomLighting`
+  tracks that window and uses a 0-duration tween (an instant snap) for any change during it,
+  since tweening through ticks nobody can see is wasted motion.
+
 ## Open Design Questions (not yet decided)
 
 - Shop reputation: `Shop.reputation` is now decremented by botched demonic writs

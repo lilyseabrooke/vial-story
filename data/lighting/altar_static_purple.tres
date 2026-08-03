@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="LightingProfileDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/lighting_profile_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+time_of_day_strength = 0.0
+base_shadow_color = Color(0.55, 0.42, 0.6, 1)
+base_highlight_color = Color(0.83, 0.75, 0.87, 1)
+base_contrast = 1.15
+transition_seconds = 2.0

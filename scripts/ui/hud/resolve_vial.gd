@@ -22,6 +22,39 @@ const _MAX_SIZE_SCALE := 2.0
 @onready var _icon: Control = $ProfileIcon
 
 
+## Shadows are cast from _icon/_gauge individually, not from this whole
+## Control -- ResolveVial's own rect (custom_minimum_size 48x140, see
+## ResolveVial.tscn) is a layout bounding box sized to fit the icon *and* the
+## full vial column beneath it, well beyond the narrow bar's actual pixels.
+## UiFx.add_drop_shadow mirrors whatever Control it's given, casting its
+## StyleBoxFlat shadow around that Control's rect -- every other caller
+## targets an actual filled panel where rect == visible shape, but here that
+## produced a huge rectangular halo around mostly-empty space instead of a
+## shadow hugging the circle/bar. corner_radius_px on the icon's shadow is
+## half its 48px size, approximating the circle rather than the default
+## square-ish rounding.
+func _ready() -> void:
+	# The icon's shadow is moved to index 0 -- behind the gauge as well as
+	# behind the icon itself (add_drop_shadow's default placement) -- so the
+	# gauge bar draws over it where they overlap instead of the shadow
+	# darkening the top of the bar. Reads as the bar emerging from the icon
+	# rather than the icon casting a shadow across it.
+	#
+	# size_px is kept small relative to offset on purpose -- StyleBoxFlat's
+	# shadow blurs outward in every direction from the (offset) shape, so a
+	# size_px comparable to or larger than the offset still bleeds out on the
+	# top/left edges too, reading as an all-around halo instead of a shadow
+	# cast in one direction. A tight blur pushed well down-right stays mostly
+	# hidden behind the icon/gauge's own opaque shape on the top-left side,
+	# only showing where it actually extends past the source's silhouette.
+	var icon_shadow := UiFx.add_drop_shadow(_icon, 0.4, 1, Vector2(2, 2), 24)
+	move_child(icon_shadow, 0)
+	# corner_radius_px 0 -- the default (10) rounded the shadow's bottom
+	# corners while the gauge's own texture is square-edged, so the shadow's
+	# curve peeked out past the bar's straight sides.
+	UiFx.add_drop_shadow(_gauge, 0.4, 1, Vector2(1, 1), 0)
+
+
 func set_values(current: int, max_resolve: int, strained: bool) -> void:
 	var fraction := float(current) / float(max_resolve) if max_resolve > 0 else 0.0
 	_gauge.set_size_scale(_size_scale_for(max_resolve))

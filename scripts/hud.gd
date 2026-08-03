@@ -61,6 +61,12 @@ var _upgrade_buttons: Dictionary = {}   # upgrade_id -> Button
 func build(starting_ingredients: Dictionary) -> void:
 	_starting_ingredients = starting_ingredients
 
+	# Explicit layer (default CanvasLayer.layer is 1) so it's unambiguously
+	# above RoomLighting's screen-space grading overlay (layer 1) — see
+	# docs/design/systems.md, system 24. MenuScene/arena/fade already claim
+	# 10/20/50 above this.
+	layer = 2
+
 	_screen_fade = ScreenFade.new()
 	_screen_fade.build()
 	add_child(_screen_fade)
@@ -73,7 +79,6 @@ func build(starting_ingredients: Dictionary) -> void:
 	_resolve_vial.position = Vector2(16, 16)
 	_resolve_vial.scale = Vector2(2.0, 2.0)
 	add_child(_resolve_vial)
-	UiFx.add_drop_shadow(_resolve_vial, 0.4, 5, Vector2(0, 4))
 
 	# Almanac clock + materials pouch — top-right, stacked in a right-pinned
 	# column (fixed 400px wide — doubled to match the 2x world-camera zoom via

@@ -90,6 +90,7 @@ var _heap_nodes: Dictionary = {}        # heap_id -> ScrapHeapInteractable
 var _ley_line_nodes: Dictionary = {}    # node_id -> LeyLineNodeInteractable
 var _art_studio_nodes: Dictionary = {}  # studio_id -> ArtStudioInteractable
 var _customer_director: CustomerDirector
+var _room_lighting: RoomLighting
 
 
 ## Loads every room scene, wires their pre-placed Interactables, plus the
@@ -110,6 +111,10 @@ func build_rooms() -> void:
 	_load_room(FORMER_RELIQUARY_SCENE)
 	_load_room(UNDERBELLY_SCENE)
 	_wire_shop_back_door()
+
+	_room_lighting = RoomLighting.new()
+	add_child(_room_lighting)
+	_room_lighting.setup(self)
 
 	# Not parented here -- switch_room() below parents the player into the
 	# active room's Y-sorted Interactables node instead, so it draws in front
@@ -478,6 +483,8 @@ func switch_room(room_id: String, spawn_position: Vector2) -> void:
 	room.process_mode = Node.PROCESS_MODE_INHERIT
 	_set_room_collision_enabled(room, true)
 	room.get_node("Interactables").add_child(player)
+
+	_room_lighting.set_profile(room.lighting_profile)
 
 	player.position = spawn_position
 

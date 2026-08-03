@@ -11,3 +11,7 @@ extends Node2D
 ## hand-authored Shop/Bedroom floor size; override per-room if a future
 ## room is a different size.
 @export var room_size: Vector2 = Vector2(704, 576)
+## How this room lights itself — see docs/design/systems.md, system 24.
+## Defaults to the shared day/night cycle; a windowless or magically-lit room
+## overrides with a STATIC LightingProfileDef instead (see Altar.tscn).
+@export var lighting_profile: LightingProfileDef = preload("res://data/lighting/default_time_of_day.tres")

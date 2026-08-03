@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LightingProfileDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/lighting_profile_def.gd" id="1"]
+[ext_resource type="Gradient" path="res://data/lighting/day_night_shadow_gradient.tres" id="2"]
+[ext_resource type="Gradient" path="res://data/lighting/day_night_highlight_gradient.tres" id="3"]
+[ext_resource type="Curve" path="res://data/lighting/day_night_contrast_curve.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+day_night_shadow_gradient = ExtResource("2")
+day_night_highlight_gradient = ExtResource("3")
+contrast_curve = ExtResource("4")
+time_of_day_strength = 1.0
+base_shadow_color = Color(1, 1, 1, 1)
+base_highlight_color = Color(1, 1, 1, 1)
+base_contrast = 1.0
+transition_seconds = 1.5

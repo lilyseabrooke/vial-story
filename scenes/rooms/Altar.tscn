@@ -3,11 +3,13 @@
 [ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/TransferInteractable.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ContractBookInteractable.tscn" id="3"]
+[ext_resource type="Resource" path="res://data/lighting/altar_static_purple.tres" id="4"]
 
 [node name="Altar" type="Node2D"]
 script = ExtResource("1")
 room_id = "altar"
 room_size = Vector2(704, 576)
+lighting_profile = ExtResource("4")
 
 [node name="Floor" type="TileMapLayer" parent="."]
 texture_filter = 0
