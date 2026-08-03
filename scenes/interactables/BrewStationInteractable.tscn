@@ -7,7 +7,7 @@
 size = Vector2(88, 62)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_brew_solid"]
-size = Vector2(80, 27)
+size = Vector2(159, 51)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_brew_bg"]
 bg_color = Color(0.1, 0.1, 0.13, 0.9)
@@ -35,15 +35,16 @@ script = ExtResource("2")
 
 [node name="Shadow" parent="." index="1"]
 visible = true
-position = Vector2(1, 19)
-polygon = PackedVector2Array(15.125001, -2.861023e-06, 13.750001, 3.4285688, 0, 4, -15.125001, 3.4285688, -16.500002, -2.861023e-06, -15.125001, -3.428574, 0, -4, 14.437501, -3.428574)
+position = Vector2(3.7825966, 15)
+scale = Vector2(5.5019755, 5.5000005)
+polygon = PackedVector2Array(15.125001, -2.861023e-06, 14.579744, 2.3636363, 13.67098, 3.4545453, 10.035922, 3.8181813, -0.54756397, 4, -11.592671, 3.8181813, -15.125001, 3.4285688, -16.318247, 1.9999998, -16.500002, -2.861023e-06, -16.318247, -2.1818178, -15.125001, -3.428574, -12.13793, -3.636363, -0.54756397, -4, 10.035922, -3.8181813, 13.687498, -3.4666665, 14.579744, -2.7272723)
 
 [node name="CollisionShape2D" parent="." index="5"]
 position = Vector2(0, 6)
 shape = SubResource("RectangleShape2D_brew_interact")
 
 [node name="CollisionShape2D" parent="SolidBody" index="0"]
-position = Vector2(0, 10)
+position = Vector2(-0.5, -1.5)
 shape = SubResource("RectangleShape2D_brew_solid")
 
 [node name="BrewProgressContainer" type="Panel" parent="." index="7" unique_id=12004938]

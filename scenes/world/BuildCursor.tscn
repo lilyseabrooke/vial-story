@@ -10,3 +10,6 @@ color = Color(0.95, 0.85, 0.2, 0.4)
 size = Vector2(64, 64)
 position = Vector2(-32, -32)
 mouse_filter = 2
+
+[node name="Icon" type="Sprite2D" parent="."]
+visible = false

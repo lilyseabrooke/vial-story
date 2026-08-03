@@ -232,21 +232,27 @@ func _update_cursor_position() -> void:
 		return
 	if _mode == Mode.GRID:
 		_cursor.visible = true
-		var footprint := _held_footprint()
+		var def := _held_def()
+		var footprint := def.footprint if def != null else Vector2i(1, 1)
 		_cursor.set_cell_size(_zone.cell_size * Vector2(footprint))
 		_cursor.global_position = _zone.cell_to_world(cursor_cell, footprint)
+		# Same icon/icon_offset convention RoomBuilder feeds the real placed
+		# sprite -- the cursor's origin is centered on the footprint the same
+		# way a placed node's is, so the preview lines up identically with
+		# where the real thing will land. null (nothing carried, or the def
+		# has no art yet) just hides it, leaving the highlighted squares.
+		_cursor.set_icon(def.icon if def != null else null, def.icon_offset if def != null else Vector2.ZERO)
 	else:
 		_cursor.visible = false
 
 
-## The footprint the cursor should currently show -- whatever's being
-## carried, or a plain 1x1 while just browsing/carrying nothing.
-func _held_footprint() -> Vector2i:
+## The ComponentDef of whatever's currently being carried, or null while
+## just browsing/carrying nothing.
+func _held_def() -> ComponentDef:
 	if held_id == "":
-		return Vector2i(1, 1)
+		return null
 	var instance := Placement.get_component(held_id)
-	var def := ContentRegistry.get_component_def(instance.def_id) if instance != null else null
-	return def.footprint if def != null else Vector2i(1, 1)
+	return ContentRegistry.get_component_def(instance.def_id) if instance != null else null
 
 
 # ---------------------------------------------------------------------------
@@ -299,8 +305,16 @@ func _move_grid(delta: Vector2i) -> void:
 	if delta == Vector2i(-1, 0) and cursor_cell.x == 0:
 		_mode = Mode.SHELF
 		return
-	cursor_cell.x = clampi(cursor_cell.x + delta.x, 0, cols - 1)
-	cursor_cell.y = clampi(cursor_cell.y + delta.y, 0, rows - 1)
+	# Clamped so the cursor's anchor cell can never sit somewhere the carried
+	# item's own footprint would spill off the grid -- without this, only the
+	# anchor cell itself was bounds-checked, letting a 4x2 Alembic's cursor
+	# wander with its far edge hanging off the edge (place_component would
+	# then correctly refuse it, but the cursor shouldn't be able to get there
+	# in the first place).
+	var carried_def := _held_def()
+	var footprint := carried_def.footprint if carried_def != null else Vector2i(1, 1)
+	cursor_cell.x = clampi(cursor_cell.x + delta.x, 0, maxi(0, cols - footprint.x))
+	cursor_cell.y = clampi(cursor_cell.y + delta.y, 0, maxi(0, rows - footprint.y))
 
 
 ## An occupied cell opens the per-component menu instead of picking up
@@ -351,8 +365,15 @@ func _select_component_menu() -> void:
 			if def != null and def.category == "alembic" and Brewing.get_current_job(_menu_component_id) != null:
 				hud.log_message("Still brewing — can't move it.")
 			else:
+				# Captured before store_component() clears it -- the cursor
+				# snaps to the item's own top-left anchor cell (not wherever
+				# within its footprint it happened to be selected from), so a
+				# picked-up item visually stays put until the player actually
+				# moves the cursor away.
+				var anchor_cell := instance.grid_position
 				Placement.store_component(_menu_component_id)
 				held_id = _menu_component_id
+				cursor_cell = anchor_cell
 				_mode = Mode.GRID
 		"Return to Storage":
 			Placement.store_component(_menu_component_id)
