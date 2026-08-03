@@ -1,7 +1,13 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene format=3 uid="uid://3m46fqissd2n"]
 
 [ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
-[ext_resource type="Script" path="res://scripts/brew_station_interactable.gd" id="2"]
+[ext_resource type="Script" uid="uid://cg3s7c6a73tus" path="res://scripts/brew_station_interactable.gd" id="2"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_brew_interact"]
+size = Vector2(88, 62)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_brew_solid"]
+size = Vector2(80, 27)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_brew_bg"]
 bg_color = Color(0.1, 0.1, 0.13, 0.9)
@@ -12,8 +18,8 @@ border_width_bottom = 2
 border_color = Color(0.85, 0.85, 0.9, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
-corner_radius_bottom_left = 4
 corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_brew_bg"]
 
@@ -21,13 +27,26 @@ corner_radius_bottom_right = 4
 bg_color = Color(0.85, 0.2, 0.2, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
-corner_radius_bottom_left = 2
 corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
-[node name="BrewStationInteractable" instance=ExtResource("1")]
+[node name="BrewStationInteractable" unique_id=1543377478 instance=ExtResource("1")]
 script = ExtResource("2")
 
-[node name="BrewProgressContainer" type="Panel" parent="."]
+[node name="Shadow" parent="." index="1"]
+visible = true
+position = Vector2(1, 19)
+polygon = PackedVector2Array(15.125001, -2.861023e-06, 13.750001, 3.4285688, 0, 4, -15.125001, 3.4285688, -16.500002, -2.861023e-06, -15.125001, -3.428574, 0, -4, 14.437501, -3.428574)
+
+[node name="CollisionShape2D" parent="." index="5"]
+position = Vector2(0, 6)
+shape = SubResource("RectangleShape2D_brew_interact")
+
+[node name="CollisionShape2D" parent="SolidBody" index="0"]
+position = Vector2(0, 10)
+shape = SubResource("RectangleShape2D_brew_solid")
+
+[node name="BrewProgressContainer" type="Panel" parent="." index="7" unique_id=12004938]
 visible = false
 offset_left = -8.0
 offset_top = -92.0
@@ -35,8 +54,8 @@ offset_right = 8.0
 offset_bottom = -46.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_brew_bg")
 
-[node name="BrewProgress" type="ProgressBar" parent="BrewProgressContainer"]
-anchors_preset = 15
+[node name="BrewProgress" type="ProgressBar" parent="BrewProgressContainer" index="0" unique_id=1092564301]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 3.0
@@ -47,14 +66,11 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/background = SubResource("StyleBoxEmpty_brew_bg")
 theme_override_styles/fill = SubResource("StyleBoxFlat_brew_fill")
-min_value = 0.0
 max_value = 1.0
-step = 0.01
-value = 0.0
 fill_mode = 3
 show_percentage = false
 
-[node name="BrewReadyPopup" type="Label" parent="."]
+[node name="BrewReadyPopup" type="Label" parent="." index="8" unique_id=433532385]
 visible = false
 offset_left = -50.0
 offset_top = -80.0
@@ -62,7 +78,7 @@ offset_right = 50.0
 offset_bottom = -48.0
 theme_override_colors/font_color = Color(0.4, 1, 0.5, 1)
 theme_override_font_sizes/font_size = 18
+text = "Ready!"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
-text = "Ready!"

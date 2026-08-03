@@ -33,6 +33,10 @@ visible = false
 texture_filter = 1
 scale = Vector2(2, 2)
 
+[node name="StaticVisual" type="Sprite2D" parent="."]
+visible = false
+texture_filter = 1
+
 [node name="Label" type="Label" parent="."]
 offset_left = -40.0
 offset_top = -44.0
@@ -42,4 +46,11 @@ horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1")
+
+[node name="SolidBody" type="StaticBody2D" parent="."]
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SolidBody"]
 shape = SubResource("1")

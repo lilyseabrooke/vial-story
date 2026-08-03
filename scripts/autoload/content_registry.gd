@@ -42,6 +42,11 @@ const CURSE_CATALOG_PATH := "res://data/curses.json"
 const SEED_PATHS := [
 	"res://data/seeds/moonpetal_seed.tres",
 ]
+const COMPONENT_DEF_PATHS := [
+	"res://data/components/alembic.tres",
+	"res://data/components/pantry.tres",
+	"res://data/components/accelerator.tres",
+]
 const HOUSE_PATHS := [
 	"res://data/houses/dragon.tres",
 	"res://data/houses/boar.tres",
@@ -78,6 +83,7 @@ var ley_line_surges: Array[LeyLineSurgeDef] = []
 var inspirations: Array[InspirationDef] = []
 var curses: Array[CurseDef] = []
 var seeds: Array[SeedDef] = []
+var component_defs: Array[ComponentDef] = []
 var houses: Array[HouseDef] = []
 var shop_locations: Array[ShopLocationDef] = []
 var quests: Array[QuestDef] = []
@@ -93,6 +99,7 @@ var _ley_line_surges_by_id: Dictionary = {}  # id -> LeyLineSurgeDef
 var _inspirations_by_id: Dictionary = {}   # id -> InspirationDef
 var _curses_by_id: Dictionary = {}         # id -> CurseDef
 var _seeds_by_id: Dictionary = {}          # id -> SeedDef
+var _component_defs_by_id: Dictionary = {}  # id -> ComponentDef
 var _houses_by_id: Dictionary = {}         # id -> HouseDef
 var _shop_locations_by_id: Dictionary = {} # id -> ShopLocationDef
 var _quests_by_id: Dictionary = {}         # id -> QuestDef
@@ -151,6 +158,10 @@ func _ready() -> void:
 		var def := load(path) as SeedDef
 		seeds.append(def)
 		_seeds_by_id[def.id] = def
+	for path in COMPONENT_DEF_PATHS:
+		var def := load(path) as ComponentDef
+		component_defs.append(def)
+		_component_defs_by_id[def.id] = def
 	for path in HOUSE_PATHS:
 		var def := load(path) as HouseDef
 		houses.append(def)
@@ -261,6 +272,10 @@ func get_curse(id: String) -> CurseDef:
 
 func get_seed(id: String) -> SeedDef:
 	return _seeds_by_id.get(id)
+
+
+func get_component_def(id: String) -> ComponentDef:
+	return _component_defs_by_id.get(id)
 
 
 func get_house(id: String) -> HouseDef:

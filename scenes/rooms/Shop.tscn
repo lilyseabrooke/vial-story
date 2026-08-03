@@ -1,18 +1,17 @@
 [gd_scene format=4 uid="uid://cuw1mgnghw11y"]
 
 [ext_resource type="Script" uid="uid://cbbhoopmnena4" path="res://scripts/room.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/BrewStationInteractable.tscn" id="2"]
 [ext_resource type="TileSet" uid="uid://bdv0sss23ye1j" path="res://assets/tilesets/library-interior.tres" id="2_75n16"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/StockBoxInteractable.tscn" id="3"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/SupplyShelfInteractable.tscn" id="4"]
+[ext_resource type="PackedScene" uid="uid://bh54ciyjp1wtl" path="res://scenes/interactables/SupplyShelfInteractable.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ClassDoorInteractable.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/TransferInteractable.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/WorkbenchInteractable.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/PotionBookInteractable.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/ScrapHeapInteractable.tscn" id="13"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/AlchemyLabManagerInteractable.tscn" id="14"]
+[ext_resource type="PackedScene" path="res://scenes/interactables/ZoneConsoleInteractable.tscn" id="14"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/CurseInteractable.tscn" id="14_tij8x"]
-[ext_resource type="PackedScene" path="res://scenes/interactables/PantryInteractable.tscn" id="15"]
+[ext_resource type="PackedScene" path="res://scenes/world/PlacementZone.tscn" id="15"]
 [ext_resource type="PackedScene" path="res://scenes/interactables/NPCInteractable.tscn" id="16"]
 
 [node name="Shop" type="Node2D" unique_id=481166547]
@@ -42,55 +41,37 @@ tile_set = ExtResource("2_75n16")
 [node name="SpawnPoint" type="Marker2D" parent="." unique_id=1256181263]
 position = Vector2(350, 350)
 
-[node name="CustomerSpawnPoint" type="Marker2D" parent="."]
+[node name="CustomerSpawnPoint" type="Marker2D" parent="." unique_id=328990986]
 position = Vector2(350, 540)
 
-[node name="CustomerBrowsePoints" type="Node2D" parent="."]
+[node name="CustomerBrowsePoints" type="Node2D" parent="." unique_id=1898078594]
 
-[node name="Point1" type="Marker2D" parent="CustomerBrowsePoints"]
+[node name="Point1" type="Marker2D" parent="CustomerBrowsePoints" unique_id=1572614426]
 position = Vector2(480, 130)
 
-[node name="Point2" type="Marker2D" parent="CustomerBrowsePoints"]
+[node name="Point2" type="Marker2D" parent="CustomerBrowsePoints" unique_id=1882773837]
 position = Vector2(360, 110)
 
-[node name="Point3" type="Marker2D" parent="CustomerBrowsePoints"]
+[node name="Point3" type="Marker2D" parent="CustomerBrowsePoints" unique_id=607707598]
 position = Vector2(560, 170)
 
 [node name="Interactables" type="Node2D" parent="." unique_id=1772531943]
 
-[node name="BrewStation" parent="Interactables" unique_id=726202926 instance=ExtResource("2")]
-position = Vector2(148, 84)
-cost = 0
-lab_manager_path = NodePath("../AlchemyLabManager")
-target_id = "alembic_1"
-prompt_text = "open brewing options"
-display_name = "Alembic I"
-visual_color = Color(0.8, 0.4, 0.2, 1)
+[node name="AlchemyLabZone" parent="Interactables" unique_id=1891250577 instance=ExtResource("15")]
+position = Vector2(120, 60)
+zone_id = "alchemy_lab"
+zone_type = "alchemy_lab"
+cols = 10
+rows = 5
+cell_size = Vector2(48, 48)
 
-[node name="BrewStationII" parent="Interactables" unique_id=1371877265 instance=ExtResource("2")]
-position = Vector2(148, 180)
-cost = 1000
-lab_manager_path = NodePath("../AlchemyLabManager")
-target_id = "alembic_2"
-prompt_text = "open brewing options"
-display_name = "Alembic II"
-visual_color = Color(0.8, 0.4, 0.2, 1)
-
-[node name="AlchemyLabManager" parent="Interactables" unique_id=989315069 instance=ExtResource("14")]
-position = Vector2(230, 180)
-target_id = "alchemy_lab_manager_1"
-prompt_text = "manage Alembics"
-display_name = "Alchemy Lab Manager"
+[node name="ZoneConsole" parent="Interactables" unique_id=989315069 instance=ExtResource("14")]
+position = Vector2(230, 230)
+zone_id = "alchemy_lab"
+target_id = "alchemy_lab_console"
+prompt_text = "manage the Alchemy Lab"
+display_name = "Alchemy Lab Console"
 visual_color = Color(0.5, 0.3, 0.65, 1)
-
-[node name="Pantry" parent="Interactables" unique_id=218511808 instance=ExtResource("15")]
-position = Vector2(310, 84)
-cost = 500
-lab_manager_path = NodePath("../AlchemyLabManager")
-target_id = "pantry_1"
-prompt_text = "store or take ingredients"
-display_name = "Pantry"
-visual_color = Color(0.55, 0.4, 0.2, 1)
 
 [node name="StockBox" parent="Interactables" unique_id=520117164 instance=ExtResource("3")]
 position = Vector2(593, 122)
@@ -201,7 +182,7 @@ prompt_text = "talk to Mira"
 display_name = "Mira"
 visual_color = Color(0.35, 0.55, 0.75, 1)
 
-[node name="Garnet" parent="Interactables" instance=ExtResource("16")]
+[node name="Garnet" parent="Interactables" unique_id=2145763233 instance=ExtResource("16")]
 position = Vector2(500, 130)
 npc_id = "garnet"
 prompt_text = "chat with Garnet"

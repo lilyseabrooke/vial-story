@@ -280,23 +280,16 @@ Recipe                              # RecipeDef, scripts/data/recipe_def.gd
 ## 4. Brewing / Alchemy Station System **[BUILD]**
 
 ```
-Station
-  - id
-  - station_type
-  - potency_modifier               # from Skills bonuses + equipped upgrade effects
-  - ease_modifier                  # from Skills bonuses + equipped upgrade effects
-  - speed_modifier
-  - cost                           # Materials to purchase at its linked Alchemy Lab Manager; 0 = already owned
-  - purchased: bool
-  - upgrade_ids: [String]          # currently-equipped AlembicUpgradeDef ids
-  - lab_manager_id: String         # linked Alchemy Lab Manager's target_id, "" if none
+# A "Station" is any Placement ComponentInstance whose ComponentDef.category
+# == "alembic" -- see the Placement System sub-section below for the
+# id/zone_id/grid_position/placed shape all components share. Brewing itself
+# only tracks *usage* state, keyed by component id:
 
-Pantry
-  - id
-  - cost                           # Materials to purchase at its linked Alchemy Lab Manager; 0 = already owned
-  - purchased: bool
-  - lab_manager_id: String         # linked Alchemy Lab Manager's target_id
-  - stored_ingredients: {ingredient_id: int}
+Brewing.current_jobs: {component_id: BrewJob}
+Brewing.alembic_upgrade_ids: {component_id: [String]}   # currently-equipped AlembicUpgradeDef ids
+
+# Likewise Inventory only tracks a Pantry's contents, keyed by component id:
+Inventory.pantry_stored_ingredients: {component_id: {ingredient_id: {tier: int}}}
 
 BrewJob
   - recipe_id
@@ -318,7 +311,8 @@ BrewJob
   love-interest-specific preferences.
 - Starting a brew rolls **one** visible 2d10 check (`Rng.roll_2d10`, system 16) — a
   BG3-style dice check surfaced in the roll display (system 16), `DICE_DC := 11.0`, modifier = the averaged
-  `potency_modifier`/`ease_modifier` (station + `Skills.get_bonus()`). The roll's
+  `potency_modifier`/`ease_modifier` (`Skills.get_bonus()` + equipped `AlembicUpgradeDef` effects — no
+  per-station modifier of its own). The roll's
   total sets a shared quality scalar `t`, lerped onto the potion's
   `potency_range`/`ease_range` (`PotionDef`, system 3 — not per-recipe data), and each stat then
   gets its own small independent quiet `+/- STAT_VARIANCE` wobble (`Rng.range_f`) so
@@ -359,8 +353,8 @@ BrewJob
   always knows which Alembic it's serving. Master-detail: a scrollable list of
   *learned* recipes on the left, a detail/confirm card on the right. The
   player's **Pantry** (carried ingredients *plus* the stock of any Pantry
-  interactable linked to this station's Alchemy Lab Manager, as icon×N chips —
-  see the Pantry bullet below) is *not* nested inside this window — it's a
+  placed in this station's zone, as icon×N chips — see the Pantry bullet
+  below) is *not* nested inside this window — it's a
   separate `PantryWindow` (`scripts/ui/pantry_window.gd`) that GameHud parks
   just to the left of the brew window (`MenuScene.get_window_rect()` locates
   it), shows/refreshes (passed the open station's id) on open, and fades out
@@ -411,26 +405,98 @@ BrewJob
   safe because the world is paused whenever a menu is open.
 - **Quick slots** (1/2/3) are session-only (held on the `BrewMenu` instance, not
   saved) and self-clear if their recipe becomes unlearned (`_validate_quick_slots`).
-- **Alembic purchasing & upgrades.** Alembics are hand-placed
-  `BrewStationInteractable` nodes (not runtime-spawned) — each one carries its own
-  `cost` (0 = already owned) and a `lab_manager_path` `NodePath` pointing at the
-  `AlchemyLabManagerInteractable` node that sells it. `Brewing.register_station()`
-  creates a `StationInstance` for every placed Alembic as `RoomBuilder` wires its
-  room (so a station exists whether or not it's purchased yet, and also resolves
-  the linked manager's `target_id` into `lab_manager_id` at the same time),
-  replacing the old hardcoded single-station boot-up. Interacting with an
-  unpurchased Alembic refuses to open the brew menu. The Lab Manager discovers its
-  linked Alembics/Pantries by scanning the `"alembic_interactables"`/
-  `"pantry_interactables"` groups for nodes whose `lab_manager_path` resolves back
-  to itself (link direction is item → Manager), rather than holding a list.
-  Opening it (`AlchemyLabMenu`, `scripts/ui/alchemy_lab_menu.gd`) shows a grid of
-  its linked items (each entry a `{id, kind}` dict, `kind` one of
-  `"alembic"`/`"pantry"`); selecting an unpurchased one offers a Purchase button
-  (`Brewing.purchase_station`/`Inventory.purchase_pantry`, dispatched by `kind`), a
-  purchased Alembic lists every `AlembicUpgradeDef` from the catalog with
-  Buy/Remove buttons (`Brewing.purchase_alembic_upgrade`/`remove_alembic_upgrade`)
-  — removing an upgrade gives no refund, so it's a respec cost, not a return — and
-  a purchased Pantry just confirms it's owned (no upgrade catalog for Pantries).
+- **Placement System [BUILD]** — a generic, zone-type-agnostic grid-placement
+  framework the alchemy lab is the first consumer of (a future Shop rework is
+  intended to reuse it without changes):
+  ```
+  PlacementZone (Node2D, scripts/placement_zone.gd)
+    - zone_id, zone_type            # zone_type is just a string ComponentDef.zone_types filters against
+    - cols, rows, cell_size
+    - cell_to_world(cell) / cell_to_local(cell) / world_to_cell(pos)
+
+  ComponentDef (Resource, scripts/data/component_def.gd)
+    - id, display_name, description, icon, scene_path: String, footprint: Vector2i
+    - category: String               # "alembic" | "pantry" | "accelerator" | ...
+    - zone_types: [String]           # explicit allowlist of which zones offer it
+    - materials_cost, ingredient_ids: [String], ingredient_quantities: [int]   # mirrors RecipeDef's parallel-array cost shape
+    - effect_target: String, effect_amount: float   # reuses UpgradeDef/SkillDef's generic effect pair; only meaningful for Accelerator
+
+  ComponentInstance (RefCounted, scripts/data/component_instance.gd)
+    - id, def_id, zone_id, grid_position: Vector2i, placed: bool
+  ```
+  The `Placement` autoload (`scripts/autoload/placement.gd`) owns zones and
+  component instances — existence in `Placement.component_instances` *is*
+  "purchased" (no separate purchased bool the way `StationInstance`/
+  `PantryInstance` used to carry). `purchase_component(zone_id, def_id)`
+  checks-then-spends a `ComponentDef`'s materials + ingredients cost in one
+  atomic step (mirroring `RecipeDef`'s `has_ingredients_for`/
+  `consume_ingredients_for` idiom) and creates a new **unplaced** instance
+  (sitting in storage); `place_component`/`store_component` move it on/off the
+  grid; `adjacency_bonus(component_id, effect_target)` sums `effect_amount`
+  across every orthogonally-adjacent (not diagonal) placed component sharing
+  that `effect_target`, queried live off current grid state rather than baked
+  into a stored field, so rearranging always takes effect on the very next
+  brew. `Brewing`/`Inventory` no longer own their own station/pantry arrays —
+  they keep only *usage* state keyed by component id (`Brewing.current_jobs`/
+  `alembic_upgrade_ids`, `Inventory.pantry_stored_ingredients`) and ask
+  `Placement.get_component(id)` whenever they need to know a component
+  exists.
+- **Zone Console.** `ZoneConsoleInteractable` (`scripts/zone_console_interactable.gd`,
+  replacing the old Alchemy Lab Manager) is a single hand-placed node per zone
+  carrying a direct `zone_id` export — no group-scanning discovery, and no
+  menu of its own. `interact()` is one line: `hud.enter_build_mode(zone_id)`.
+  Purchasing, upgrade browsing, and placement all live inside Build Mode
+  itself — one continuous interface, not a separate catalog menu that hands
+  off to a different placement mode.
+- **Build Mode [BUILD]** (`BuildModeController`, `scripts/build_mode_controller.gd`,
+  owned by `GameHud`) is the only way to buy, place, pick up, rearrange, and
+  upgrade components — entered only via the Zone Console, never a raw hotkey.
+  `Clock.is_paused = true` for its whole duration (same mechanism that already
+  freezes `player.gd`'s movement and every job's timestamp deadline during any
+  other paused interaction). Deliberately not `MenuScene`-hosted:
+  `MenuScene.close()` unconditionally unpauses the Clock, which would
+  incorrectly unpause the world while Build Mode is still active underneath a
+  submenu — everything here shares one `CanvasLayer` overlay and one input
+  dispatcher (`handle_input()`, reached first by
+  `MainScene._unhandled_input` via `hud.is_build_mode_active()`, before its
+  own back/select handling) across four focus modes, all driven by the
+  existing `move_up/down/left/right`/`select`/`back` six-action schema
+  (`GameInput`) rather than Godot's `Control`-focus system — no new bindings,
+  and `MenuKeyNav` doesn't apply here (this predates it and stays bespoke):
+  - **SHELF** (the default on entry — the cursor starts here, not the grid):
+    an always-visible left-column shelf, one `ItemSlot` row per `ComponentDef`
+    valid for this zone's `zone_type` (today: Alembic, Pantry, Accelerator —
+    all three), badge = how many of that def sit in zone storage, showing
+    "+" instead of "0" when the player owns none yet
+    (`ItemSlot.populate_item(..., zero_as_plus = true)`, a small addition to
+    the same component the Satchel uses). up/down move focus; a side detail
+    popup shows the focused def's name, `description` (`ComponentDef` field,
+    "(PLACEHOLDER)" for all three today), owned count, and cost breakdown.
+    `select`: owns ≥1 in storage → grab one and start carrying it (enters
+    GRID); owns 0 → attempt `Placement.purchase_component()`, carrying the
+    new instance on success or doing **nothing at all** (no message) if the
+    player can't afford it; `right` also enters GRID; `back` exits Build Mode.
+  - **GRID**: a `BuildCursor` steps cell-by-cell; `left` off column 0 returns
+    to SHELF. `select` on an empty cell while carrying something places it;
+    on an occupied cell while carrying nothing, opens **COMPONENT_MENU** for
+    that component instead of picking it up immediately; on an occupied cell
+    while carrying something, refuses ("cell is occupied"). `back` exits
+    Build Mode, returning anything currently held to storage (holding only
+    ever happens right after a SHELF grab/purchase, so this is rare).
+  - **COMPONENT_MENU**: a row list — "Upgrades" (Alembics only), "Pick Up"
+    (same busy-mid-`BrewJob` refusal as before, otherwise
+    `Placement.store_component()` + start carrying it, back to GRID), "Return
+    to Storage" (`Placement.store_component()`, no carry, back to GRID).
+    "Pick up to rearrange" and "send to storage" are still the same
+    underlying call — only whether the controller ends up carrying the id
+    differs. `back` steps out to GRID (does not exit Build Mode).
+  - **UPGRADES** (reached from COMPONENT_MENU's "Upgrades" row): every
+    `AlembicUpgradeDef` from the catalog, `select` buying or removing exactly
+    like the flow described below (no refund on remove — a respec cost, not a
+    return). `back` steps out to COMPONENT_MENU.
+  - Alembic/Pantry/Accelerator's concrete costs: Alembic 500 Materials + 10
+    Wood + 2 Resonance Dust; Pantry 100 Materials + 20 Wood; Accelerator 250
+    Materials + 5 Abyssal Stones + 1 Runic Core (`data/components/*.tres`).
 - **Alembic upgrade catalog** (`data/alembic_upgrades.json`, loaded by
   `ContentRegistry` into `AlembicUpgradeDef`s) is deliberately JSON rather than the
   rest of the repo's `.tres`/`Resource` convention — each entry's `effects`
@@ -442,34 +508,43 @@ BrewJob
   that are painful to hand-author as parallel typed-array `.tres` exports. This is a
   one-off exception scoped to that shape, not a precedent for every future data
   type.
-- **Pantry** (`PantryInteractable`, `scripts/pantry_interactable.gd`) is the
-  second interactable type sellable through an Alchemy Lab Manager, proving out
-  the station/menu shape's extensibility for real. Like an Alembic it's
-  hand-placed with its own `cost` and `lab_manager_path`; `Inventory.
-  register_pantry()` creates its `PantryInstance` the same way
-  `Brewing.register_station()` does, including resolving `lab_manager_id`.
-  Interacting with an unpurchased Pantry refuses to open (same split as an
-  Alembic — routine use never goes through the Lab Manager, only the initial
-  purchase does); a purchased one opens `PantryStorageMenu`
+- **Pantry** (`PantryInteractable`, `scripts/pantry_interactable.gd`) is a
+  `ComponentDef` of category `"pantry"`, bought/placed the same generic way as
+  an Alembic. Interacting with a placed Pantry opens `PantryStorageMenu`
   (`scripts/ui/pantry_storage_menu.gd`, via `hud.toggle_pantry_menu()`) — two
   columns, "Carried" (every owned ingredient with a Store button,
   `Inventory.deposit_to_pantry`) and "Stored here" (the Pantry's contents with a
   Take button, `Inventory.withdraw_from_pantry`), one unit at a time.
-  **Every Alembic linked to the same Alchemy Lab Manager as a purchased Pantry
-  treats its stock as extra inventory**: `Brewing.available_ingredient_count()`
-  sums the player's carried count plus every linked (purchased) Pantry's stock
-  for that ingredient, and `Brewing.has_ingredients_for()`/`start_brew()` (via
-  `_consume_for_brew()`) use it instead of `Inventory.has_ingredients_for()`/
-  `consume_ingredients_for()` — draining linked Pantries first, then the
-  player's carried stock, so stocked-up Pantry supply is spent before the
-  player's personal buffer. `PantryWindow` (the brew menu's sidebar) shows this
-  same combined total via the same helper — the player-facing "Pantry" is
-  meant to read as one shared pool, not two separate displays.
-  The same station/menu/JSON-catalog shape (Pantries currently have no JSON
-  catalog of their own — just cost/purchased/storage) is now also used by
-  Grow Plots/the Water Pump through the Garden Manager (system 7), and is
-  intended to extend to the remaining resource-producing interactables
-  (planar rifts, contract books, etc.) later — out of scope for now.
+  **Every Alembic placed in the same zone as a Pantry treats its stock as
+  extra inventory** (confirmed design: "same zone, any distance," not
+  adjacency-gated — unlike Accelerator's brew_speed bonus):
+  `Brewing.available_ingredient_count()` sums the player's carried count plus
+  every placed Pantry's stock in that station's zone for that ingredient, and
+  `Brewing.has_ingredients_for()`/`start_brew()` (via `_consume_for_brew()`)
+  use it instead of `Inventory.has_ingredients_for()`/`consume_ingredients_for()`
+  — draining zone Pantries first, then the player's carried stock. `PantryWindow`
+  (the brew menu's sidebar) shows this same combined total via the same
+  helper — the player-facing "Pantry" is meant to read as one shared pool,
+  not two separate displays.
+- **Accelerator** (`AcceleratorInteractable`, `scripts/accelerator_interactable.gd`)
+  is a `ComponentDef` of category `"accelerator"` with no active-use
+  interaction of its own (`interact()` is flavor text only) — it exists
+  purely to occupy a grid cell and contribute `effect_target = "brew_speed"`,
+  `effect_amount = 0.15` (tunable) to every orthogonally-adjacent placed
+  Alembic via `Placement.adjacency_bonus()`. Bonuses **stack additively**: an
+  Alembic boxed in by N Accelerators gets N× the single bonus, rewarding
+  dense layouts. `Brewing.start_brew()` adds this on top of `Skills.
+  get_bonus("station_speed")` and any equipped `AlembicUpgradeDef`'s
+  `brew_speed` effect.
+- **Clean break, no migration.** This reworks the whole Alembic/Pantry/Lab
+  Manager purchase-and-placement flow — a save from before it was built will
+  not resolve (the old `stations`/`pantries` payload keys are simply absent
+  from the new `Placement`/`Brewing`/`Inventory` save shape). No migration
+  path was built for this; it wasn't asked for.
+- The same generic Placement shape (component defs + zones + Build Mode) is
+  intended to extend to future resource-producing interactables and rooms —
+  a Shop rework is the next planned consumer — but nothing beyond the alchemy
+  lab is wired up to it yet.
 
 ---
 

@@ -43,15 +43,18 @@ func populate(item_name: String, price: int, tint: Color, icon: Texture2D = null
 
 ## Inventory-tab display: icon only, quantity as a corner badge, and the rest
 ## (name/quality/type) surfaced via native hover tooltip instead of always-on
-## text, so a full satchel grid stays readable at a glance.
-func populate_item(item_name: String, quality_label: String, type_label: String, quantity: int, tint: Color, icon: Texture2D = null, description: String = "") -> void:
+## text, so a full satchel grid stays readable at a glance. `zero_as_plus`
+## shows "+" instead of "0" -- used by Build Mode's shelf, where a slot always
+## exists for every unlocked ComponentDef even when the player owns none of
+## it yet, and "+" reads as "buy one" rather than "you have zero."
+func populate_item(item_name: String, quality_label: String, type_label: String, quantity: int, tint: Color, icon: Texture2D = null, description: String = "", zero_as_plus: bool = false) -> void:
 	modulate = Color(1, 1, 1, 1)
 	var name_label: Label = $Overlay/VBox/NameLabel
 	name_label.visible = false
 	name_label.text = ""
 	var badge: Label = $Overlay/QuantityBadge
 	badge.visible = true
-	badge.text = "%d" % quantity
+	badge.text = "+" if (zero_as_plus and quantity <= 0) else "%d" % quantity
 	badge.add_theme_color_override("font_color", UiPalette.CREAM_PAGE)
 	badge.add_theme_color_override("font_outline_color", UiPalette.COCOA_INK)
 	badge.add_theme_constant_override("outline_size", BADGE_OUTLINE_SIZE)

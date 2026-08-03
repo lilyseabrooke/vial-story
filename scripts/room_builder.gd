@@ -83,6 +83,7 @@ var _spawn_points: Dictionary = {}      # room_id -> Vector2
 var _entry_points: Dictionary = {}      # room_id -> Dictionary(entry_id -> Vector2)
 var _plot_nodes: Dictionary = {}        # plot_id -> GrowPlotInteractable
 var _station_nodes: Dictionary = {}     # station_id -> BrewStationInteractable
+var _component_nodes: Dictionary = {}   # component_id -> InteractableBase, any Placement category
 var _contract_nodes: Dictionary = {}    # book_id -> ContractBookInteractable
 var _stash_nodes: Dictionary = {}       # stash_id -> DragonStashInteractable
 var _rift_nodes: Dictionary = {}        # rift_id -> PlanarRiftInteractable
@@ -149,6 +150,22 @@ func build_rooms() -> void:
 	)
 	for station_id in _station_nodes:
 		_sync_station_indicator(station_id)
+
+	# Placement's generic grid components (Alembic/Pantry/Accelerator) are
+	# never hand-placed in a room .tscn -- they're spawned/despawned here in
+	# response to Placement's own signals, same "code-instanced, wired the
+	# same way as any other Interactable" shape as the Dragon's Stash/Scrap
+	# Heap spawners below. A save already restored before build_rooms() runs
+	# (SaveManager restores every autoload before switching to MainScene) can
+	# already have placed components with no world node yet -- spawn those
+	# once up front, same reasoning as a Dragon Stash spawner's initial burst.
+	Placement.component_placed.connect(func(component_id: String, zone_id: String, grid_position: Vector2i) -> void:
+		_spawn_component_node(component_id, zone_id, grid_position)
+	)
+	Placement.component_stored.connect(_on_component_stored)
+	for instance in Placement.component_instances:
+		if instance.placed:
+			_spawn_component_node(instance.id, instance.zone_id, instance.grid_position)
 
 	Demonology.writ_started.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
 	Demonology.writ_progress.connect(func(book_id: String) -> void: _sync_contract_indicator(book_id))
@@ -301,6 +318,11 @@ func _load_room(scene: PackedScene) -> void:
 	_entry_points[room.room_id] = entry_points
 
 	for interactable in room.get_node("Interactables").get_children():
+		# A PlacementZone is a plain Node2D, not an InteractableBase -- it
+		# registers itself with Placement in its own _ready() and needs no
+		# wiring here, same as any other non-interactable child.
+		if not interactable is InteractableBase:
+			continue
 		wire_interactable(interactable)
 		if interactable is TransferInteractable and interactable.target_entry_point_id == "" \
 				and interactable.spawn_position == Vector2.ZERO and _spawn_points.has(interactable.target_room):
@@ -344,16 +366,7 @@ func wire_interactable(interactable: InteractableBase) -> void:
 		var garnet_def := Characters.get_character("garnet")
 		if garnet_def != null:
 			interactable.set_sprite_tint(garnet_def.placeholder_color)
-	if interactable is BrewStationInteractable:
-		var lab_manager := interactable.get_node_or_null(interactable.lab_manager_path)
-		var lab_manager_id: String = lab_manager.target_id if lab_manager != null else ""
-		Brewing.register_station(interactable.target_id, interactable.display_name, "alembic", interactable.cost, lab_manager_id)
-		_station_nodes[interactable.target_id] = interactable
-	elif interactable is PantryInteractable:
-		var pantry_manager := interactable.get_node_or_null(interactable.lab_manager_path)
-		var pantry_manager_id: String = pantry_manager.target_id if pantry_manager != null else ""
-		Inventory.register_pantry(interactable.target_id, interactable.display_name, interactable.cost, pantry_manager_id)
-	elif interactable is GrowPlotInteractable:
+	if interactable is GrowPlotInteractable:
 		var plot_manager := interactable.get_node_or_null(interactable.lab_manager_path)
 		var plot_manager_id: String = plot_manager.target_id if plot_manager != null else ""
 		Herbalism.register_plot(interactable.target_id, interactable.display_name, interactable.cost, plot_manager_id)
@@ -431,6 +444,89 @@ func update_plot_label(plot_id: String) -> void:
 			GrowPlotInstance.Status.READY_TO_HARVEST:
 				status_text = "ready to harvest (%s)" % plot.planted_seed.display_name
 	interactable.set_status_text("%s\n%s" % [plot_id, status_text])
+
+
+func _find_zone_node(zone_id: String) -> PlacementZone:
+	for node in get_tree().get_nodes_in_group("placement_zones"):
+		if node is PlacementZone and node.zone_id == zone_id:
+			return node
+	return null
+
+
+func _prompt_for_category(category: String) -> String:
+	match category:
+		"alembic":
+			return "open brewing options"
+		"pantry":
+			return "store or take ingredients"
+		"accelerator":
+			return "inspect the Accelerator"
+		_:
+			return "interact"
+
+
+func _visual_color_for_category(category: String) -> Color:
+	match category:
+		"alembic":
+			return Color(0.8, 0.4, 0.2, 1)
+		"pantry":
+			return Color(0.55, 0.4, 0.2, 1)
+		"accelerator":
+			return Color(0.2, 0.6, 0.85, 1)
+		_:
+			return Color(0.6, 0.6, 0.6, 1)
+
+
+## Instances a placed component's world node as a direct child of its
+## PlacementZone -- position is the zone-local cell offset
+## (PlacementZone.cell_to_local()), so rearranging is just a queue_free +
+## respawn at the new cell rather than an in-place reposition. Same
+## "code-instanced, wired the same way as any other Interactable" shape as
+## _on_stash_spawn_requested()/_on_heap_spawn_requested() below.
+func _spawn_component_node(component_id: String, zone_id: String, grid_position: Vector2i) -> void:
+	var instance := Placement.get_component(component_id)
+	var def := ContentRegistry.get_component_def(instance.def_id) if instance != null else null
+	var zone_node := _find_zone_node(zone_id)
+	if def == null or def.scene_path == "" or zone_node == null:
+		return
+	var scene := load(def.scene_path) as PackedScene
+	var interactable: InteractableBase = scene.instantiate()
+	interactable.target_id = component_id
+	interactable.display_name = def.display_name
+	interactable.prompt_text = _prompt_for_category(def.category)
+	interactable.visual_color = _visual_color_for_category(def.category)
+	interactable.position = zone_node.cell_to_local(grid_position, def.footprint)
+	if def.icon == null:
+		# Placeholder-art scaling: stretches the whole node (visual, collision
+		# shape, label) proportionally to its footprint, same padding ratio a
+		# single-cell component already has against one grid cell. Good enough
+		# until real per-footprint sprites exist.
+		interactable.scale = Vector2(def.footprint)
+	zone_node.add_child(interactable)
+	if def.icon != null:
+		# Real art is authored at its own intended pixel size -- unlike the
+		# placeholder scale above, it must not be squished/stretched to fit a
+		# footprint that isn't square. use_texture() touches @onready visual
+		# nodes, so it has to run after add_child() puts the node in the tree.
+		interactable.use_texture(def.icon, def.icon_offset)
+	interactable.set_solid(def.solid)
+	wire_interactable(interactable)
+	_component_nodes[component_id] = interactable
+	if def.category == "alembic":
+		_station_nodes[component_id] = interactable
+		_sync_station_indicator(component_id)
+
+
+## Reverse of _spawn_component_node() -- Placement.store_component() (a
+## rearrange-pickup or an explicit send-to-storage) fires this the same way
+## either way; the world node is simply gone until it's placed again.
+func _on_component_stored(component_id: String) -> void:
+	var node: Node = _component_nodes.get(component_id)
+	if node == null:
+		return
+	_component_nodes.erase(component_id)
+	_station_nodes.erase(component_id)
+	node.queue_free()
 
 
 ## Instances a Dragon's Stash Interactable in response to a
@@ -512,8 +608,7 @@ func _sync_station_indicator(station_id: String) -> void:
 	var node: BrewStationInteractable = _station_nodes.get(station_id)
 	if node == null:
 		return
-	var station := Brewing.get_station(station_id)
-	var job := station.current_job if station else null
+	var job := Brewing.get_current_job(station_id)
 	if job == null:
 		node.clear_brew_indicator()
 	elif job.status == BrewJob.Status.READY:

@@ -20,7 +20,6 @@ var brew_panel: BrewMenu
 var discover_panel: VBoxContainer
 var supply_panel: VBoxContainer
 var class_panel: ChoiceListMenu
-var alchemy_lab_panel: AlchemyLabMenu
 var garden_panel: GardenMenu
 var pantry_storage_panel: PantryStorageMenu
 var art_studio_picker_panel: ArtStudioPicker
@@ -43,6 +42,7 @@ var _interact_prompt_label: Label
 var _prompt_tween: Tween
 var _game_menu: GameMenu
 var _menu_scene: MenuScene
+var _build_mode: BuildModeController
 var _pantry_window: PantryWindow
 var _pantry_tween: Tween
 var _curse_inventory_window: CurseInventoryWindow
@@ -206,9 +206,9 @@ func build(starting_ingredients: Dictionary) -> void:
 		_upgrade_buttons[upgrade.id] = upgrade_button
 		supply_panel.add_child(upgrade_button)
 
-	alchemy_lab_panel = AlchemyLabMenu.new()
-	alchemy_lab_panel.build()
-	alchemy_lab_panel.notice.connect(log_message)
+	_build_mode = BuildModeController.new()
+	add_child(_build_mode)
+	_build_mode.setup(self)
 
 	garden_panel = GardenMenu.new()
 	garden_panel.build()
@@ -711,16 +711,28 @@ func toggle_brew_menu(station_id: String) -> void:
 		_show_pantry()
 
 
-## Opens the Alchemy Lab menu (refreshing first) for the given manager's
-## linked Alembics/Pantries. No toggle-to-close: re-entering the interactable
-## and pressing E again just re-opens with fresh data.
-func open_alchemy_lab_menu(items: Array[Dictionary]) -> void:
-	alchemy_lab_panel.open_for(items)
-	open_menu(alchemy_lab_panel, "Alchemy Lab")
+## Build Mode delegations -- see docs/design/systems.md, system 4 (Build
+## Mode) and BuildModeController's own docstring.
+func enter_build_mode(zone_id: String) -> void:
+	_build_mode.enter(zone_id)
+
+
+func exit_build_mode() -> void:
+	_build_mode.exit()
+
+
+func is_build_mode_active() -> bool:
+	return _build_mode.active
+
+
+## MainScene's _unhandled_input dispatches here first, before its own
+## back/select handling, whenever Build Mode is active -- see main.gd.
+func handle_build_mode_input(event: InputEvent) -> void:
+	_build_mode.handle_input(event)
 
 
 ## Opens the Garden menu (refreshing first) for the given manager's linked
-## Grow Plots/Water Pumps. No toggle-to-close, same as open_alchemy_lab_menu().
+## Grow Plots/Water Pumps. No toggle-to-close.
 func open_garden_menu(items: Array[Dictionary]) -> void:
 	garden_panel.open_for(items)
 	open_menu(garden_panel, "Garden")

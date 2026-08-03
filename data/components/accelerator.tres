@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ComponentDef" format=3 uid="uid://wrhc4g4cn7x"]
+
+[ext_resource type="Script" uid="uid://csvwyob3wv0l2" path="res://scripts/data/component_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "accelerator"
+display_name = "Accelerator"
+description = "(PLACEHOLDER)"
+scene_path = "res://scenes/interactables/AcceleratorInteractable.tscn"
+category = "accelerator"
+zone_types = Array[String](["alchemy_lab"])
+materials_cost = 250
+ingredient_ids = Array[String](["abyssal_stone", "runic_core"])
+ingredient_quantities = Array[int]([5, 1])
+effect_target = "brew_speed"
+effect_amount = 0.15
