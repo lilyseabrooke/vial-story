@@ -81,6 +81,14 @@ func _grant_starting_summoning_knowledge() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Build Mode (see docs/design/systems.md, system 4) claims move_*/select/
+	# back entirely while active -- checked first so its own cursor-stepping/
+	# pick-up-place/exit handling always wins over the world-level menu-toggle/
+	# interact hotkeys below.
+	if hud.is_build_mode_active():
+		hud.handle_build_mode_input(event)
+		return
+
 	# "back"/"select" are the two GameInput actions (see
 	# scripts/autoload/game_input.gd) rather than raw keys, so a controller's
 	# B/A buttons drive the same world-level menu-toggle/interact hotkeys.

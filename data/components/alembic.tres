@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ComponentDef" format=3 uid="uid://cty5sq2m3bcib"]
+
+[ext_resource type="Script" uid="uid://csvwyob3wv0l2" path="res://scripts/data/component_def.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://cq0eebg0m0tao" path="res://assets/sprites/objects/Object_BrewStationUpscaled.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "alembic"
+display_name = "Alembic"
+description = "(PLACEHOLDER)"
+icon = ExtResource("2")
+icon_offset = Vector2(0, -48)
+scene_path = "res://scenes/interactables/BrewStationInteractable.tscn"
+footprint = Vector2i(4, 2)
+category = "alembic"
+solid = true
+zone_types = Array[String](["alchemy_lab"])
+materials_cost = 10
+ingredient_ids = Array[String](["wood", "resonance_dust"])
+ingredient_quantities = Array[int]([0, 0])

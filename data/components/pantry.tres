@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/component_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "pantry"
+display_name = "Pantry"
+description = "(PLACEHOLDER)"
+scene_path = "res://scenes/interactables/PantryInteractable.tscn"
+footprint = Vector2i(1, 1)
+category = "pantry"
+zone_types = Array[String](["alchemy_lab"])
+materials_cost = 100
+ingredient_ids = Array[String](["wood"])
+ingredient_quantities = Array[int]([20])

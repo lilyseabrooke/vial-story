@@ -90,7 +90,7 @@ func _rebuild_stored() -> void:
 	for child in _stored_list.get_children():
 		child.queue_free()
 	var any := false
-	if Inventory.get_pantry(_pantry_id) != null:
+	if Placement.get_component(_pantry_id) != null:
 		for ingredient in ContentRegistry.ingredients:
 			var tiers := Inventory.pantry_ingredient_tiers(_pantry_id, ingredient.id)
 			for tier in tiers:

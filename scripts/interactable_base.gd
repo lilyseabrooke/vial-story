@@ -13,6 +13,12 @@ extends Area2D
 signal player_entered(interactable: InteractableBase)
 signal player_exited(interactable: InteractableBase)
 
+## Physics layer 4 -- the same layer NPCInteractable/CustomerInteractable's
+## own CollisionBody already blocks the player on (see Player.tscn's
+## collision_mask = 10, i.e. layers 2+4), so making an interactable solid
+## needs no change to the player's collision setup, just opting this layer in.
+const SOLID_PHYSICS_LAYER := 8
+
 @export var target_id: String = ""
 @export var prompt_text: String = "interact"
 @export var display_name: String = ""
@@ -20,8 +26,10 @@ signal player_exited(interactable: InteractableBase)
 
 @onready var _visual: ColorRect = $Visual
 @onready var _animated_visual: AnimatedSprite2D = $AnimatedVisual
+@onready var _static_visual: Sprite2D = $StaticVisual
 @onready var _shadow: Polygon2D = $Shadow
 @onready var _label: Label = $Label
+@onready var _solid_body: StaticBody2D = $SolidBody
 
 var _using_sprite: bool = false
 var _facing: String = "Down"
@@ -54,6 +62,41 @@ func use_sprite(frames: SpriteFrames) -> void:
 	_animated_visual.sprite_frames = frames
 	_animated_visual.play("Idle" + _facing)
 	_shadow.visible = true
+
+
+## Swaps the tinted placeholder ColorRect for a static (non-animated) object
+## sprite -- e.g. a placed component's real art (ComponentDef.icon), applied
+## by RoomBuilder._spawn_component_node() whenever a def has one set. Mirrors
+## use_sprite()'s placeholder-hiding/shadow-showing behavior but through a
+## plain Sprite2D instead of an AnimatedSprite2D, since world objects (unlike
+## NPCs) have no Idle/Walking states to animate.
+##
+## `offset` (ComponentDef.icon_offset) shifts the sprite relative to this
+## node's origin, which RoomBuilder positions at the center of the
+## component's footprint -- not the center of the sprite. Art that reaches
+## up beyond its footprint (e.g. the Alembic's apparatus rising off its
+## tabletop) is taller than the footprint it occupies, so its own visual
+## center doesn't line up with the footprint's center; `offset` lets a def
+## nudge the sprite so the part that actually sits in the footprint (not the
+## overhang) is what aligns with it.
+func use_texture(texture: Texture2D, offset: Vector2 = Vector2.ZERO) -> void:
+	_visual.visible = false
+	_label.visible = false
+	_static_visual.visible = true
+	_static_visual.texture = texture
+	_static_visual.offset = offset
+	_shadow.visible = true
+
+
+## Opt-in physical blocking -- most interactables (grow plots, supply
+## shelves, etc.) are still walk-through placeholders, so this stays a no-op
+## unless a subclass/ComponentDef explicitly asks for it (ComponentDef.solid).
+## Reuses SolidBody's CollisionShape2D, which defaults to the same shape as
+## the proximity Area2D's own CollisionShape2D -- a reasonable stand-in for
+## the object's footprint -- but scenes that override the proximity shape
+## (e.g. BrewStationInteractable) should override SolidBody's shape to match.
+func set_solid(enabled: bool) -> void:
+	_solid_body.collision_layer = SOLID_PHYSICS_LAYER if enabled else 0
 
 
 ## Tints the animated sprite -- used to tell instances that all share one
