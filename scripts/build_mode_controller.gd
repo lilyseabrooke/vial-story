@@ -14,7 +14,7 @@ extends Node
 ## Four focus modes, all driven by the same six-action input schema
 ## (move_*/select/back) rather than Godot's Control-focus system (MenuKeyNav
 ## doesn't apply here -- this predates it and stays bespoke for consistency):
-##   SHELF          -- browsing the always-visible component shelf (left column)
+##   SHELF          -- browsing the always-visible component shelf (bottom bar)
 ##   GRID           -- cursor stepping on the zone grid
 ##   COMPONENT_MENU -- Upgrades/Pick Up/Return to Storage for a selected placed component
 ##   UPGRADES       -- browsing AlembicUpgradeDefs for that component
@@ -33,6 +33,17 @@ const PANEL_PADDING := 16
 ## Kept clear of the viewport edge when the detail panel's natural height
 ## would otherwise run off-screen (see _position_detail_panel()).
 const VIEWPORT_EDGE_MARGIN := 24.0
+## The shelf bar is a fixed fraction of the viewport width, centered along the
+## bottom edge -- it never grows to fit its contents. Once the slots inside
+## exceed that width the bar scrolls horizontally instead (see _build_overlay()).
+const SHELF_WIDTH_RATIO := 2.0 / 3.0
+## Gap between the shelf bar and the bottom of the viewport.
+const SHELF_BOTTOM_MARGIN := 24.0
+## Explicit height for the shelf's horizontal scrollbar. The shared theme
+## styles the scrollbar grabber but gives it no content margins, so its natural
+## minimum height is 0 -- fine for the menus that only ever scroll by keyboard,
+## but here it's the one cue that the shelf runs past the edge of the bar.
+const SHELF_SCROLLBAR_HEIGHT := 12.0
 ## Matches FramedPanel's StyleBoxTexture (assets/ui/StyleBoxTexture_WoodFrameLightInterior.tres)
 ## texture_margin on every side -- the 9-patch frame's own border thickness,
 ## added on top of PANEL_PADDING. Computed manually rather than trusted from
@@ -61,6 +72,22 @@ var held_id: String = ""
 
 var _mode: Mode = Mode.SHELF
 var _shelf_index: int = 0
+## Anchor cell of the most recent successful placement, or (-1, -1) before the
+## first one this session. Where the cursor picks up again when the next
+## component is grabbed off the shelf, so building a cluster doesn't mean
+## walking back across the grid after every piece.
+var _last_placed_cell: Vector2i = Vector2i(-1, -1)
+## Whether the carried component came off the shelf bar (a grab/purchase) or
+## off the grid ("Pick Up"). Placing a shelf-sourced one completes a "fetch a
+## thing and put it down" round trip, so the cursor returns to the bar ready
+## for the next fetch; placing a picked-up one is the back half of a rearrange,
+## where the player is working on the grid and should stay there.
+var _held_from_shelf: bool = false
+## Column the cursor last stepped off the grid from, so coming back up out of
+## the shelf bar resumes there instead of snapping to the left edge -- the
+## vertical wrap reads as one continuous move off the top (or bottom) edge and
+## back in at the other, rather than a jump sideways.
+var _grid_exit_column: int = 0
 var _component_menu_index: int = 0
 var _upgrades_index: int = 0
 var _menu_component_id: String = ""   # which placed component COMPONENT_MENU/UPGRADES act on
@@ -68,7 +95,9 @@ var _menu_component_id: String = ""   # which placed component COMPONENT_MENU/UP
 var _zone: PlacementZone
 var _cursor: BuildCursor
 var _overlay: CanvasLayer
-var _shelf_list: GridContainer
+var _shelf_panel: PanelContainer
+var _shelf_scroll: ScrollContainer
+var _shelf_list: HBoxContainer
 var _detail_panel: PanelContainer
 var _detail_scroll: ScrollContainer
 var _detail_box: VBoxContainer
@@ -92,7 +121,10 @@ func enter(target_zone_id: String) -> void:
 	_mode = Mode.SHELF
 	_shelf_index = 0
 	cursor_cell = Vector2i(0, 0)
+	_last_placed_cell = Vector2i(-1, -1)
 	held_id = ""
+	_held_from_shelf = false
+	_grid_exit_column = 0
 	Clock.is_paused = true
 	_spawn_cursor()
 	_build_overlay()
@@ -105,6 +137,7 @@ func exit() -> void:
 		return
 	active = false
 	held_id = ""
+	_held_from_shelf = false
 	if _zone != null:
 		_zone.set_grid_visible(false)
 	Clock.is_paused = false
@@ -216,6 +249,13 @@ func _on_select() -> void:
 
 func _on_back() -> void:
 	match _mode:
+		Mode.GRID when held_id != "":
+			# Cancels the carry rather than leaving Build Mode. A held
+			# component is already sitting in storage (purchase_component()
+			# creates it unplaced, and "Pick Up" stores it before handing the
+			# id over), so dropping the id here *is* returning it to storage.
+			held_id = ""
+			_held_from_shelf = false
 		Mode.SHELF, Mode.GRID:
 			exit()
 			return
@@ -234,7 +274,8 @@ func _update_cursor_position() -> void:
 		_cursor.visible = true
 		var def := _held_def()
 		var footprint := def.footprint if def != null else Vector2i(1, 1)
-		_cursor.set_cell_size(_zone.cell_size * Vector2(footprint))
+		_cursor.set_cell_size(_zone.cell_size)
+		_cursor.set_footprint(footprint, _blocked_offsets())
 		_cursor.global_position = _zone.cell_to_world(cursor_cell, footprint)
 		# Same icon/icon_offset convention RoomBuilder feeds the real placed
 		# sprite -- the cursor's origin is centered on the footprint the same
@@ -252,6 +293,20 @@ func _update_cursor_position() -> void:
 		_cursor.visible = false
 
 
+## Which cells under the cursor would refuse the carried component, as offsets
+## from its anchor cell -- asked of Placement rather than re-derived here, so
+## the red squares can't disagree with what place_component() will actually
+## allow. Empty while carrying nothing: an occupied cell isn't an obstacle
+## then, it's the thing `select` opens a menu for.
+func _blocked_offsets() -> Array[Vector2i]:
+	var offsets: Array[Vector2i] = []
+	if held_id == "":
+		return offsets
+	for cell in Placement.blocking_cells(held_id, zone_id, cursor_cell):
+		offsets.append(cell - cursor_cell)
+	return offsets
+
+
 ## The ComponentDef of whatever's currently being carried, or null while
 ## just browsing/carrying nothing.
 func _held_def() -> ComponentDef:
@@ -265,16 +320,57 @@ func _held_def() -> ComponentDef:
 # SHELF
 # ---------------------------------------------------------------------------
 
+## The shelf runs along the bottom of the screen, so left/right walk it and
+## up steps off it into the grid -- entering at the grid's bottom row, the
+## edge the cursor just came from.
 func _move_shelf(delta: Vector2i) -> void:
-	if delta == Vector2i(1, 0):
+	if delta == Vector2i(0, -1):
 		_mode = Mode.GRID
-		cursor_cell = Vector2i(0, 0)
+		cursor_cell = _grid_entry_cell()
 		return
-	if delta.y != 0:
+	if delta.x != 0:
 		var defs := _zone_defs()
 		if defs.is_empty():
 			return
-		_shelf_index = clampi(_shelf_index + delta.y, 0, defs.size() - 1)
+		_shelf_index = clampi(_shelf_index + delta.x, 0, defs.size() - 1)
+
+
+## Where the cursor arrives when it steps up off the shelf bar: the bottom row
+## (the edge nearest the bar), in the column it left the grid from -- so
+## stepping off the top edge and pressing up again lands directly below where
+## it started, completing the wrap. Clamped so whatever's being carried fits.
+func _grid_entry_cell() -> Vector2i:
+	return _clamp_to_grid(Vector2i(_grid_exit_column, Placement.get_zone(zone_id).get("rows", 1)))
+
+
+## Where the cursor lands when a component is grabbed off the shelf: on top of
+## the last thing placed this session, so placing a run of components doesn't
+## restart from the corner each time. Falls back to _grid_entry_cell() before
+## anything has been placed.
+func _carry_entry_cell() -> Vector2i:
+	if _last_placed_cell.x < 0:
+		return _grid_entry_cell()
+	return _clamp_to_grid(_last_placed_cell)
+
+
+## Pins an anchor cell inside the range the carried footprint can legally
+## occupy -- a 4x2 Alembic's anchor has to stop short of the right/bottom edges
+## so its far corner stays on the grid.
+func _clamp_to_grid(cell: Vector2i) -> Vector2i:
+	var bound := _anchor_bound()
+	return Vector2i(clampi(cell.x, 0, bound.x), clampi(cell.y, 0, bound.y))
+
+
+## Largest anchor cell the carried footprint (1x1 while carrying nothing) can
+## sit at without spilling off the grid.
+func _anchor_bound() -> Vector2i:
+	var zone_data := Placement.get_zone(zone_id)
+	var carried_def := _held_def()
+	var footprint := carried_def.footprint if carried_def != null else Vector2i(1, 1)
+	return Vector2i(
+		maxi(0, int(zone_data.get("cols", 1)) - footprint.x),
+		maxi(0, int(zone_data.get("rows", 1)) - footprint.y)
+	)
 
 
 ## Selecting a shelf entry grabs an existing stored instance if the player
@@ -289,14 +385,16 @@ func _select_shelf() -> void:
 	var existing := _first_storage_instance_for_def(def.id)
 	if existing != null:
 		held_id = existing.id
+		_held_from_shelf = true
 		_mode = Mode.GRID
-		cursor_cell = Vector2i(0, 0)
+		cursor_cell = _carry_entry_cell()
 		return
 	var result := Placement.purchase_component(zone_id, def.id)
 	if result.error == "":
 		held_id = result.id
+		_held_from_shelf = true
 		_mode = Mode.GRID
-		cursor_cell = Vector2i(0, 0)
+		cursor_cell = _carry_entry_cell()
 		hud.log_message("Purchased %s." % def.display_name)
 
 
@@ -304,23 +402,30 @@ func _select_shelf() -> void:
 # GRID
 # ---------------------------------------------------------------------------
 
+## Movement wraps rather than stopping at the edges, always within the range
+## the carried footprint can legally anchor at (a 4x2 Alembic's cursor never
+## wanders with its far edge hanging off the grid -- place_component() would
+## refuse that, so the cursor shouldn't be able to get there in the first
+## place). Vertically the shelf bar is part of the cycle: stepping off the top
+## or bottom row lands on it, since it's docked below the grid on screen. The
+## exception is while carrying something, when the grid is the only place the
+## cursor can usefully be -- vertical steps then wrap inside it, and `back` is
+## how the player puts the component down instead.
 func _move_grid(delta: Vector2i) -> void:
-	var zone_data := Placement.get_zone(zone_id)
-	var cols: int = zone_data.get("cols", 1)
-	var rows: int = zone_data.get("rows", 1)
-	if delta == Vector2i(-1, 0) and cursor_cell.x == 0:
-		_mode = Mode.SHELF
+	var bound := _anchor_bound()
+	if delta.x != 0:
+		cursor_cell.x = wrapi(cursor_cell.x + delta.x, 0, bound.x + 1)
 		return
-	# Clamped so the cursor's anchor cell can never sit somewhere the carried
-	# item's own footprint would spill off the grid -- without this, only the
-	# anchor cell itself was bounds-checked, letting a 4x2 Alembic's cursor
-	# wander with its far edge hanging off the edge (place_component would
-	# then correctly refuse it, but the cursor shouldn't be able to get there
-	# in the first place).
-	var carried_def := _held_def()
-	var footprint := carried_def.footprint if carried_def != null else Vector2i(1, 1)
-	cursor_cell.x = clampi(cursor_cell.x + delta.x, 0, maxi(0, cols - footprint.x))
-	cursor_cell.y = clampi(cursor_cell.y + delta.y, 0, maxi(0, rows - footprint.y))
+	if delta.y == 0:
+		return
+	var next_y := cursor_cell.y + delta.y
+	if next_y >= 0 and next_y <= bound.y:
+		cursor_cell.y = next_y
+	elif held_id != "":
+		cursor_cell.y = wrapi(next_y, 0, bound.y + 1)
+	else:
+		_grid_exit_column = cursor_cell.x
+		_mode = Mode.SHELF
 
 
 ## An occupied cell opens the per-component menu instead of picking up
@@ -335,6 +440,14 @@ func _select_grid() -> void:
 		var err := Placement.place_component(held_id, zone_id, cursor_cell)
 		if err == "":
 			held_id = ""
+			# Remembered whichever way this component arrived, so the next
+			# shelf grab starts its carry here rather than back at the corner
+			# (see _carry_entry_cell()). Where the cursor itself goes depends
+			# on where the component came from -- see _held_from_shelf.
+			_last_placed_cell = cursor_cell
+			if _held_from_shelf:
+				_mode = Mode.SHELF
+			_held_from_shelf = false
 		else:
 			hud.log_message(err)
 	elif occupant != null and held_id != "":
@@ -452,24 +565,48 @@ func _build_overlay() -> void:
 	_overlay.layer = 9
 	add_child(_overlay)
 
-	_shelf_list = GridContainer.new()
-	_shelf_list.columns = 1
-
-	var shelf_panel := PanelContainer.new()
-	shelf_panel.theme_type_variation = &"FramedPanel"
-	shelf_panel.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	shelf_panel.grow_horizontal = Control.GROW_DIRECTION_END
-	shelf_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	shelf_panel.position.x = 20
-	_overlay.add_child(shelf_panel)
-	UiFx.add_drop_shadow(shelf_panel)
+	# Bottom bar, pinned to a fixed SHELF_WIDTH_RATIO of the viewport: both
+	# horizontal anchors are set (so the width is purely a fraction of the
+	# screen, never content-driven), while the vertical pair collapses to the
+	# bottom edge and grows upward to whatever the tallest slot needs.
+	_shelf_panel = PanelContainer.new()
+	_shelf_panel.theme_type_variation = &"FramedPanel"
+	_shelf_panel.anchor_left = (1.0 - SHELF_WIDTH_RATIO) * 0.5
+	_shelf_panel.anchor_right = 1.0 - (1.0 - SHELF_WIDTH_RATIO) * 0.5
+	_shelf_panel.anchor_top = 1.0
+	_shelf_panel.anchor_bottom = 1.0
+	_shelf_panel.offset_top = -SHELF_BOTTOM_MARGIN
+	_shelf_panel.offset_bottom = -SHELF_BOTTOM_MARGIN
+	_shelf_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_shelf_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_overlay.add_child(_shelf_panel)
+	UiFx.add_drop_shadow(_shelf_panel)
 
 	var shelf_margin := _make_padding_margin()
-	shelf_panel.add_child(shelf_margin)
+	_shelf_panel.add_child(shelf_margin)
 
-	var shelf_vbox := VBoxContainer.new()
-	shelf_margin.add_child(shelf_vbox)
-	shelf_vbox.add_child(_shelf_list)
+	# A horizontally-scrolling ScrollContainer reports a near-zero minimum
+	# width, which is what lets the bar keep its fixed fraction of the screen
+	# instead of being widened by a shelf full of components; the vertical axis
+	# is disabled so the bar still sizes itself to the tallest slot.
+	_shelf_scroll = ScrollContainer.new()
+	_shelf_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_shelf_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	shelf_margin.add_child(_shelf_scroll)
+	_shelf_scroll.get_h_scroll_bar().custom_minimum_size.y = SHELF_SCROLLBAR_HEIGHT
+
+	# The h-scrollbar is drawn *inside* the ScrollContainer's rect without the
+	# container reserving any height for it, so it would sit on top of the
+	# bottom edge of the (bottom-aligned) slot art once the shelf overflows.
+	# A strip of dead space under the row keeps the two apart -- reserved
+	# unconditionally so the bar doesn't change height the moment a shelf grows
+	# past the width.
+	var scroll_gutter := MarginContainer.new()
+	scroll_gutter.add_theme_constant_override("margin_bottom", int(SHELF_SCROLLBAR_HEIGHT))
+	_shelf_scroll.add_child(scroll_gutter)
+
+	_shelf_list = HBoxContainer.new()
+	scroll_gutter.add_child(_shelf_list)
 
 	# Anchored top-left rather than centered -- once a per-component menu is
 	# open, its position is recomputed every refresh to sit near the cursor
@@ -520,9 +657,37 @@ func _refresh_shelf() -> void:
 	for i in defs.size():
 		var def := defs[i]
 		var slot: ItemSlot = ITEM_SLOT_SCENE.instantiate()
+		# SHRINK_END rather than the default FILL: each slot keeps its own
+		# art-derived height instead of being stretched to the tallest one, so
+		# mismatched components sit on a shared baseline along the bar.
+		slot.size_flags_vertical = Control.SIZE_SHRINK_END
 		_shelf_list.add_child(slot)
-		slot.populate_item(def.display_name, "", "", _storage_count_for_def(def.id), Color.WHITE, def.icon, def.description, true)
+		# Component art is shown at its real pixel size here (unlike the
+		# Satchel's uniform 48x48 thumbnails) -- these are the same sprites the
+		# player is about to see standing in the room. Trimmed to its opaque
+		# bounds first (see IconTrim): the world texture's transparent padding
+		# is positioning data, and left in it would both inflate the slot and
+		# leave the art slouched against the bottom of it. Defs with no art yet
+		# fall back to the default slot size and its placeholder dot.
+		var art := IconTrim.trimmed(def.icon)
+		if art != null:
+			slot.fit_to_icon(art.get_size())
+		slot.populate_item(def.display_name, "", "", _storage_count_for_def(def.id), Color.WHITE, art, def.description, true)
 		slot.self_modulate = SHELF_HIGHLIGHT_TINT if (_mode == Mode.SHELF and i == _shelf_index) else SHELF_NORMAL_TINT
+	_scroll_selection_into_view.call_deferred()
+
+
+## Keeps the focused slot on-screen as the selection walks past either end of
+## the fixed-width bar. Deferred by its caller -- the slots were only just
+## added, so their rects are still stale until the next layout pass.
+func _scroll_selection_into_view() -> void:
+	if _shelf_scroll == null or not is_instance_valid(_shelf_scroll):
+		return
+	if _shelf_index < 0 or _shelf_index >= _shelf_list.get_child_count():
+		return
+	var slot := _shelf_list.get_child(_shelf_index)
+	if slot is Control:
+		_shelf_scroll.ensure_control_visible(slot)
 
 
 func _refresh_detail() -> void:
@@ -565,9 +730,9 @@ func _sum_visible_children_height(container: Container) -> float:
 	return total
 
 
-## SHELF docks to the left, vertically centered, same spot it's always been.
-## COMPONENT_MENU/UPGRADES instead pop out near the grid cursor -- down/right
-## by default, flipped to stay on-screen.
+## SHELF pops the detail panel up above the bottom bar, horizontally centered
+## on the focused slot. COMPONENT_MENU/UPGRADES instead pop out near the grid
+## cursor -- down/right by default, flipped to stay on-screen.
 func _position_detail_panel() -> void:
 	if _detail_panel == null or not is_instance_valid(_detail_panel):
 		return
@@ -579,9 +744,16 @@ func _position_detail_panel() -> void:
 	# Cap the scroll area to whatever actually fits on screen (leaving room
 	# for the panel's own frame/padding and a small edge margin) -- content
 	# shorter than that sizes naturally; content taller scrolls instead of
-	# pushing the panel off-screen.
+	# pushing the panel off-screen. In SHELF mode "on screen" means the space
+	# above the bar, not the whole viewport.
+	# `position.y > 0` also gates on the bar having been laid out at all -- on
+	# the very first refresh after _build_overlay() it hasn't, and the deferred
+	# second call in _refresh_detail() is what lands it in the right place.
+	var available_height := viewport_size.y
+	if _mode == Mode.SHELF and _shelf_panel != null and _shelf_panel.position.y > 0.0:
+		available_height = _shelf_panel.position.y - COMPONENT_MENU_OFFSET.y
 	var natural_content_height := _sum_visible_children_height(_detail_box)
-	var max_scroll_height := maxf(100.0, viewport_size.y - VIEWPORT_EDGE_MARGIN * 2.0 - PANEL_PADDING * 2.0 - FRAME_TEXTURE_MARGIN * 2.0)
+	var max_scroll_height := maxf(100.0, available_height - VIEWPORT_EDGE_MARGIN * 2.0 - PANEL_PADDING * 2.0 - FRAME_TEXTURE_MARGIN * 2.0)
 	var content_height := minf(natural_content_height, max_scroll_height)
 	_detail_scroll.custom_minimum_size.y = content_height
 
@@ -594,7 +766,15 @@ func _position_detail_panel() -> void:
 	)
 
 	if _mode == Mode.SHELF:
-		_detail_panel.position = Vector2(140.0, (viewport_size.y - panel_size.y) * 0.5)
+		var slot_center_x := viewport_size.x * 0.5
+		if _shelf_index >= 0 and _shelf_index < _shelf_list.get_child_count():
+			var slot := _shelf_list.get_child(_shelf_index)
+			if slot is Control:
+				slot_center_x = slot.get_global_rect().get_center().x
+		_detail_panel.position = Vector2(
+			clampf(slot_center_x - panel_size.x * 0.5, VIEWPORT_EDGE_MARGIN, maxf(VIEWPORT_EDGE_MARGIN, viewport_size.x - panel_size.x - VIEWPORT_EDGE_MARGIN)),
+			maxf(VIEWPORT_EDGE_MARGIN, available_height - panel_size.y)
+		)
 		return
 	if _cursor == null:
 		return

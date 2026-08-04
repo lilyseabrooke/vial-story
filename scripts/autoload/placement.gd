@@ -141,10 +141,35 @@ func purchase_component(zone_id: String, def_id: String) -> Dictionary:
 	return {"id": instance.id, "error": ""}
 
 
-## Returns "" on success, or a short reason string on failure. Checks every
-## cell the component's ComponentDef.footprint would occupy (anchored at
-## `cell`), not just `cell` itself -- a 2x1 Alembic placed at (0,0) needs
-## (0,0) *and* (1,0) both in-bounds and empty.
+func _is_outside(zone: Dictionary, cell: Vector2i) -> bool:
+	return cell.x < 0 or cell.y < 0 or cell.x >= int(zone.cols) or cell.y >= int(zone.rows)
+
+
+## Every cell of `component_id`'s footprint (anchored at `cell`) that would
+## stop it being placed there -- off the grid, or already taken by a *different*
+## component. An empty result means the placement is legal, so this is the one
+## authority on that question: place_component() refuses exactly when this is
+## non-empty, and Build Mode's cursor tints exactly these cells red, which
+## keeps the preview from drifting away from the rule it previews. Checks the
+## whole footprint, not just `cell` itself -- a 2x1 Alembic placed at (0,0)
+## needs (0,0) *and* (1,0) both in-bounds and empty.
+func blocking_cells(component_id: String, zone_id: String, cell: Vector2i) -> Array[Vector2i]:
+	var blocked: Array[Vector2i] = []
+	var instance := get_component(component_id)
+	var zone: Dictionary = zones.get(zone_id, {})
+	if instance == null or zone.is_empty():
+		return blocked
+	for target_cell in cells_for(cell, _footprint_for(instance)):
+		if _is_outside(zone, target_cell):
+			blocked.append(target_cell)
+			continue
+		var occupant := get_component_at(zone_id, target_cell)
+		if occupant != null and occupant.id != component_id:
+			blocked.append(target_cell)
+	return blocked
+
+
+## Returns "" on success, or a short reason string on failure.
 func place_component(component_id: String, zone_id: String, cell: Vector2i) -> String:
 	var instance := get_component(component_id)
 	if instance == null:
@@ -152,12 +177,9 @@ func place_component(component_id: String, zone_id: String, cell: Vector2i) -> S
 	var zone: Dictionary = zones.get(zone_id, {})
 	if zone.is_empty():
 		return "No such zone."
-	var footprint := _footprint_for(instance)
-	for target_cell in cells_for(cell, footprint):
-		if target_cell.x < 0 or target_cell.y < 0 or target_cell.x >= int(zone.cols) or target_cell.y >= int(zone.rows):
-			return "Out of bounds."
-		if get_component_at(zone_id, target_cell) != null:
-			return "Cell is occupied."
+	var blocked := blocking_cells(component_id, zone_id, cell)
+	if not blocked.is_empty():
+		return "Out of bounds." if _is_outside(zone, blocked[0]) else "Cell is occupied."
 	instance.zone_id = zone_id
 	instance.grid_position = cell
 	instance.placed = true
