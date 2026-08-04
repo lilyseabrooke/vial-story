@@ -19,9 +19,35 @@ const BADGE_OUTLINE_SIZE := 6
 ## with the window and the pinned Icon overflowed its shrunken bounds.
 const NATIVE_SIZE := Vector2(72, 72)
 
+## Quantization step for fit_to_icon() — a slot sized to its own art snaps out
+## to a whole number of these blocks rather than hugging the sprite exactly, so
+## a row of mismatched art still reads as a tidy, aligned set of cells.
+const SIZE_BLOCK := 24.0
+
 
 func _ready() -> void:
 	WindowScale.pin_size(self, NATIVE_SIZE)
+
+
+## Sizes this slot to one specific icon instead of the uniform NATIVE_SIZE
+## grid: the icon renders 1:1 at `icon_size` (no downscale into the 48x48
+## default), and the panel around it grows to the next whole SIZE_BLOCK on
+## each axis past the art plus this panel's frame -- so the art ends up
+## centered inside at most one block of slack. Used by Build Mode's shelf,
+## where component art is the point and the sprites differ in size; the
+## ordinary grids (Satchel, Shop) leave every slot at NATIVE_SIZE. Pass the
+## size of whatever texture is actually being displayed -- callers showing
+## world sprites want IconTrim.trimmed()'s size, not the raw texture's.
+## Call after the slot is in the tree — the frame thickness is read from the
+## live theme, and the pin needs a window.
+func fit_to_icon(icon_size: Vector2) -> void:
+	var frame: Vector2 = get_theme_stylebox("panel").get_minimum_size()
+	var slot_size := Vector2(
+		ceilf((icon_size.x + frame.x) / SIZE_BLOCK),
+		ceilf((icon_size.y + frame.y) / SIZE_BLOCK)
+	) * SIZE_BLOCK
+	WindowScale.pin_size(self, slot_size)
+	WindowScale.pin_size($Overlay/VBox/Icon, icon_size)
 
 ## Shop-tab display: icon only, price as a corner badge, and the potion name
 ## surfaced via hover tooltip — the same icon-first pattern as populate_item()

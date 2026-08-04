@@ -432,7 +432,11 @@ BrewJob
   atomic step (mirroring `RecipeDef`'s `has_ingredients_for`/
   `consume_ingredients_for` idiom) and creates a new **unplaced** instance
   (sitting in storage); `place_component`/`store_component` move it on/off the
-  grid; `adjacency_bonus(component_id, effect_target)` sums `effect_amount`
+  grid — `place_component` refuses exactly when
+  `blocking_cells(component_id, zone_id, cell)` returns anything, the single
+  authority on "would this footprint fit here" that Build Mode's cursor also
+  tints its red squares from, so a preview can never disagree with the rule;
+  `adjacency_bonus(component_id, effect_target)` sums `effect_amount`
   across every orthogonally-adjacent (not diagonal) placed component sharing
   that `effect_target`, queried live off current grid state rather than baked
   into a stored field, so rearranging always takes effect on the very next
@@ -464,25 +468,59 @@ BrewJob
   (`GameInput`) rather than Godot's `Control`-focus system — no new bindings,
   and `MenuKeyNav` doesn't apply here (this predates it and stays bespoke):
   - **SHELF** (the default on entry — the cursor starts here, not the grid):
-    an always-visible left-column shelf, one `ItemSlot` row per `ComponentDef`
-    valid for this zone's `zone_type` (today: Alembic, Pantry, Accelerator —
-    all three), badge = how many of that def sit in zone storage, showing
-    "+" instead of "0" when the player owns none yet
+    an always-visible bar along the bottom of the screen, one `ItemSlot` per
+    `ComponentDef` valid for this zone's `zone_type` (today: Alembic, Pantry,
+    Accelerator — all three), badge = how many of that def sit in zone storage,
+    showing "+" instead of "0" when the player owns none yet
     (`ItemSlot.populate_item(..., zero_as_plus = true)`, a small addition to
-    the same component the Satchel uses). up/down move focus; a side detail
-    popup shows the focused def's name, `description` (`ComponentDef` field,
-    "(PLACEHOLDER)" for all three today), owned count, and cost breakdown.
-    `select`: owns ≥1 in storage → grab one and start carrying it (enters
-    GRID); owns 0 → attempt `Placement.purchase_component()`, carrying the
-    new instance on success or doing **nothing at all** (no message) if the
-    player can't afford it; `right` also enters GRID; `back` exits Build Mode.
-  - **GRID**: a `BuildCursor` steps cell-by-cell; `left` off column 0 returns
-    to SHELF. `select` on an empty cell while carrying something places it;
-    on an occupied cell while carrying nothing, opens **COMPONENT_MENU** for
-    that component instead of picking it up immediately; on an occupied cell
-    while carrying something, refuses ("cell is occupied"). `back` exits
-    Build Mode, returning anything currently held to storage (holding only
-    ever happens right after a SHELF grab/purchase, so this is rare).
+    the same component the Satchel uses). Each slot shows its component's art
+    at full pixel size rather than the Satchel's uniform 48x48 thumbnail,
+    cropped to its opaque bounds first (`IconTrim.trimmed()` — world textures
+    carry a band of transparency above the art as positioning data, which would
+    otherwise inflate the slot and leave the sprite slumped at the bottom of
+    it), with the slot around it snapped out to the next whole 24px block past
+    the art plus its frame (`ItemSlot.fit_to_icon()`) and the art centered in
+    the remaining slack. Slots sit on a shared bottom baseline so mismatched
+    sprite heights still line up. The bar itself
+    is a fixed 2/3 of the viewport width, centered — once the slots overrun
+    that width it scrolls horizontally (auto-scrolling to keep the focused slot
+    on screen) instead of widening. left/right move focus; a detail popup above
+    the bar, centered on the focused slot, shows its name, `description`
+    (`ComponentDef` field, "(PLACEHOLDER)" for all three today), owned count,
+    and cost breakdown. `select`: owns ≥1 in storage → grab one and start
+    carrying it (enters GRID); owns 0 → attempt
+    `Placement.purchase_component()`, carrying the new instance on success or
+    doing **nothing at all** (no message) if the player can't afford it. Either
+    way the carry starts on top of the last cell placed this session (falling
+    back to the bottom-left before the first placement), so building a cluster
+    doesn't mean walking back across the grid after every piece. `up` enters
+    GRID carrying nothing; `back` exits Build Mode.
+  - **GRID**: a `BuildCursor` steps cell-by-cell within the range the carried
+    footprint can legally anchor at, and **wraps** at every edge rather than
+    stopping: left/right wrap around the columns, and vertically the shelf bar
+    is part of the cycle — stepping off the top *or* bottom row lands on it,
+    since it's docked below the grid on screen, and `up` from the bar comes
+    back in at the bottom row **of the column the cursor left from**, so the
+    whole thing reads as one continuous move off one edge and back in at the
+    other rather than a jump sideways to the corner. While carrying something, vertical steps wrap
+    inside the grid instead (the grid is the only place the cursor can usefully
+    be, and `back` is the way to put the component down). `select` on an empty
+    cell while carrying something places it — returning to SHELF ready for the
+    next piece if it came off the shelf (a "fetch a thing and put it down"
+    round trip), or staying put on the grid if it came off the grid via "Pick
+    Up" (the back half of a rearrange, where the player is working on the grid
+    and should stay there); on an occupied cell while carrying nothing, opens
+    **COMPONENT_MENU** for that component instead of picking it up
+    immediately; on an occupied cell while carrying something, refuses ("cell
+    is occupied"). `back` while carrying cancels the carry and stays in Build
+    Mode — a held component is already in storage (`purchase_component()`
+    creates it unplaced, and "Pick Up" stores it before handing the id over),
+    so dropping the carry *is* returning it to storage; `back` carrying
+    nothing exits Build Mode.
+  - The cursor highlights each cell of the carried footprint separately, red
+    for any cell that would refuse the placement. Those cells come from
+    `Placement.blocking_cells()` — the same call `place_component()` refuses
+    on — so the preview can't drift away from the rule it previews.
   - **COMPONENT_MENU**: a row list — "Upgrades" (Alembics only), "Pick Up"
     (same busy-mid-`BrewJob` refusal as before, otherwise
     `Placement.store_component()` + start carrying it, back to GRID), "Return
