@@ -2,6 +2,13 @@
 
 This doc covers four things: verifying your local setup, day-to-day Git habits inside Godot, how to playtest the latest pushed build, and what PRs/merges look like on this project.
 
+> **Current phase: commit straight to `main`.** The project is still building out its
+> structure, and nearly every change touches systems nobody else is working on in parallel,
+> so branch-per-feature buys review overhead without buying isolation. Work on `main` and
+> push, unless a specific piece of work is explicitly called out as needing a branch (see
+> section 4, which is the flow to use when it is, and the flow to return to once the
+> project has real parallel work or outside contributors).
+
 ## 1. Verify your local setup
 
 1. Clone the repo (or pull, if you already cloned it):
@@ -53,7 +60,13 @@ Then reopen/re-import in Godot and play as above. Switch back with `git checkout
 
 ## 4. Branches, PRs, and merges
 
-Suggested flow once real work starts:
+**Not the default right now** — see the note at the top of this doc. Reach for this when a
+piece of work is explicitly meant to be branched (something experimental you may throw away,
+something you want to review as a unit before it lands, or anything being built in parallel
+with other work), and treat it as the flow the project graduates to once that's the norm
+rather than the exception.
+
+The flow, when you do use it:
 
 1. **Branch per feature/fix**, off `main`:
    ```
