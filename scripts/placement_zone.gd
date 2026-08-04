@@ -23,6 +23,14 @@ var show_grid: bool = false
 func _ready() -> void:
 	add_to_group("placement_zones")
 	Placement.register_zone(zone_id, zone_type, cols, rows, cell_size, global_position)
+	# Without this, the whole zone (and every component placed inside it) is
+	# one atomic unit for the room's y-sorted "Interactables" container --
+	# sorted only by the zone's own static origin, not by each placed
+	# component's position. That let a placed component draw in front of the
+	# player regardless of where she actually stood. Enabling y-sort here too
+	# lets it propagate: each component now sorts against the player
+	# dynamically, by its own position, same as any other Interactable.
+	y_sort_enabled = true
 
 
 ## `footprint` centers the returned position over the footprint's full

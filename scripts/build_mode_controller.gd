@@ -241,7 +241,13 @@ func _update_cursor_position() -> void:
 		# way a placed node's is, so the preview lines up identically with
 		# where the real thing will land. null (nothing carried, or the def
 		# has no art yet) just hides it, leaving the highlighted squares.
-		_cursor.set_icon(def.icon if def != null else null, def.icon_offset if def != null else Vector2.ZERO)
+		# icon_offset is additionally nudged by sort_offset_y here (rather
+		# than moving the whole cursor node, which would drag the highlighted
+		# squares off the grid with it) -- RoomBuilder bakes that same nudge
+		# into the real placed node's spawn *position*, so the icon alone
+		# needs the equivalent shift to preview in the same spot.
+		var icon_offset := (def.icon_offset + Vector2(0, def.sort_offset_y)) if def != null else Vector2.ZERO
+		_cursor.set_icon(def.icon if def != null else null, icon_offset)
 	else:
 		_cursor.visible = false
 

@@ -1,17 +1,22 @@
 [gd_resource type="Resource" script_class="ComponentDef" format=3 uid="uid://wrhc4g4cn7x"]
 
 [ext_resource type="Script" uid="uid://csvwyob3wv0l2" path="res://scripts/data/component_def.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://cixt6tf214jdn" path="res://assets/sprites/objects/Object_Accelerator.png" id="2"]
 
 [resource]
 script = ExtResource("1")
 id = "accelerator"
 display_name = "Accelerator"
 description = "(PLACEHOLDER)"
+icon = ExtResource("2")
+icon_offset = Vector2(0, 2)
+sort_offset_y = -30.0
 scene_path = "res://scenes/interactables/AcceleratorInteractable.tscn"
 category = "accelerator"
+solid = true
 zone_types = Array[String](["alchemy_lab"])
-materials_cost = 250
+materials_cost = 20
 ingredient_ids = Array[String](["abyssal_stone", "runic_core"])
-ingredient_quantities = Array[int]([5, 1])
+ingredient_quantities = Array[int]([0, 0])
 effect_target = "brew_speed"
 effect_amount = 0.15

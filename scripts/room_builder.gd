@@ -495,7 +495,7 @@ func _spawn_component_node(component_id: String, zone_id: String, grid_position:
 	interactable.display_name = def.display_name
 	interactable.prompt_text = _prompt_for_category(def.category)
 	interactable.visual_color = _visual_color_for_category(def.category)
-	interactable.position = zone_node.cell_to_local(grid_position, def.footprint)
+	interactable.position = zone_node.cell_to_local(grid_position, def.footprint) + Vector2(0, def.sort_offset_y)
 	if def.icon == null:
 		# Placeholder-art scaling: stretches the whole node (visual, collision
 		# shape, label) proportionally to its footprint, same padding ratio a

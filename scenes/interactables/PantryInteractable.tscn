@@ -1,7 +1,23 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://bmqfhxxl60c1w"]
 
 [ext_resource type="PackedScene" path="res://scenes/interactables/InteractableBase.tscn" id="1"]
-[ext_resource type="Script" path="res://scripts/pantry_interactable.gd" id="2"]
+[ext_resource type="Script" uid="uid://ftgatxs1tpsm" path="res://scripts/pantry_interactable.gd" id="2"]
 
-[node name="PantryInteractable" instance=ExtResource("1")]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pantry"]
+size = Vector2(64, 40.5)
+
+[node name="PantryInteractable" unique_id=149165566 instance=ExtResource("1")]
 script = ExtResource("2")
+
+[node name="Shadow" parent="." index="1"]
+visible = true
+position = Vector2(3.5527137e-15, 49)
+scale = Vector2(2.9545455, 1.7500002)
+
+[node name="CollisionShape2D" parent="." index="5"]
+position = Vector2(0, 32)
+shape = SubResource("RectangleShape2D_pantry")
+
+[node name="CollisionShape2D" parent="SolidBody" index="0"]
+position = Vector2(0, 33.75)
+shape = SubResource("RectangleShape2D_pantry")

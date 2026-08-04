@@ -26,6 +26,17 @@ extends Resource
 ## InteractableBase.use_texture(). Only needed when the art reaches beyond
 ## its own footprint (art centered on its footprint leaves this zero).
 @export var icon_offset: Vector2 = Vector2.ZERO
+## Nudges the world node's y-sort key (RoomBuilder adds this to the spawn
+## position) without moving its collision/visuals -- InteractableBase's
+## collision-shape/icon-offset exports stay relative to the *unshifted*
+## origin, so a nonzero value here must be paired with re-tuning those by the
+## same amount in the opposite direction to keep everything visually in
+## place. Only needed for a footprint shallow enough that the player's own
+## collision reach (her CollisionShape2D sits ~48px below her root -- see
+## Player.tscn) can out-reach the component's own root-to-collision-edge
+## distance, which flips their y-sort order right at contact. A component
+## whose footprint is >= 2 cells deep (e.g. the Alembic) doesn't need this.
+@export var sort_offset_y: float = 0.0
 ## A path rather than a PackedScene export -- a Resource loaded eagerly by
 ## ContentRegistry._ready() shouldn't also eagerly resolve a nested scene
 ## dependency at parse time; RoomBuilder loads this lazily instead, only when
